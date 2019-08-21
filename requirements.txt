@@ -1,0 +1,12 @@
+numpy
+pandas
+dask
+pyarrow
+tqdm
+click
+pytest
+pytest-cov
+flask
+somajo
+gensim
+annoy
