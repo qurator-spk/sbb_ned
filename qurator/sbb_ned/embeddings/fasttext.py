@@ -18,9 +18,14 @@ class FastTextEmbeddings(Embeddings):
 
         return 300
 
-    def get(self, key):
+    def get(self, keys):
 
-        return self._embeddings[key]
+        for key in keys:
+            yield key, self._embeddings[key]
+
+    def config(self):
+
+        return {'description': self.description(), 'dims': self.dims()}
 
     def description(self):
 

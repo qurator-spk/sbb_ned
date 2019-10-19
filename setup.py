@@ -20,7 +20,8 @@ setup(
     install_requires=install_requires,
     entry_points={
       'console_scripts': [
-        "build-index=qurator.sbb_ned.cli:build"
+        "build-index=qurator.sbb_ned.cli:build",
+        "evaluate-index=qurator.sbb_ned.cli:evaluate"
       ]
     },
     python_requires='>=3.6.0',

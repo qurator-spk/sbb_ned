@@ -6,12 +6,24 @@ N_TREES ?= 100
 
 OUTPUT_PATH ?=$(DATA_PATH)/entity_index
 
+ENTITIES_FILE ?=$(DATA_PATH)/wikipedia/wikipedia-ner-entities.pkl
+
 $(OUTPUT_PATH):
 	mkdir -p $(OUTPUT_PATH)
 
 fasttext:
-	build-index $(DATA_PATH)/wikipedia/wikipedia-ner-entities.pkl fasttext ORG $(N_TREES) $(PROCESSES) $(DIST) $(OUTPUT_PATH)
-	build-index $(DATA_PATH)/wikipedia/wikipedia-ner-entities.pkl fasttext LOC $(N_TREES) $(PROCESSES) $(DIST) $(OUTPUT_PATH)
-	build-index $(DATA_PATH)/wikipedia/wikipedia-ner-entities.pkl fasttext PER $(N_TREES) $(PROCESSES) $(DIST) $(OUTPUT_PATH)
+	build-index $(ENTITIES_FILE) fasttext ORG $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST)
+	build-index $(ENTITIES_FILE) fasttext LOC $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST)
+	build-index $(ENTITIES_FILE) fasttext PER $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST)
+flair-ORG:
+	build-index $(ENTITIES_FILE) flair ORG $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --split-parts=False
+flair-PER:
+	build-index $(ENTITIES_FILE) flair PER $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --split-parts=False
+flair-LOC:
+	build-index $(ENTITIES_FILE) flair LOC $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --split-parts=False
+flair:	flair-ORG flair-LOC flair-PER
+
+fasttext-eval:
+	evaluate-index $(DATA_PATH)/wikipedia/wikipedia-tagged.parquet fasttext PER  $(N_TREES) $(DIST) $(OUTPUT_PATH)
 
 all: $(OUTPUT_PATH) fasttext
