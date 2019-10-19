@@ -10,3 +10,4 @@ flask
 somajo
 gensim
 annoy
+flair
