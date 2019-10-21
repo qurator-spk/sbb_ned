@@ -37,6 +37,11 @@ class FlairEmbeddings(Embeddings):
 
                 yield token.text, token.embedding.cpu().numpy()
 
+                del token.embedding
+                del token
+
+            del sentence
+
     def config(self):
 
         return {'description': self.description(), 'dims': self.dims()}
