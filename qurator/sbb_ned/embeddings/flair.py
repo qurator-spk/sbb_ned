@@ -39,6 +39,7 @@ class FlairEmbeddings(Embeddings):
 
                 yield token.text, vals
 
+                del vals
                 del token
 
             del sentence
