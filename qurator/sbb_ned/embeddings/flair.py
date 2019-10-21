@@ -35,9 +35,10 @@ class FlairEmbeddings(Embeddings):
 
             for token in sentence:
 
-                yield token.text, token.embedding.cpu().numpy()
+                vals = token.embedding.cpu().numpy()
 
-                del token.embedding
+                yield token.text, vals
+
                 del token
 
             del sentence
