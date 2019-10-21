@@ -14,7 +14,8 @@ class Embeddings:
     def __init__(self, *args, **kwargs):
         pass
 
-    def dims(self):
+    @staticmethod
+    def dims():
         raise NotImplementedError()
 
     def get(self, key):
@@ -47,20 +48,20 @@ def get_embedding_vectors(embeddings, text, split_parts):
 class EmbedTask:
     embeddings = None
 
-    def __init__(self, index, title, split_parts):
+    def __init__(self, index, entity_title, split_parts):
         self._index = index
-        self._title = title
+        self._entity_title = entity_title
         self._split_parts = split_parts
 
     def __call__(self, *args, **kwargs):
-        return {'title': self._title,
-                'embeddings': get_embedding_vectors(EmbedTask.embeddings, self._title, self._split_parts)}
+        return {'title': self._entity_title,
+                'embeddings': get_embedding_vectors(EmbedTask.embeddings, self._entity_title, self._split_parts)}
 
     @staticmethod
     def initialize(embeddings):
 
         if type(embeddings) == tuple:
-            EmbedTask.embeddings = embeddings[0](*embeddings[1])
+            EmbedTask.embeddings = embeddings[0](**embeddings[1])
         else:
             EmbedTask.embeddings = embeddings
 
@@ -112,16 +113,18 @@ def build(all_entities, embeddings, dims, ent_type, n_trees, processes=10, dista
                 mapping.append((ann_index, title))
                 ann_index += 1
 
-    wiki_index.build(n_trees)
-
-    wiki_index.save("{}/{}".format(path, index_file_name(embeddings.description(), ent_type, n_trees,
-                                                         distance_measure)))
-
     mapping = pd.DataFrame(mapping, columns=['ann_index', 'page_title'])
     mapping['num_parts'] = mapping.loc[:, 'page_title'].str.split(" |-|_").str.len()
 
     mapping.to_pickle("{}/{}".format(path, mapping_file_name(embeddings.description(), ent_type, n_trees,
                                                              distance_measure)))
+
+    del mapping
+
+    wiki_index.build(n_trees)
+
+    wiki_index.save("{}/{}".format(path, index_file_name(embeddings.description(), ent_type, n_trees,
+                                                         distance_measure)))
 
 
 def load(embedding_config, ent_type, n_trees, distance_measure='angular', path='.', max_occurences=1000):

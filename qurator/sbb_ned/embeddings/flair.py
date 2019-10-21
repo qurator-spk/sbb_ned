@@ -1,35 +1,31 @@
 from qurator.sbb_ned.index import Embeddings
 
-from flair.embeddings import FlairEmbeddings as FLEmbeddings
-from flair.embeddings import StackedEmbeddings, Sentence
-# import flair
-# import torch
-
-# flair.device = torch.device('cpu')
-
 
 class FlairEmbeddings(Embeddings):
 
-    def __init__(self, forward, backward, *args, **kwargs):
+    def __init__(self, forward, backward, use_tokenizer, *args, **kwargs):
 
         super(FlairEmbeddings, self).__init__(*args, **kwargs)
 
         self._forward = forward
         self._backward = backward
-        # self._flair_embedding_forward =
-        # self._flair_embedding_backward =
+        self._use_tokenizer = use_tokenizer
+
+        from flair.embeddings import FlairEmbeddings as FLEmbeddings
+        from flair.embeddings import StackedEmbeddings
 
         self._embeddings = StackedEmbeddings([FLEmbeddings(forward), FLEmbeddings(backward)])
 
     @staticmethod
     def dims():
-
         return 4096
 
     def get(self, keys):
 
+        from flair.embeddings import Sentence
+
         for key in keys:
-            sentence = Sentence(key)
+            sentence = Sentence(key, use_tokenizer=self._use_tokenizer)
 
             # noinspection PyUnresolvedReferences
             self._embeddings.embed(sentence)

@@ -5,6 +5,7 @@ from .index import get_embedding_vectors
 from .embeddings.fasttext import FastTextEmbeddings
 from .embeddings.flair import FlairEmbeddings
 import click
+import numpy as np
 import pandas as pd
 import dask.dataframe as dd
 import json
@@ -30,7 +31,7 @@ def load_embeddings(embedding_type):
         # CUDA does not work with the standard multiprocessing fork method, therefore we have to switch to spawn.
         mp.set_start_method('spawn')
 
-        embeddings = (FlairEmbeddings, ('de-forward', 'de-backward'))
+        embeddings = (FlairEmbeddings, {'forward': 'de-forward', 'backward': 'de-backward', 'use_tokenizer': False})
         dims = FlairEmbeddings.dims()
     else:
         raise RuntimeError('Unknown embedding type: {}'.format(embedding_type))
@@ -93,7 +94,7 @@ class EvalTask:
     def initialize(embeddings, ent_type, n_trees, distance_measure, output_path, search_k, max_dist):
 
         if type(embeddings) == tuple:
-            EvalTask.embeddings = embeddings[0](*embeddings[1])
+            EvalTask.embeddings = embeddings[0](**embeddings[1])
         else:
             EvalTask.embeddings = embeddings
 
@@ -111,25 +112,26 @@ class EvalTask:
 @click.argument('n_trees', type=int, required=True, nargs=1)
 @click.argument('distance_measure', type=click.Choice(['angular', 'euclidean']), required=True, nargs=1)
 @click.argument('output_path', type=click.Path(exists=True), required=True, nargs=1)
+@click.option('--max-iter', type=float, default=np.inf)
 def evaluate(tagged_parquet, embedding_type, ent_type, n_trees,
              distance_measure, output_path, search_k=50, max_dist=0.25, processes=6, save_interval=10000,
-             split_parts=True, max_iter=10000):
+             split_parts=True, max_iter=np.inf):
 
-    embeddings = load_embeddings(embedding_type)
+    embeddings, dims = load_embeddings(embedding_type)
 
     print("Reading entity linking ground-truth file: {}".format(tagged_parquet))
     df = dd.read_parquet(tagged_parquet)
     print("done.")
 
-    progress = tqdm(df.iterrows(), total=len(df))
+    data_sequence = tqdm(df.iterrows(), total=len(df))
 
-    result_path = 'nedstat_embt{}_entt{}_nt{}_dm{}_sk{}_md{}.parquet'.format(embedding_type, ent_type, n_trees,
-                                                                             distance_measure, search_k, max_dist)
+    result_path = '{}/nedstat-embt_{}-entt_{}-nt_{}-dm_{}-sk_{}-md_{}.parquet'.\
+                    format(output_path, embedding_type, ent_type, n_trees, distance_measure, search_k, max_dist)
     print("Write result statistics to: {} .".format(result_path))
 
     def get_eval_tasks():
 
-        for _, article in progress:
+        for _, article in data_sequence:
 
             sentences = json.loads(article.text)
             sen_link_titles = json.loads(article.link_titles)
@@ -188,6 +190,7 @@ def evaluate(tagged_parquet, embedding_type, ent_type, n_trees,
             prun(get_eval_tasks(), processes=processes, initializer=EvalTask.initialize,
                  initargs=(embeddings, ent_type, n_trees, distance_measure, output_path, search_k, max_dist)):
 
+        # noinspection PyBroadException
         try:
             total_processed += 1
 
@@ -210,20 +213,140 @@ def evaluate(tagged_parquet, embedding_type, ent_type, n_trees,
             if len(results) % save_interval == 0:
                 write_results()
 
-            progress.set_description('Total processed: {:.3f}. Success rate: {:.3f}. Mean rank: {:.3f}. '
-                                     'Mean len rank: {:.3f}.'.
-                                     format(total_processed, total_successes / total_processed,
-                                            mean_rank / (total_successes + 1e-15), mean_len_rank / total_processed))
+            data_sequence.\
+                set_description('Total processed: {:.3f}. Success rate: {:.3f}. Mean rank: {:.3f}. '
+                                'Mean len rank: {:.3f}.'. format(total_processed, total_successes / total_processed,
+                                                                 mean_rank / (total_successes + 1e-15),
+                                                                 mean_len_rank / total_processed))
             if total_processed > max_iter:
                 break
 
         except:
             print("Error: ", ranking, 'page_tile: ', ent_title)
-            raise
+            # raise
 
     write_results()
 
     return result_path
+
+
+class BuildTask:
+
+    embeddings = None
+
+    def __init__(self, sentence, entity_title, entity_positions):
+
+        self._sentence = sentence
+        self._entity_title = entity_title
+        self._entity_positions = entity_positions
+
+    def __call__(self, *args, **kwargs):
+
+        surface_text = " ".join(self._sentence)
+
+        text_embeddings = get_embedding_vectors(BuildTask.embeddings, surface_text, split_parts=False)
+
+        assert len(self._sentence) == len(text_embeddings)
+
+        return self._entity_title, text_embeddings.iloc[self._entity_positions]
+
+    @staticmethod
+    def initialize(embeddings):
+
+        if type(embeddings) == tuple:
+            BuildTask.embeddings = embeddings[0](*embeddings[1])
+        else:
+            BuildTask.embeddings = embeddings
+
+
+@click.command()
+@click.argument('all-entities-file', type=click.Path(exists=True), required=True, nargs=1)
+@click.argument('tagged_parquet', type=click.Path(exists=True), required=True, nargs=1)
+@click.argument('embedding_type', type=click.Choice(['flair']), required=True, nargs=1)
+@click.argument('ent_type', type=str, required=True, nargs=1)
+@click.argument('output_path', type=click.Path(exists=True), required=True, nargs=1)
+@click.option('--max-iter', type=float, default=np.inf)
+def build_with_context(all_entities_file, tagged_parquet, embedding_type, ent_type, output_path,
+                       processes=6, save_interval=10000, max_iter=np.inf):
+
+    embeddings, dims = load_embeddings(embedding_type)
+
+    print("Reading entity linking ground-truth file: {}".format(tagged_parquet))
+    df = dd.read_parquet(tagged_parquet)
+    print("done.")
+
+    data_sequence = tqdm(df.iterrows(), total=len(df))
+
+    result_file = '{}/context-embeddings-embt_{}-entt_{}.pkl'.format(output_path, embedding_type, ent_type,)
+
+    def get_build_tasks():
+
+        for _, article in data_sequence:
+
+            sentences = json.loads(article.text)
+            sen_link_titles = json.loads(article.link_titles)
+            sen_tags = json.loads(article.tags)
+
+            if ent_type not in set([t if len(t) < 3 else t[2:] for tags in sen_tags for t in tags]):
+                # Do not further process articles that do not have any linked relevant entity of type "ent_type".
+                continue
+
+            for pos, (sen, link_titles, tags) in enumerate(zip(sentences, sen_link_titles, sen_tags)):
+
+                if ent_type not in set([t if len(t) < 3 else t[2:] for t in tags]):
+                    # Do not further process sentences that do not contain a relevant linked entity of type "ent_type".
+                    continue
+
+                entity_positions = []
+                entity_title = ''
+                for word, link_title, tag in zip(sen, link_titles, tags):
+
+                    if tag == 'O' or tag.startswith('B-'):
+
+                        if len(entity_positions) > 0:
+                            yield BuildTask(sen, entity_title, entity_positions)
+                            entity_positions = []
+
+                    elif tag != 'O':
+                        if tag[2:] == ent_type:
+
+                            entity_positions.append(pos)
+                            entity_title = link_title
+
+                if len(entity_positions) > 0:
+                    yield BuildTask(sen, entity_title, entity_positions)
+
+    all_entities = pd.read_pickle(all_entities_file)
+
+    all_entities = all_entities.loc[all_entities.TYPE == ent_type]
+
+    context_emb = pd.DataFrame(np.zeros([len(all_entities), dims + 1]), index=all_entities.index).sort_index()
+
+    for it, (entity_titl, embeddings) in \
+            enumerate(prun(get_build_tasks(), processes=processes, initializer=EvalTask.initialize,
+                           initargs=(embeddings,))):
+
+        try:
+            if it % save_interval == 0:
+                context_emb.to_pickle(result_file)
+
+            context_emb.loc[entity_titl, 1:] += embeddings.mean()*len(embeddings)
+
+            context_emb.loc[entity_titl, 0] += len(embeddings)
+
+            if it % 100 == 0:
+                data_sequence.set_description('Iteration: {}'.format(it))
+
+        except:
+            # print("Error: ", ranking, 'page_tile: ', ent_title)
+            raise
+
+        if it >= max_iter:
+            break
+
+    context_emb.to_pickle(result_file)
+
+    return result_file
 
 
 def optimize():
