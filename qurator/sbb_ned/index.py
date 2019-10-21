@@ -93,8 +93,9 @@ def build(all_entities, embeddings, ent_type, n_trees, processes=10, distance_me
     ann_index = 0
     for res in run(get_embed_tasks(all_entities.loc[all_entities.TYPE == ent_type], split_parts), processes=processes,
                    initializer=EmbedTask.initialize, initargs=(embeddings,)):
-        
-        del embeddings
+
+        if 'embeddings' in locals():
+            del embeddings
 
         title = res['title']
 
