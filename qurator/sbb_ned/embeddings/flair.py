@@ -16,10 +16,10 @@ class FlairEmbeddings(Embeddings):
 
         self._forward = forward
         self._backward = backward
-        #self._flair_embedding_forward =
-        #self._flair_embedding_backward =
+        # self._flair_embedding_forward =
+        # self._flair_embedding_backward =
 
-        self._embeddings = StackedEmbeddings([FLEmbeddings(forward), FLEmbeddings(backward))
+        self._embeddings = StackedEmbeddings([FLEmbeddings(forward), FLEmbeddings(backward)])
 
     def dims(self):
 
