@@ -23,19 +23,21 @@ def load_embeddings(embedding_type):
 
     if embedding_type == 'fasttext':
         embeddings = FastTextEmbeddings('../data/fasttext/cc.de.300.bin')
+        dims = FastTextEmbeddings.dims()
     elif embedding_type == 'flair':
 
         # flair uses torch and as a consequence CUDA
         # CUDA does not work with the standard multiprocessing fork method, therefore we have to switch to spawn.
         mp.set_start_method('spawn')
 
-        embeddings = FlairEmbeddings('de-forward', 'de-backward')
+        embeddings = (FlairEmbeddings, ('de-forward', 'de-backward'))
+        dims = FlairEmbeddings.dims()
     else:
         raise RuntimeError('Unknown embedding type: {}'.format(embedding_type))
 
     print('done')
 
-    return embeddings
+    return embeddings, dims
 
 
 @click.command()
@@ -52,9 +54,10 @@ def build(all_entities_file, embedding_type, entity_type, n_trees, output_path,
 
     all_entities = pd.read_pickle(all_entities_file)
 
-    embeddings = load_embeddings(embedding_type)
+    embeddings, dims = load_embeddings(embedding_type)
 
-    build_index(all_entities, embeddings, entity_type, n_trees, n_processes, distance_measure, split_parts, output_path)
+    build_index(all_entities, embeddings, dims, entity_type, n_trees, n_processes, distance_measure,
+                split_parts, output_path)
 
 
 class EvalTask:
@@ -89,7 +92,10 @@ class EvalTask:
     @staticmethod
     def initialize(embeddings, ent_type, n_trees, distance_measure, output_path, search_k, max_dist):
 
-        EvalTask.embeddings = embeddings
+        if type(embeddings) == tuple:
+            EvalTask.embeddings = embeddings[0](*embeddings[1])
+        else:
+            EvalTask.embeddings = embeddings
 
         EvalTask.index, EvalTask.mapping = load_index(EvalTask.embeddings.config(), ent_type, n_trees,
                                                       distance_measure, output_path)

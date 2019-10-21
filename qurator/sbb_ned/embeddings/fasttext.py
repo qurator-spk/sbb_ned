@@ -14,7 +14,8 @@ class FastTextEmbeddings(Embeddings):
 
         pass
 
-    def dims(self):
+    @staticmethod
+    def dims():
 
         return 300
 

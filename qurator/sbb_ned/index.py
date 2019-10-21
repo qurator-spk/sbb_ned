@@ -58,7 +58,11 @@ class EmbedTask:
 
     @staticmethod
     def initialize(embeddings):
-        EmbedTask.embeddings = embeddings
+
+        if type(embeddings) == tuple:
+            EmbedTask.embeddings = embeddings[0](*embeddings[1])
+        else:
+            EmbedTask.embeddings = embeddings
 
 
 def index_file_name(embedding_description, ent_type, n_trees, distance_measure):
@@ -76,12 +80,12 @@ def get_embed_tasks(all_entities, split_parts):
         yield EmbedTask(i, title, split_parts)
 
 
-def build(all_entities, embeddings, ent_type, n_trees, processes=10, distance_measure='angular', split_parts=True,
+def build(all_entities, embeddings, dims, ent_type, n_trees, processes=10, distance_measure='angular', split_parts=True,
           path='.'):
 
     # wiki_index is an approximate nearest neighbour index that permits fast lookup of an ann_index for some
     # given embedding vector. The ann_index than points to a number of entities according to a mapping (see below).
-    wiki_index = AnnoyIndex(embeddings.dims(), distance_measure)
+    wiki_index = AnnoyIndex(dims, distance_measure)
 
     # mapping provides a map from ann_index (approximate nearest neighbour index) -> entity (title)
     # That mapping is not unique, i.e., a particular ann_index might point to many different entities.
@@ -93,9 +97,6 @@ def build(all_entities, embeddings, ent_type, n_trees, processes=10, distance_me
     ann_index = 0
     for res in run(get_embed_tasks(all_entities.loc[all_entities.TYPE == ent_type], split_parts), processes=processes,
                    initializer=EmbedTask.initialize, initargs=(embeddings,)):
-
-        if 'embeddings' in locals():
-            del embeddings
 
         title = res['title']
 

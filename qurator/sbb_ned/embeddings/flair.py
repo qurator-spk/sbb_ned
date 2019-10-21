@@ -21,7 +21,8 @@ class FlairEmbeddings(Embeddings):
 
         self._embeddings = StackedEmbeddings([FLEmbeddings(forward), FLEmbeddings(backward)])
 
-    def dims(self):
+    @staticmethod
+    def dims():
 
         return 4096
 
@@ -35,14 +36,7 @@ class FlairEmbeddings(Embeddings):
 
             for token in sentence:
 
-                vals = token.embedding.cpu().numpy()
-
-                yield token.text, vals
-
-                del vals
-                del token
-
-            del sentence
+                yield token.text, token.embedding.cpu().numpy()
 
     def config(self):
 
