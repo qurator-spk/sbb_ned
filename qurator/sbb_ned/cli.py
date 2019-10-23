@@ -246,7 +246,12 @@ class BuildTask:
 
         text_embeddings = get_embedding_vectors(BuildTask.embeddings, surface_text, split_parts=False)
 
-        assert len(self._sentence) == len(text_embeddings)
+        try:
+            assert len(self._sentence) == len(text_embeddings)
+        except AssertionError:
+            print(self._sentence)
+            print(text_embeddings.index)
+            raise
 
         return self._entity_title, text_embeddings.iloc[self._entity_positions]
 
@@ -254,7 +259,7 @@ class BuildTask:
     def initialize(embeddings):
 
         if type(embeddings) == tuple:
-            BuildTask.embeddings = embeddings[0](*embeddings[1])
+            BuildTask.embeddings = embeddings[0](**embeddings[1])
         else:
             BuildTask.embeddings = embeddings
 
@@ -266,18 +271,21 @@ class BuildTask:
 @click.argument('ent_type', type=str, required=True, nargs=1)
 @click.argument('output_path', type=click.Path(exists=True), required=True, nargs=1)
 @click.option('--max-iter', type=float, default=np.inf)
+@click.option('--processes', type=int, default=6)
 def build_with_context(all_entities_file, tagged_parquet, embedding_type, ent_type, output_path,
-                       processes=6, save_interval=10000, max_iter=np.inf):
+                       processes=6, save_interval=100000, max_iter=np.inf):
 
     embeddings, dims = load_embeddings(embedding_type)
 
-    print("Reading entity linking ground-truth file: {}".format(tagged_parquet))
+    print("Reading entity linking ground-truth file: {}.".format(tagged_parquet))
     df = dd.read_parquet(tagged_parquet)
     print("done.")
 
     data_sequence = tqdm(df.iterrows(), total=len(df))
 
     result_file = '{}/context-embeddings-embt_{}-entt_{}.pkl'.format(output_path, embedding_type, ent_type,)
+
+    w_size = 10
 
     def get_build_tasks():
 
@@ -291,7 +299,7 @@ def build_with_context(all_entities_file, tagged_parquet, embedding_type, ent_ty
                 # Do not further process articles that do not have any linked relevant entity of type "ent_type".
                 continue
 
-            for pos, (sen, link_titles, tags) in enumerate(zip(sentences, sen_link_titles, sen_tags)):
+            for sen, link_titles, tags in zip(sentences, sen_link_titles, sen_tags):
 
                 if ent_type not in set([t if len(t) < 3 else t[2:] for t in tags]):
                     # Do not further process sentences that do not contain a relevant linked entity of type "ent_type".
@@ -299,12 +307,23 @@ def build_with_context(all_entities_file, tagged_parquet, embedding_type, ent_ty
 
                 entity_positions = []
                 entity_title = ''
-                for word, link_title, tag in zip(sen, link_titles, tags):
+                for pos, (word, link_title, tag) in enumerate(zip(sen, link_titles, tags)):
 
                     if tag == 'O' or tag.startswith('B-'):
 
                         if len(entity_positions) > 0:
-                            yield BuildTask(sen, entity_title, entity_positions)
+
+                            # print(len(entity_positions))
+
+                            start_pos = max(min(entity_positions) - w_size, 0)
+                            end_pos = min(max(entity_positions) + w_size, len(sen))
+                            sen_part = sen[start_pos:end_pos]
+
+                            rel_start = w_size + min(min(entity_positions) - w_size, 0)
+                            rel_positions = [i for i in range(rel_start, rel_start + len(entity_positions))]
+
+                            yield BuildTask(sen_part, entity_title, rel_positions)
+
                             entity_positions = []
 
                     elif tag != 'O':
@@ -314,32 +333,43 @@ def build_with_context(all_entities_file, tagged_parquet, embedding_type, ent_ty
                             entity_title = link_title
 
                 if len(entity_positions) > 0:
-                    yield BuildTask(sen, entity_title, entity_positions)
+                    start_pos = max(min(entity_positions) - w_size, 0)
+                    end_pos = min(max(entity_positions) + w_size, len(sen))
+                    sen_part = sen[start_pos:end_pos]
+
+                    rel_start = w_size + min(min(entity_positions) - w_size, 0)
+                    rel_positions = [i for i in range(rel_start, rel_start + len(entity_positions))]
+
+                    yield BuildTask(sen_part, entity_title, rel_positions)
 
     all_entities = pd.read_pickle(all_entities_file)
 
     all_entities = all_entities.loc[all_entities.TYPE == ent_type]
 
-    context_emb = pd.DataFrame(np.zeros([len(all_entities), dims + 1]), index=all_entities.index).sort_index()
+    context_emb = pd.DataFrame(np.zeros([len(all_entities), dims + 1], dtype=np.float32),
+                              index=all_entities.index).sort_index()
 
     for it, (entity_titl, embeddings) in \
-            enumerate(prun(get_build_tasks(), processes=processes, initializer=EvalTask.initialize,
+            enumerate(prun(get_build_tasks(), processes=processes, initializer=BuildTask.initialize,
                            initargs=(embeddings,))):
 
         try:
             if it % save_interval == 0:
+                print('Saving ...')
                 context_emb.to_pickle(result_file)
+
+            # import ipdb;ipdb.set_trace()
 
             context_emb.loc[entity_titl, 1:] += embeddings.mean()*len(embeddings)
 
             context_emb.loc[entity_titl, 0] += len(embeddings)
 
-            if it % 100 == 0:
-                data_sequence.set_description('Iteration: {}'.format(it))
+            #if it % 100 == 0:
+            data_sequence.set_description('Iteration: {}'.format(it))
 
         except:
-            # print("Error: ", ranking, 'page_tile: ', ent_title)
-            raise
+            print("Error: ", entity_titl)
+            # raise
 
         if it >= max_iter:
             break

@@ -1,7 +1,10 @@
-numpy
-pandas
-dask
-pyarrow
+tensorflow-gpu==1.14.0
+torch==1.2.0
+flair==0.4.3
+numpy==1.17.0 
+pandas==0.25.0
+dask==1.1.4
+pyarrow==0.12.1
 tqdm
 click
 pytest
@@ -10,4 +13,4 @@ flask
 somajo
 gensim
 annoy
-flair
+

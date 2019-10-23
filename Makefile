@@ -1,6 +1,6 @@
 
 DATA_PATH ?=data
-PROCESSES ?=6
+PROCESSES?=6
 DIST ?=angular
 N_TREES ?= 100
 
@@ -27,5 +27,8 @@ fasttext-eval:
 	evaluate-index $(DATA_PATH)/wikipedia/wikipedia-tagged.parquet fasttext ORG  $(N_TREES) $(DIST) $(OUTPUT_PATH) --max-iter=250000
 	evaluate-index $(DATA_PATH)/wikipedia/wikipedia-tagged.parquet fasttext LOC  $(N_TREES) $(DIST) $(OUTPUT_PATH) --max-iter=250000
 	evaluate-index $(DATA_PATH)/wikipedia/wikipedia-tagged.parquet fasttext PER  $(N_TREES) $(DIST) $(OUTPUT_PATH) --max-iter=250000
+
+flair-context-ORG:
+	build-index-with-context $(ENTITIES_FILE) $(DATA_PATH)/wikipedia/wikipedia-tagged.parquet flair ORG $(OUTPUT_PATH) --processes=$(PROCESSES)
 
 all: $(OUTPUT_PATH) fasttext

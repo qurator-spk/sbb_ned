@@ -25,6 +25,9 @@ class FlairEmbeddings(Embeddings):
         from flair.embeddings import Sentence
 
         for key in keys:
+
+            # print(key)
+
             sentence = Sentence(key, use_tokenizer=self._use_tokenizer)
 
             # noinspection PyUnresolvedReferences
