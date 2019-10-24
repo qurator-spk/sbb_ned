@@ -20,22 +20,23 @@ class FlairEmbeddings(Embeddings):
     def dims():
         return 4096
 
-    def get(self, keys):
+    def get(self, keys, return_positions):
 
         from flair.embeddings import Sentence
 
-        for key in keys:
+        sentences = [Sentence(key, use_tokenizer=self._use_tokenizer) for key in keys]
 
-            # print(key)
+        # noinspection PyUnresolvedReferences
+        self._embeddings.embed(sentences)
 
-            sentence = Sentence(key, use_tokenizer=self._use_tokenizer)
+        for s_idx, (sentence, ret_positions) in enumerate(zip(sentences, return_positions)):
 
-            # noinspection PyUnresolvedReferences
-            self._embeddings.embed(sentence)
+            for t_idx, token in enumerate(sentence):
 
-            for token in sentence:
+                if t_idx not in ret_positions:
+                    continue
 
-                yield token.text, token.embedding.cpu().numpy()
+                yield s_idx, token.text, token.embedding.cpu().numpy()
 
     def config(self):
 

@@ -3,6 +3,7 @@ DATA_PATH ?=data
 PROCESSES?=6
 DIST ?=angular
 N_TREES ?= 100
+BATCH_SIZE ?= 100
 
 OUTPUT_PATH ?=$(DATA_PATH)/entity_index
 
@@ -30,5 +31,8 @@ fasttext-eval:
 
 flair-context-ORG:
 	build-index-with-context $(ENTITIES_FILE) $(DATA_PATH)/wikipedia/wikipedia-tagged.parquet flair ORG $(OUTPUT_PATH) --processes=$(PROCESSES)
+flair-context-LOC:
+	build-index-with-context $(ENTITIES_FILE) $(DATA_PATH)/wikipedia/wikipedia-tagged.parquet flair LOC $(OUTPUT_PATH) --processes=$(PROCESSES) --batch-size=$(BATCH_SIZE)
+
 
 all: $(OUTPUT_PATH) fasttext

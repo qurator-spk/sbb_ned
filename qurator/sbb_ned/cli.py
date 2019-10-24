@@ -158,6 +158,7 @@ def evaluate(tagged_parquet, embedding_type, ent_type, n_trees,
                             entity_surface_parts = []
 
                     elif tag != 'O':
+
                         if tag[2:] == ent_type:
 
                             entity_surface_parts.append(word)
@@ -234,26 +235,50 @@ class BuildTask:
 
     embeddings = None
 
-    def __init__(self, sentence, entity_title, entity_positions):
+    def __init__(self, batch):
 
-        self._sentence = sentence
-        self._entity_title = entity_title
-        self._entity_positions = entity_positions
+        self._batch = batch
 
     def __call__(self, *args, **kwargs):
 
-        surface_text = " ".join(self._sentence)
+        entity_titles = [entity_title for entity_title, _, _ in self._batch]
+        entity_positions = [positions for _, _, positions in self._batch]
+        sentences = [" ".join(sentence) for _, sentence, _ in self._batch]
 
-        text_embeddings = get_embedding_vectors(BuildTask.embeddings, surface_text, split_parts=False)
+        entity_parts = []
+        vectors = []
+        entity_id = []
+        for e_idx, entity_part, embedding in BuildTask.embeddings.get(sentences, entity_positions):
 
-        try:
-            assert len(self._sentence) == len(text_embeddings)
-        except AssertionError:
-            print(self._sentence)
-            print(text_embeddings.index)
-            raise
+            entity_parts.append(entity_part)
+            vectors.append(embedding.astype(np.float32))
+            entity_id.append(e_idx)
 
-        return self._entity_title, text_embeddings.iloc[self._entity_positions]
+        vectors = pd.DataFrame(vectors, index=entity_parts)
+        vectors['entity_id'] = entity_id
+
+        text_embeddings = []
+
+        for entity_id, text_emb in vectors.groupby('entity_id'):
+
+            try:
+                assert len(self._batch[entity_id][2]) == len(text_emb)
+
+            except AssertionError:
+                print(sentences[entity_id])
+                print(text_embeddings.index)
+                raise
+
+            tmp = text_emb.drop(columns=['entity_id']).mean() * len(text_emb)
+
+            tmp['entity_title'] = entity_titles[entity_id]
+            tmp['count'] = len(text_emb)
+
+            text_embeddings.append(tmp)
+
+        ret = pd.concat(text_embeddings, axis=1).T
+
+        return ret
 
     @staticmethod
     def initialize(embeddings):
@@ -272,8 +297,10 @@ class BuildTask:
 @click.argument('output_path', type=click.Path(exists=True), required=True, nargs=1)
 @click.option('--max-iter', type=float, default=np.inf)
 @click.option('--processes', type=int, default=6)
+@click.option('--w-size', type=int, default=10)
+@click.option('--batch-size', type=int, default=100)
 def build_with_context(all_entities_file, tagged_parquet, embedding_type, ent_type, output_path,
-                       processes=6, save_interval=100000, max_iter=np.inf):
+                       processes=6, save_interval=100000, max_iter=np.inf, w_size=10, batch_size=100):
 
     embeddings, dims = load_embeddings(embedding_type)
 
@@ -283,11 +310,28 @@ def build_with_context(all_entities_file, tagged_parquet, embedding_type, ent_ty
 
     data_sequence = tqdm(df.iterrows(), total=len(df))
 
-    result_file = '{}/context-embeddings-embt_{}-entt_{}.pkl'.format(output_path, embedding_type, ent_type,)
+    result_file = '{}/context-embeddings-embt_{}-entt_{}-wsize_{}.pkl'.\
+        format(output_path, embedding_type, ent_type, w_size)
 
-    w_size = 10
+    def compute_window(sen, entity_positions):
+
+        start_pos = max(min(entity_positions) - w_size, 0)
+        end_pos = min(max(entity_positions) + w_size, len(sen))
+        sen_part = sen[start_pos:end_pos]
+
+        # Example 1: min(entity_positions) = 20, w_size = 10
+        # rel_start = 10 + min(20 - 10, 0) = 10
+        # Example 2: min(entity_positions) = 5, w_size = 10
+        # rel_start = 10 + min(5  - 10, 0) = 5
+        rel_start = w_size + min(min(entity_positions) - w_size, 0)
+
+        rel_positions = [i for i in range(rel_start, rel_start + len(entity_positions))]
+
+        return sen_part, rel_positions
 
     def get_build_tasks():
+
+        batch = []
 
         for _, article in data_sequence:
 
@@ -309,72 +353,77 @@ def build_with_context(all_entities_file, tagged_parquet, embedding_type, ent_ty
                 entity_title = ''
                 for pos, (word, link_title, tag) in enumerate(zip(sen, link_titles, tags)):
 
-                    if tag == 'O' or tag.startswith('B-'):
+                    if (tag == 'O' or tag.startswith('B-')) and len(entity_positions) > 0:
 
-                        if len(entity_positions) > 0:
+                        sen_part, rel_positions = compute_window(sen, entity_positions)
 
-                            # print(len(entity_positions))
+                        batch.append((entity_title, sen_part, rel_positions))
 
-                            start_pos = max(min(entity_positions) - w_size, 0)
-                            end_pos = min(max(entity_positions) + w_size, len(sen))
-                            sen_part = sen[start_pos:end_pos]
+                        entity_positions = []
 
-                            rel_start = w_size + min(min(entity_positions) - w_size, 0)
-                            rel_positions = [i for i in range(rel_start, rel_start + len(entity_positions))]
+                        if len(batch) >= batch_size:
+                            yield BuildTask(batch)
+                            batch = []
 
-                            yield BuildTask(sen_part, entity_title, rel_positions)
+                    if tag != 'O' and tag[2:] == ent_type:
 
-                            entity_positions = []
-
-                    elif tag != 'O':
-                        if tag[2:] == ent_type:
-
-                            entity_positions.append(pos)
-                            entity_title = link_title
+                        entity_positions.append(pos)
+                        entity_title = link_title
 
                 if len(entity_positions) > 0:
-                    start_pos = max(min(entity_positions) - w_size, 0)
-                    end_pos = min(max(entity_positions) + w_size, len(sen))
-                    sen_part = sen[start_pos:end_pos]
 
-                    rel_start = w_size + min(min(entity_positions) - w_size, 0)
-                    rel_positions = [i for i in range(rel_start, rel_start + len(entity_positions))]
+                    sen_part, rel_positions = compute_window(sen, entity_positions)
 
-                    yield BuildTask(sen_part, entity_title, rel_positions)
+                    batch.append((entity_title, sen_part, rel_positions))
+
+                    if len(batch) >= batch_size:
+                        yield BuildTask(batch)
+                        batch = []
 
     all_entities = pd.read_pickle(all_entities_file)
 
     all_entities = all_entities.loc[all_entities.TYPE == ent_type]
 
-    context_emb = pd.DataFrame(np.zeros([len(all_entities), dims + 1], dtype=np.float32),
-                              index=all_entities.index).sort_index()
+    all_entities = all_entities.reset_index().reset_index().set_index('page_title').sort_index()
 
-    for it, (entity_titl, embeddings) in \
-            enumerate(prun(get_build_tasks(), processes=processes, initializer=BuildTask.initialize,
-                           initargs=(embeddings,))):
+    context_emb = np.zeros([len(all_entities), dims + 1], dtype=np.float32)
+
+    it = 0
+    for result in prun(get_build_tasks(), processes=processes, initializer=BuildTask.initialize,
+                       initargs=(embeddings,)):
 
         try:
+            it += len(result)
+
             if it % save_interval == 0:
                 print('Saving ...')
-                context_emb.to_pickle(result_file)
 
-            # import ipdb;ipdb.set_trace()
+                pd.DataFrame(context_emb, index=all_entities.index).to_pickle(result_file)
 
-            context_emb.loc[entity_titl, 1:] += embeddings.mean()*len(embeddings)
+                # context_emb.to_pickle(result_file)
 
-            context_emb.loc[entity_titl, 0] += len(embeddings)
+            for _, embeddings in result.iterrows():
 
-            #if it % 100 == 0:
+                idx = all_entities.loc[embeddings.entity_title]['index']
+
+                # import ipdb;ipdb.set_trace()
+
+                # print(embeddings.entity_title)
+
+                context_emb[idx, 1:] += embeddings.drop(['entity_title', 'count']).astype(np.float32).values
+
+                context_emb[idx, 0] += float(embeddings['count'])
+
             data_sequence.set_description('Iteration: {}'.format(it))
 
         except:
-            print("Error: ", entity_titl)
-            # raise
+            print("Error: ", result)
+            raise
 
         if it >= max_iter:
             break
 
-    context_emb.to_pickle(result_file)
+    pd.DataFrame(context_emb, index=all_entities.index).to_pickle(result_file)
 
     return result_file
 
