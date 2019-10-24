@@ -34,7 +34,7 @@ class FlairEmbeddings(Embeddings):
             for t_idx, token in enumerate(sentence):
 
                 if t_idx not in ret_positions:
-                    continue
+                    continue  # ignore tokens where embeddings have not been requested
 
                 yield s_idx, token.text, token.embedding.cpu().numpy()
 
