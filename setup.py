@@ -21,7 +21,8 @@ setup(
     entry_points={
       'console_scripts': [
         "build-index=qurator.sbb_ned.cli:build",
-        "build-index-with-context=qurator.sbb_ned.cli:build_with_context",
+        "build-context-matrix=qurator.sbb_ned.cli:build_context_matrix",
+        "build-from-context-matrix=qurator.sbb_ned.cli:build_from_context_matrix",
         "evaluate-index=qurator.sbb_ned.cli:evaluate"
       ]
     },

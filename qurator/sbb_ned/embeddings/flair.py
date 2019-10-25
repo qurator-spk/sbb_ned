@@ -1,7 +1,7 @@
-from qurator.sbb_ned.index import Embeddings
+import qurator.sbb_ned.embeddings as emb
 
 
-class FlairEmbeddings(Embeddings):
+class FlairEmbeddings(emb.base.Embeddings):
 
     def __init__(self, forward, backward, use_tokenizer, *args, **kwargs):
 

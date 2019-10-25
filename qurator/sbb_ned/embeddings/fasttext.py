@@ -1,10 +1,10 @@
-from qurator.sbb_ned.index import Embeddings
+import qurator.sbb_ned.embeddings as emb
 # from gensim.models.fasttext import FastText as FT_gensim
 # from gensim.test.utils import datapath
 from gensim.models.fasttext import load_facebook_vectors
 
 
-class FastTextEmbeddings(Embeddings):
+class FastTextEmbeddings(emb.base.Embeddings):
 
     def __init__(self, path, *args, **kwargs):
 

@@ -4,66 +4,7 @@ import numpy as np
 from tqdm import tqdm as tqdm
 # noinspection PyUnresolvedReferences
 from annoy import AnnoyIndex
-import re
-
-from qurator.utils.parallel import run
-
-
-class Embeddings:
-
-    def __init__(self, *args, **kwargs):
-        pass
-
-    @staticmethod
-    def dims():
-        raise NotImplementedError()
-
-    def get(self, key):
-        raise NotImplementedError()
-
-    def description(self):
-        raise NotImplementedError()
-
-
-def get_embedding_vectors(embeddings, text, split_parts):
-
-    if split_parts:
-        parts = [re.sub(r'[\W_]+', '', p) for p in re.split(" |-|_", text)]
-        parts = [p for p in parts if len(p) > 0]
-    else:
-        parts = [text]
-
-    vectors = []
-    vector_parts = []
-    for vp, emb in embeddings.get(parts):
-
-        vector_parts.append(vp)
-        vectors.append(emb.astype(np.float32))
-
-    ret = pd.DataFrame(vectors, index=vector_parts)
-
-    return ret
-
-
-class EmbedTask:
-    embeddings = None
-
-    def __init__(self, index, entity_title, split_parts):
-        self._index = index
-        self._entity_title = entity_title
-        self._split_parts = split_parts
-
-    def __call__(self, *args, **kwargs):
-        return {'title': self._entity_title,
-                'embeddings': get_embedding_vectors(EmbedTask.embeddings, self._entity_title, self._split_parts)}
-
-    @staticmethod
-    def initialize(embeddings):
-
-        if type(embeddings) == tuple:
-            EmbedTask.embeddings = embeddings[0](**embeddings[1])
-        else:
-            EmbedTask.embeddings = embeddings
+from .embeddings.base import EmbedTask
 
 
 def index_file_name(embedding_description, ent_type, n_trees, distance_measure):
@@ -76,17 +17,14 @@ def mapping_file_name(embedding_description, ent_type, n_trees, distance_measure
                                                                    embedding_description, ent_type)
 
 
-def get_embed_tasks(all_entities, split_parts):
-    for i, (title, v) in tqdm(enumerate(all_entities.iterrows()), total=len(all_entities)):
-        yield EmbedTask(i, title, split_parts)
-
-
 def build(all_entities, embeddings, dims, ent_type, n_trees, processes=10, distance_measure='angular', split_parts=True,
           path='.'):
 
+    all_entities = all_entities.loc[all_entities.TYPE == ent_type]
+
     # wiki_index is an approximate nearest neighbour index that permits fast lookup of an ann_index for some
     # given embedding vector. The ann_index than points to a number of entities according to a mapping (see below).
-    wiki_index = AnnoyIndex(dims, distance_measure)
+    index = AnnoyIndex(dims, distance_measure)
 
     # mapping provides a map from ann_index (approximate nearest neighbour index) -> entity (title)
     # That mapping is not unique, i.e., a particular ann_index might point to many different entities.
@@ -96,19 +34,16 @@ def build(all_entities, embeddings, dims, ent_type, n_trees, processes=10, dista
     part_dict = dict()
 
     ann_index = 0
-    for res in run(get_embed_tasks(all_entities.loc[all_entities.TYPE == ent_type], split_parts), processes=processes,
-                   initializer=EmbedTask.initialize, initargs=(embeddings,)):
+    for title, embeddings in EmbedTask.run(embeddings, all_entities, split_parts, processes):
 
-        title = res['title']
-
-        for part, e in res['embeddings'].iterrows():
+        for part, part_embedding in embeddings.iterrows():
 
             if part in part_dict:
                 mapping.append((part_dict[part], title))
             else:
                 part_dict[part] = ann_index
 
-                wiki_index.add_item(ann_index, e)
+                index.add_item(ann_index, part_embedding)
 
                 mapping.append((ann_index, title))
                 ann_index += 1
@@ -118,13 +53,38 @@ def build(all_entities, embeddings, dims, ent_type, n_trees, processes=10, dista
 
     mapping.to_pickle("{}/{}".format(path, mapping_file_name(embeddings.description(), ent_type, n_trees,
                                                              distance_measure)))
-
     del mapping
 
-    wiki_index.build(n_trees)
+    index.build(n_trees)
 
-    wiki_index.save("{}/{}".format(path, index_file_name(embeddings.description(), ent_type, n_trees,
-                                                         distance_measure)))
+    index.save("{}/{}".format(path, index_file_name(embeddings.description(), ent_type, n_trees, distance_measure)))
+
+
+def build_from_matrix(context_matrix_file, distance_measure, n_trees):
+
+    result_file = "{}.ann".format(".".join(context_matrix_file.split('.')[:-1]))
+
+    mapping_file = "{}.mapping".format(".".join(context_matrix_file.split('.')[:-1]))
+
+    print("\n\n\n write result to {} and {}".format(result_file, mapping_file))
+
+    cm = pd.read_pickle(context_matrix_file)
+
+    index = AnnoyIndex(cm.shape[1] - 1, distance_measure)
+
+    for r_idx, (page_title, row) in tqdm(enumerate(cm.iterrows()), total=len(cm)):
+
+        vec = row.iloc[1:].values
+        count = row.iloc[0]
+
+        index.add_item(r_idx, vec/count)
+
+    pd.DataFrame(index=cm.index).reset_index().to_pickle(mapping_file)
+    del cm
+
+    index.build(n_trees)
+
+    index.save(result_file)
 
 
 def load(embedding_config, ent_type, n_trees, distance_measure='angular', path='.', max_occurences=1000):
