@@ -151,18 +151,15 @@ def evaluate(tagged_parquet, embedding_type, ent_type, n_trees,
                 entity_title = ''
                 for word, link_title, tag in zip(sen, link_titles, tags):
 
-                    if tag == 'O' or tag.startswith('B-'):
+                    if (tag == 'O' or tag.startswith('B-')) and len(entity_surface_parts) > 0:
 
-                        if len(entity_surface_parts) > 0:
-                            yield EvalTask(article.page_title, entity_surface_parts, entity_title, split_parts)
-                            entity_surface_parts = []
+                        yield EvalTask(article.page_title, entity_surface_parts, entity_title, split_parts)
+                        entity_surface_parts = []
 
-                    elif tag != 'O':
+                    if tag != 'O' and tag[2:] == ent_type:
 
-                        if tag[2:] == ent_type:
-
-                            entity_surface_parts.append(word)
-                            entity_title = link_title
+                        entity_surface_parts.append(word)
+                        entity_title = link_title
 
                 if len(entity_surface_parts) > 0:
                     yield EvalTask(article.page_title, entity_surface_parts, entity_title, split_parts)
@@ -266,7 +263,7 @@ class BuildTask:
 
             except AssertionError:
                 print(sentences[entity_id])
-                print(text_embeddings.index)
+                print(text_emb.index)
                 raise
 
             tmp = text_emb.drop(columns=['entity_id']).mean() * len(text_emb)
@@ -400,21 +397,15 @@ def build_with_context(all_entities_file, tagged_parquet, embedding_type, ent_ty
 
                 pd.DataFrame(context_emb, index=all_entities.index).to_pickle(result_file)
 
-                # context_emb.to_pickle(result_file)
-
             for _, embeddings in result.iterrows():
 
                 idx = all_entities.loc[embeddings.entity_title]['index']
-
-                # import ipdb;ipdb.set_trace()
-
-                # print(embeddings.entity_title)
 
                 context_emb[idx, 1:] += embeddings.drop(['entity_title', 'count']).astype(np.float32).values
 
                 context_emb[idx, 0] += float(embeddings['count'])
 
-            data_sequence.set_description('Iteration: {}'.format(it))
+            data_sequence.set_description('#entity links processed: {}'.format(it))
 
         except:
             print("Error: ", result)
