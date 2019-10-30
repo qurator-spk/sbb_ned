@@ -14,6 +14,11 @@ from qurator.utils.parallel import run as prun
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+from annoy import AnnoyIndex
+from multiprocessing import Semaphore
+
+from pathlib import Path
+
 
 @click.command()
 @click.argument('all-entities-file', type=click.Path(exists=True), required=True, nargs=1)
@@ -191,7 +196,7 @@ def evaluate(tagged_parquet, embedding_type, ent_type, n_trees,
 
             results.append(result)
 
-            if len(results) % save_interval == 0:
+            if len(results) >= save_interval:
                 write_results()
 
             data_sequence.\
@@ -293,3 +298,171 @@ def links_per_entity(context_matrix_file):
 
     # Approximate number of links per entity:
     return (df.iloc[:, 0]/df.index.str.split('_').str.len().values).sort_values(ascending=False)
+
+
+class EvalWithContextTask:
+
+    index = None
+    mapping = None
+    search_k = None
+
+    def __init__(self, link_result):
+
+        self._link_result = link_result
+
+    def __call__(self, *args, **kwargs):
+
+        e = self._link_result.drop(['entity_title', 'count']).astype(np.float32).values
+        e /= float(self._link_result['count'])
+
+        ann_indices, dist = EvalWithContextTask.index.get_nns_by_vector(e, EvalWithContextTask.search_k,
+                                                                        include_distances=True)
+
+        hits = EvalWithContextTask.mapping.loc[ann_indices]
+        hits['dist'] = dist
+
+        hits = hits.sort_values('dist', ascending=True).reset_index(drop=True).reset_index(). \
+            rename(columns={'index': 'rank', 'page_title': 'guessed_title'})
+
+        success = hits.loc[hits.guessed_title == self._link_result.entity_title]
+
+        if len(success) > 0:
+            return self._link_result.entity_title, success
+        else:
+            return self._link_result.entity_title, hits.iloc[[0]]
+
+    @staticmethod
+    def initialize(index_file, mapping_file, dims, distance_measure, search_k):
+
+        EvalWithContextTask.search_k = search_k
+
+        EvalWithContextTask.index = AnnoyIndex(dims, distance_measure)
+
+        EvalWithContextTask.index.load(index_file)
+
+        EvalWithContextTask.mapping = pd.read_pickle(mapping_file)
+
+    @staticmethod
+    def _get_all(embeddings, data_sequence, start_iteration, ent_type, w_size, batch_size, processes,
+                 evalutation_semaphore=None):
+
+        # The embed semaphore makes sure that the EmbedWithContext will not over produce results in relation
+        # to the EvalWithContextTask creation
+        embed_semaphore = Semaphore(100)
+
+        for result in EmbedWithContext.run(embeddings, data_sequence, start_iteration, ent_type, w_size, batch_size,
+                                           processes, embed_semaphore):
+            try:
+                for _, link_result in result.iterrows():
+
+                    if evalutation_semaphore is not None:
+                        evalutation_semaphore.acquire()
+
+                    yield EvalWithContextTask(link_result)
+
+                embed_semaphore.release()
+
+            except:
+                print("Error: ", result)
+                raise
+
+    @staticmethod
+    def run(index_file, mapping_file, dims, distance_measure, search_k,
+            embeddings, data_sequence, start_iteration, ent_type, w_size, batch_size, processes, sem=None):
+
+        return prun(EvalWithContextTask._get_all(embeddings, data_sequence, start_iteration, ent_type, w_size,
+                                                 batch_size, processes, sem), processes=3*processes,
+                    initializer=EvalWithContextTask.initialize,
+                    initargs=(index_file, mapping_file, dims, distance_measure, search_k))
+
+
+@click.command()
+@click.argument('index-file', type=click.Path(exists=True), required=True, nargs=1)
+@click.argument('mapping-file', type=click.Path(exists=True), required=True, nargs=1)
+@click.argument('tagged_parquet', type=click.Path(exists=True), required=True, nargs=1)
+@click.argument('embedding_type', type=click.Choice(['flair']), required=True, nargs=1)
+@click.argument('ent_type', type=str, required=True, nargs=1)
+@click.argument('distance-measure', type=click.Choice(['angular', 'euclidean']), required=True, nargs=1)
+@click.argument('output_path', type=click.Path(exists=True), required=True, nargs=1)
+@click.option('--max-iter', type=float, default=np.inf)
+@click.option('--processes', type=int, default=6)
+@click.option('--w-size', type=int, default=10)
+@click.option('--batch-size', type=int, default=100)
+@click.option('--start-iteration', type=int, default=100)
+@click.option('--search-k', type=int, default=500)
+def evaluate_with_context(index_file, mapping_file, tagged_parquet, embedding_type, ent_type, distance_measure,
+                          output_path, processes=6, save_interval=10000, max_iter=np.inf, w_size=10, batch_size=100,
+                          start_iteration=0, search_k=10):
+
+    embeddings, dims = load_embeddings(embedding_type)
+
+    print("Reading entity linking ground-truth file: {}.".format(tagged_parquet))
+    df = dd.read_parquet(tagged_parquet)
+    print("done.")
+
+    data_sequence = tqdm(df.iterrows(), total=len(df))
+
+    result_path = '{}/nedstat-index_{}-sk_{}.parquet'.format(output_path, Path(index_file).stem, search_k)
+
+    print("Write result statistics to: {} .".format(result_path))
+
+    results = []
+
+    def write_results():
+
+        nonlocal results
+
+        if len(results) == 0:
+            return
+
+        res = pd.concat(results)
+
+        # noinspection PyArgumentList
+        table = pa.Table.from_pandas(res)
+
+        pq.write_to_dataset(table, root_path=result_path)
+
+        results = []
+
+    total_successes = mean_rank = 0
+
+    # The evaluation Semaphore makes sure that the EvalWithContext task creation will not run away from
+    # the actual processing of those tasks. If that would happen it would result in ever increasing memory consumption.
+    evaluation_semaphore = Semaphore(100)
+
+    for total_processed, (entity_title, result) in \
+            enumerate(
+                EvalWithContextTask.run(index_file, mapping_file, dims, distance_measure, search_k,
+                                        embeddings, data_sequence, start_iteration, ent_type, w_size, batch_size,
+                                        processes, evaluation_semaphore)):
+        try:
+
+            result['true_title'] = entity_title
+
+            if (result.guessed_title == entity_title).sum() > 0:
+
+                result['success'] = True
+
+                total_successes += 1
+                mean_rank += result['rank'].iloc[0]
+            else:
+                result['success'] = False
+
+            data_sequence. \
+                set_description('Total processed: {:.3f}. Success rate: {:.3f} Mean rank: {:.3f}'.
+                                format(total_processed, total_successes / (total_processed+1e-15),
+                                       mean_rank / (total_successes + 1e-15)))
+
+            evaluation_semaphore.release()
+
+            results.append(result)
+
+            if len(results) >= save_interval:
+                write_results()
+
+        except:
+            print("Error: ", result)
+            raise
+
+        if total_processed >= max_iter:
+            break

@@ -62,9 +62,10 @@ def build(all_entities, embeddings, dims, ent_type, n_trees, processes=10, dista
 
 def build_from_matrix(context_matrix_file, distance_measure, n_trees):
 
-    result_file = "{}.ann".format(".".join(context_matrix_file.split('.')[:-1]))
+    result_file = "{}-dm_{}-nt_{}.ann".format(".".join(context_matrix_file.split('.')[:-1]), distance_measure, n_trees)
 
-    mapping_file = "{}.mapping".format(".".join(context_matrix_file.split('.')[:-1]))
+    mapping_file = "{}-dm_{}-nt_{}.mapping".format(".".join(context_matrix_file.split('.')[:-1]), distance_measure,
+                                                   n_trees)
 
     print("\n\n\n write result to {} and {}".format(result_file, mapping_file))
 

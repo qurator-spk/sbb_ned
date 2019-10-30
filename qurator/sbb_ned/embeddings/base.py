@@ -106,6 +106,7 @@ class EmbedTask:
 class EmbedWithContext:
 
     embeddings = None
+    sem = None
 
     def __init__(self, batch):
 
@@ -161,7 +162,7 @@ class EmbedWithContext:
             EmbedWithContext.embeddings = embeddings
 
     @staticmethod
-    def _get_all(data_sequence, start_iteration, ent_type, wnd_size, batch_size):
+    def _get_all(data_sequence, start_iteration, ent_type, wnd_size, batch_size, sem=None):
 
         def compute_window(sentence, positions):
 
@@ -213,6 +214,10 @@ class EmbedWithContext:
                         entity_positions = []
 
                         if len(batch) >= batch_size:
+
+                            if sem is not None:
+                                sem.acquire()
+
                             yield EmbedWithContext(batch)
                             batch = []
 
@@ -228,11 +233,15 @@ class EmbedWithContext:
                     batch.append((entity_title, sen_part, rel_positions))
 
                     if len(batch) >= batch_size:
+
+                        if sem is not None:
+                            sem.acquire()
+
                         yield EmbedWithContext(batch)
                         batch = []
 
     @staticmethod
-    def run(embeddings, data_sequence, start_iteration, ent_type, w_size, batch_size, processes):
+    def run(embeddings, data_sequence, start_iteration, ent_type, w_size, batch_size, processes, sem=None):
 
-        return prun(EmbedWithContext._get_all(data_sequence, start_iteration, ent_type, w_size, batch_size),
+        return prun(EmbedWithContext._get_all(data_sequence, start_iteration, ent_type, w_size, batch_size, sem),
                     processes=processes, initializer=EmbedWithContext.initialize, initargs=(embeddings,))
