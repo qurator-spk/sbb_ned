@@ -356,13 +356,14 @@ class EvalWithContextTask:
                 for _, link_result in result.iterrows():
 
                     if evalutation_semaphore is not None:
-                        evalutation_semaphore.acquire()
+                        evalutation_semaphore.acquire(timeout=10)
 
                     yield EvalWithContextTask(link_result)
 
                 embed_semaphore.release()
 
-            except:
+            except Exception as ex:
+                print(type(ex))
                 print("Error: ", result)
                 raise
 
@@ -460,9 +461,11 @@ def evaluate_with_context(index_file, mapping_file, tagged_parquet, embedding_ty
             if len(results) >= save_interval:
                 write_results()
 
+            if total_processed >= max_iter:
+                break
+
         except:
             print("Error: ", result)
             raise
 
-        if total_processed >= max_iter:
-            break
+    write_results()

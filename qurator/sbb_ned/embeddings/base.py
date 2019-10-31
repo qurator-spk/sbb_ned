@@ -162,7 +162,7 @@ class EmbedWithContext:
             EmbedWithContext.embeddings = embeddings
 
     @staticmethod
-    def _get_all(data_sequence, start_iteration, ent_type, wnd_size, batch_size, sem=None):
+    def _get_all(data_sequence, start_iteration, ent_type, wnd_size, batch_size, embed_semaphore=None):
 
         def compute_window(sentence, positions):
 
@@ -215,8 +215,8 @@ class EmbedWithContext:
 
                         if len(batch) >= batch_size:
 
-                            if sem is not None:
-                                sem.acquire()
+                            if embed_semaphore is not None:
+                                embed_semaphore.acquire(timeout=10)
 
                             yield EmbedWithContext(batch)
                             batch = []
@@ -234,8 +234,8 @@ class EmbedWithContext:
 
                     if len(batch) >= batch_size:
 
-                        if sem is not None:
-                            sem.acquire()
+                        if embed_semaphore is not None:
+                            embed_semaphore.acquire(timeout=1)
 
                         yield EmbedWithContext(batch)
                         batch = []
