@@ -1,10 +1,179 @@
 import pandas as pd
 import numpy as np
+from multiprocessing import Semaphore
 
 from tqdm import tqdm as tqdm
 # noinspection PyUnresolvedReferences
 from annoy import AnnoyIndex
-from .embeddings.base import EmbedTask
+from .embeddings.base import EmbedTask, EmbedWithContext, get_embedding_vectors
+import json
+from qurator.utils.parallel import run as prun
+
+
+class LookUpBySurface:
+
+    index = None
+    embeddings = None
+    mapping = None
+    search_k = None
+    max_dist = None
+
+    def __init__(self, page_title, entity_surface_parts, entity_title, split_parts):
+
+        self._entity_surface_parts = entity_surface_parts
+        self._entity_title = entity_title
+        self._page_title = page_title
+        self._split_parts = split_parts
+
+    def __call__(self, *args, **kwargs):
+
+        surface_text = " ".join(self._entity_surface_parts)
+
+        text_embeddings = get_embedding_vectors(LookUpBySurface.embeddings, surface_text, self._split_parts)
+
+        ranking, hits = best_matches(text_embeddings, LookUpBySurface.index, LookUpBySurface.mapping,
+                                     LookUpBySurface.search_k, LookUpBySurface.max_dist)
+
+        ranking['on_page'] = self._page_title
+        ranking['surface'] = surface_text
+
+        return self._entity_title, ranking
+
+    @staticmethod
+    def _get_all(data_sequence, ent_type, split_parts):
+
+        for _, article in data_sequence:
+
+            sentences = json.loads(article.text)
+            sen_link_titles = json.loads(article.link_titles)
+            sen_tags = json.loads(article.tags)
+
+            if ent_type not in set([t if len(t) < 3 else t[2:] for tags in sen_tags for t in tags]):
+                # Do not further process articles that do not have any linked relevant entity of type "ent_type".
+                continue
+
+            for sen, link_titles, tags in zip(sentences, sen_link_titles, sen_tags):
+
+                if ent_type not in set([t if len(t) < 3 else t[2:] for t in tags]):
+                    # Do not further process sentences that do not contain a relevant linked entity of type "ent_type".
+                    continue
+
+                entity_surface_parts = []
+                entity_title = ''
+                for word, link_title, tag in zip(sen, link_titles, tags):
+
+                    if (tag == 'O' or tag.startswith('B-')) and len(entity_surface_parts) > 0:
+
+                        yield LookUpBySurface(article.page_title, entity_surface_parts, entity_title, split_parts)
+                        entity_surface_parts = []
+
+                    if tag != 'O' and tag[2:] == ent_type:
+
+                        entity_surface_parts.append(word)
+                        entity_title = link_title
+
+                if len(entity_surface_parts) > 0:
+                    yield LookUpBySurface(article.page_title, entity_surface_parts, entity_title, split_parts)
+
+    @staticmethod
+    def run(embeddings, data_sequence, ent_type, split_parts, processes, n_trees, distance_measure, output_path,
+            search_k, max_dist):
+
+        return prun(LookUpBySurface._get_all(data_sequence, ent_type, split_parts), processes=processes,
+                    initializer=LookUpBySurface.initialize,
+                    initargs=(embeddings, ent_type, n_trees, distance_measure, output_path, search_k, max_dist))
+
+    @staticmethod
+    def initialize(embeddings, ent_type, n_trees, distance_measure, output_path, search_k, max_dist):
+
+        if type(embeddings) == tuple:
+            LookUpBySurface.embeddings = embeddings[0](**embeddings[1])
+        else:
+            LookUpBySurface.embeddings = embeddings
+
+        LookUpBySurface.index, LookUpBySurface.mapping = \
+            load(LookUpBySurface.embeddings.config(), ent_type, n_trees, distance_measure, output_path)
+
+        LookUpBySurface.search_k = search_k
+        LookUpBySurface.max_dist = max_dist
+
+
+class LookUpBySurfaceAndContext:
+
+    index = None
+    mapping = None
+    search_k = None
+
+    def __init__(self, link_result):
+
+        self._link_result = link_result
+
+    def __call__(self, *args, **kwargs):
+
+        e = self._link_result.drop(['entity_title', 'count']).astype(np.float32).values
+        e /= float(self._link_result['count'])
+
+        ann_indices, dist = LookUpBySurfaceAndContext.index.get_nns_by_vector(e, LookUpBySurfaceAndContext.search_k,
+                                                                              include_distances=True)
+
+        ranking = LookUpBySurfaceAndContext.mapping.loc[ann_indices]
+        ranking['dist'] = dist
+
+        ranking = ranking.sort_values('dist', ascending=True).reset_index(drop=True).reset_index(). \
+            rename(columns={'index': 'rank', 'page_title': 'guessed_title'})
+
+        success = ranking.loc[ranking.guessed_title == self._link_result.entity_title]
+
+        if len(success) > 0:
+            return self._link_result.entity_title, success
+        else:
+            return self._link_result.entity_title, ranking.iloc[[0]]
+
+    @staticmethod
+    def initialize(index_file, mapping_file, dims, distance_measure, search_k):
+
+        LookUpBySurfaceAndContext.search_k = search_k
+
+        LookUpBySurfaceAndContext.index = AnnoyIndex(dims, distance_measure)
+
+        LookUpBySurfaceAndContext.index.load(index_file)
+
+        LookUpBySurfaceAndContext.mapping = pd.read_pickle(mapping_file)
+
+    @staticmethod
+    def _get_all(embeddings, data_sequence, start_iteration, ent_type, w_size, batch_size, processes,
+                 evalutation_semaphore=None):
+
+        # The embed semaphore makes sure that the EmbedWithContext will not over produce results in relation
+        # to the LookUpBySurfaceAndContext creation
+        embed_semaphore = Semaphore(100)
+
+        for result in EmbedWithContext.run(embeddings, data_sequence, start_iteration, ent_type, w_size, batch_size,
+                                           processes, embed_semaphore):
+            try:
+                for _, link_result in result.iterrows():
+
+                    if evalutation_semaphore is not None:
+                        evalutation_semaphore.acquire(timeout=10)
+
+                    yield LookUpBySurfaceAndContext(link_result)
+
+                embed_semaphore.release()
+
+            except Exception as ex:
+                print(type(ex))
+                print("Error: ", result)
+                raise
+
+    @staticmethod
+    def run(index_file, mapping_file, dims, distance_measure, search_k,
+            embeddings, data_sequence, start_iteration, ent_type, w_size, batch_size, processes, sem=None):
+
+        return prun(
+            LookUpBySurfaceAndContext._get_all(embeddings, data_sequence, start_iteration, ent_type, w_size, batch_size,
+                                               processes, sem), processes=3*processes,
+            initializer=LookUpBySurfaceAndContext.initialize,
+            initargs=(index_file, mapping_file, dims, distance_measure, search_k))
 
 
 def index_file_name(embedding_description, ent_type, n_trees, distance_measure):

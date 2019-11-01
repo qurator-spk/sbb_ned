@@ -1,20 +1,15 @@
 from .index import build as build_index
-from .index import build_from_matrix
-from .index import load as load_index
-from .index import best_matches
-from .embeddings.base import load_embeddings, get_embedding_vectors, EmbedWithContext
+from .index import build_from_matrix, LookUpBySurface, LookUpBySurfaceAndContext
+from .embeddings.base import load_embeddings, EmbedWithContext
 import click
 import numpy as np
 import pandas as pd
 import dask.dataframe as dd
-import json
 from tqdm import tqdm as tqdm
-from qurator.utils.parallel import run as prun
 
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from annoy import AnnoyIndex
 from multiprocessing import Semaphore
 
 from pathlib import Path
@@ -38,94 +33,6 @@ def build(all_entities_file, embedding_type, entity_type, n_trees, output_path,
 
     build_index(all_entities, embeddings, dims, entity_type, n_trees, n_processes, distance_measure, split_parts,
                 output_path)
-
-
-class EvalTask:
-
-    index = None
-    embeddings = None
-    mapping = None
-    search_k = None
-    max_dist = None
-
-    def __init__(self, page_title, entity_surface_parts, entity_title, split_parts):
-
-        self._entity_surface_parts = entity_surface_parts
-        self._entity_title = entity_title
-        self._page_title = page_title
-        self._split_parts = split_parts
-
-    def __call__(self, *args, **kwargs):
-
-        surface_text = " ".join(self._entity_surface_parts)
-
-        text_embeddings = get_embedding_vectors(EvalTask.embeddings, surface_text, self._split_parts)
-
-        ranking, hits = best_matches(text_embeddings, EvalTask.index, EvalTask.mapping, EvalTask.search_k,
-                                     EvalTask.max_dist)
-
-        ranking['on_page'] = self._page_title
-        ranking['surface'] = surface_text
-
-        return self._entity_title, ranking
-
-    @staticmethod
-    def _get_all(data_sequence, ent_type, split_parts):
-
-        for _, article in data_sequence:
-
-            sentences = json.loads(article.text)
-            sen_link_titles = json.loads(article.link_titles)
-            sen_tags = json.loads(article.tags)
-
-            if ent_type not in set([t if len(t) < 3 else t[2:] for tags in sen_tags for t in tags]):
-                # Do not further process articles that do not have any linked relevant entity of type "ent_type".
-                continue
-
-            for sen, link_titles, tags in zip(sentences, sen_link_titles, sen_tags):
-
-                if ent_type not in set([t if len(t) < 3 else t[2:] for t in tags]):
-                    # Do not further process sentences that do not contain a relevant linked entity of type "ent_type".
-                    continue
-
-                entity_surface_parts = []
-                entity_title = ''
-                for word, link_title, tag in zip(sen, link_titles, tags):
-
-                    if (tag == 'O' or tag.startswith('B-')) and len(entity_surface_parts) > 0:
-
-                        yield EvalTask(article.page_title, entity_surface_parts, entity_title, split_parts)
-                        entity_surface_parts = []
-
-                    if tag != 'O' and tag[2:] == ent_type:
-
-                        entity_surface_parts.append(word)
-                        entity_title = link_title
-
-                if len(entity_surface_parts) > 0:
-                    yield EvalTask(article.page_title, entity_surface_parts, entity_title, split_parts)
-
-    @staticmethod
-    def run(embeddings, data_sequence, ent_type, split_parts, processes, n_trees, distance_measure, output_path,
-            search_k, max_dist):
-
-        return prun(EvalTask._get_all(data_sequence, ent_type, split_parts), processes=processes,
-                    initializer=EvalTask.initialize,
-                    initargs=(embeddings, ent_type, n_trees, distance_measure, output_path, search_k, max_dist))
-
-    @staticmethod
-    def initialize(embeddings, ent_type, n_trees, distance_measure, output_path, search_k, max_dist):
-
-        if type(embeddings) == tuple:
-            EvalTask.embeddings = embeddings[0](**embeddings[1])
-        else:
-            EvalTask.embeddings = embeddings
-
-        EvalTask.index, EvalTask.mapping = load_index(EvalTask.embeddings.config(), ent_type, n_trees,
-                                                      distance_measure, output_path)
-
-        EvalTask.search_k = search_k
-        EvalTask.max_dist = max_dist
 
 
 @click.command()
@@ -173,8 +80,8 @@ def evaluate(tagged_parquet, embedding_type, ent_type, n_trees,
 
         results = []
 
-    for entity_title, ranking in EvalTask.run(embeddings, data_sequence, ent_type, split_parts, processes, n_trees,
-                                              distance_measure, output_path, search_k, max_dist):
+    for entity_title, ranking in LookUpBySurface.run(embeddings, data_sequence, ent_type, split_parts, processes,
+                                                     n_trees, distance_measure, output_path, search_k, max_dist):
 
         # noinspection PyBroadException
         try:
@@ -300,83 +207,6 @@ def links_per_entity(context_matrix_file):
     return (df.iloc[:, 0]/df.index.str.split('_').str.len().values).sort_values(ascending=False)
 
 
-class EvalWithContextTask:
-
-    index = None
-    mapping = None
-    search_k = None
-
-    def __init__(self, link_result):
-
-        self._link_result = link_result
-
-    def __call__(self, *args, **kwargs):
-
-        e = self._link_result.drop(['entity_title', 'count']).astype(np.float32).values
-        e /= float(self._link_result['count'])
-
-        ann_indices, dist = EvalWithContextTask.index.get_nns_by_vector(e, EvalWithContextTask.search_k,
-                                                                        include_distances=True)
-
-        hits = EvalWithContextTask.mapping.loc[ann_indices]
-        hits['dist'] = dist
-
-        hits = hits.sort_values('dist', ascending=True).reset_index(drop=True).reset_index(). \
-            rename(columns={'index': 'rank', 'page_title': 'guessed_title'})
-
-        success = hits.loc[hits.guessed_title == self._link_result.entity_title]
-
-        if len(success) > 0:
-            return self._link_result.entity_title, success
-        else:
-            return self._link_result.entity_title, hits.iloc[[0]]
-
-    @staticmethod
-    def initialize(index_file, mapping_file, dims, distance_measure, search_k):
-
-        EvalWithContextTask.search_k = search_k
-
-        EvalWithContextTask.index = AnnoyIndex(dims, distance_measure)
-
-        EvalWithContextTask.index.load(index_file)
-
-        EvalWithContextTask.mapping = pd.read_pickle(mapping_file)
-
-    @staticmethod
-    def _get_all(embeddings, data_sequence, start_iteration, ent_type, w_size, batch_size, processes,
-                 evalutation_semaphore=None):
-
-        # The embed semaphore makes sure that the EmbedWithContext will not over produce results in relation
-        # to the EvalWithContextTask creation
-        embed_semaphore = Semaphore(100)
-
-        for result in EmbedWithContext.run(embeddings, data_sequence, start_iteration, ent_type, w_size, batch_size,
-                                           processes, embed_semaphore):
-            try:
-                for _, link_result in result.iterrows():
-
-                    if evalutation_semaphore is not None:
-                        evalutation_semaphore.acquire(timeout=10)
-
-                    yield EvalWithContextTask(link_result)
-
-                embed_semaphore.release()
-
-            except Exception as ex:
-                print(type(ex))
-                print("Error: ", result)
-                raise
-
-    @staticmethod
-    def run(index_file, mapping_file, dims, distance_measure, search_k,
-            embeddings, data_sequence, start_iteration, ent_type, w_size, batch_size, processes, sem=None):
-
-        return prun(EvalWithContextTask._get_all(embeddings, data_sequence, start_iteration, ent_type, w_size,
-                                                 batch_size, processes, sem), processes=3*processes,
-                    initializer=EvalWithContextTask.initialize,
-                    initargs=(index_file, mapping_file, dims, distance_measure, search_k))
-
-
 @click.command()
 @click.argument('index-file', type=click.Path(exists=True), required=True, nargs=1)
 @click.argument('mapping-file', type=click.Path(exists=True), required=True, nargs=1)
@@ -427,19 +257,20 @@ def evaluate_with_context(index_file, mapping_file, tagged_parquet, embedding_ty
 
     total_successes = mean_rank = 0
 
-    # The evaluation Semaphore makes sure that the EvalWithContext task creation will not run away from
+    # The evaluation Semaphore makes sure that the LookUpBySurfaceAndContext task creation will not run away from
     # the actual processing of those tasks. If that would happen it would result in ever increasing memory consumption.
     evaluation_semaphore = Semaphore(100)
 
     for total_processed, (entity_title, result) in \
             enumerate(
-                EvalWithContextTask.run(index_file, mapping_file, dims, distance_measure, search_k,
-                                        embeddings, data_sequence, start_iteration, ent_type, w_size, batch_size,
-                                        processes, evaluation_semaphore)):
+                LookUpBySurfaceAndContext.run(index_file, mapping_file, dims, distance_measure, search_k, embeddings,
+                                              data_sequence, start_iteration, ent_type, w_size, batch_size, processes,
+                                              evaluation_semaphore)):
         try:
 
             result['true_title'] = entity_title
 
+            # noinspection PyUnresolvedReferences
             if (result.guessed_title == entity_title).sum() > 0:
 
                 result['success'] = True
