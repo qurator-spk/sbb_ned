@@ -216,7 +216,7 @@ class EmbedWithContext:
                         if len(batch) >= batch_size:
 
                             if embed_semaphore is not None:
-                                embed_semaphore.acquire(timeout=10)
+                                embed_semaphore.acquire(timeout=20)
 
                             yield EmbedWithContext(batch)
                             batch = []
@@ -235,13 +235,17 @@ class EmbedWithContext:
                     if len(batch) >= batch_size:
 
                         if embed_semaphore is not None:
-                            embed_semaphore.acquire(timeout=1)
+                            embed_semaphore.acquire(timeout=20)
 
                         yield EmbedWithContext(batch)
                         batch = []
 
     @staticmethod
-    def run(embeddings, data_sequence, start_iteration, ent_type, w_size, batch_size, processes, sem=None):
+    def run(embeddings, data_sequence, ent_type, w_size, batch_size, processes, sem=None, start_iteration=0):
 
-        return prun(EmbedWithContext._get_all(data_sequence, start_iteration, ent_type, w_size, batch_size, sem),
-                    processes=processes, initializer=EmbedWithContext.initialize, initargs=(embeddings,))
+        for result in \
+                prun(EmbedWithContext._get_all(data_sequence, start_iteration, ent_type, w_size, batch_size, sem),
+                     processes=processes, initializer=EmbedWithContext.initialize, initargs=(embeddings,)):
+
+            for _, link_result in result.iterrows():
+                yield link_result

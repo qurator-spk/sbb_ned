@@ -40,7 +40,7 @@ class LookUpBySurface:
         return self._entity_title, ranking
 
     @staticmethod
-    def _get_all(data_sequence, ent_type, split_parts):
+    def _get_all(data_sequence, ent_type, split_parts, sem=None):
 
         for _, article in data_sequence:
 
@@ -64,6 +64,9 @@ class LookUpBySurface:
 
                     if (tag == 'O' or tag.startswith('B-')) and len(entity_surface_parts) > 0:
 
+                        if sem is not None:
+                            sem.acquire(timeout=10)
+
                         yield LookUpBySurface(article.page_title, entity_surface_parts, entity_title, split_parts)
                         entity_surface_parts = []
 
@@ -73,13 +76,19 @@ class LookUpBySurface:
                         entity_title = link_title
 
                 if len(entity_surface_parts) > 0:
+
+                    if sem is not None:
+                        sem.acquire(timeout=10)
+
                     yield LookUpBySurface(article.page_title, entity_surface_parts, entity_title, split_parts)
 
     @staticmethod
     def run(embeddings, data_sequence, ent_type, split_parts, processes, n_trees, distance_measure, output_path,
-            search_k, max_dist):
+            search_k, max_dist, sem=None):
 
-        return prun(LookUpBySurface._get_all(data_sequence, ent_type, split_parts), processes=processes,
+        # import ipdb;ipdb.set_trace()
+
+        return prun(LookUpBySurface._get_all(data_sequence, ent_type, split_parts, sem=sem), processes=processes,
                     initializer=LookUpBySurface.initialize,
                     initargs=(embeddings, ent_type, n_trees, distance_measure, output_path, search_k, max_dist))
 
@@ -148,22 +157,23 @@ class LookUpBySurfaceAndContext:
         # to the LookUpBySurfaceAndContext creation
         embed_semaphore = Semaphore(100)
 
-        for result in EmbedWithContext.run(embeddings, data_sequence, start_iteration, ent_type, w_size, batch_size,
-                                           processes, embed_semaphore):
+        for it, link_result in \
+                enumerate(
+                    EmbedWithContext.run(embeddings, data_sequence, ent_type, w_size, batch_size,
+                                         processes, embed_semaphore, start_iteration=start_iteration)):
             try:
-                for _, link_result in result.iterrows():
+                if evalutation_semaphore is not None:
+                    evalutation_semaphore.acquire(timeout=10)
 
-                    if evalutation_semaphore is not None:
-                        evalutation_semaphore.acquire(timeout=10)
-
-                    yield LookUpBySurfaceAndContext(link_result)
-
-                embed_semaphore.release()
+                yield LookUpBySurfaceAndContext(link_result)
 
             except Exception as ex:
                 print(type(ex))
-                print("Error: ", result)
+                print("Error: ", link_result)
                 raise
+
+            if it % batch_size == 0:
+                embed_semaphore.release()
 
     @staticmethod
     def run(index_file, mapping_file, dims, distance_measure, search_k,
