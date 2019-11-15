@@ -21,8 +21,11 @@ setup(
     entry_points={
       'console_scripts': [
         "build-index=qurator.sbb_ned.cli:build",
-        "build-index-with-context=qurator.sbb_ned.cli:build_with_context",
-        "evaluate-index=qurator.sbb_ned.cli:evaluate"
+        "build-context-matrix=qurator.sbb_ned.cli:build_context_matrix",
+        "build-from-context-matrix=qurator.sbb_ned.cli:build_from_context_matrix",
+        "evaluate-index=qurator.sbb_ned.cli:evaluate",
+        "evaluate-with-context=qurator.sbb_ned.cli:evaluate_with_context",
+        "evaluate-combined=qurator.sbb_ned.cli:evaluate_combined"
       ]
     },
     python_requires='>=3.6.0',
