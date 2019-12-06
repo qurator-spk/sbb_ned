@@ -1,3 +1,8 @@
+import warnings
+import logging
+
+warnings.filterwarnings('ignore', category=FutureWarning)
+
 from .index import build as build_index
 from .index import build_from_matrix, LookUpBySurface, LookUpBySurfaceAndContext
 from .embeddings.base import load_embeddings, EmbedWithContext
@@ -16,6 +21,8 @@ from pathlib import Path
 from qurator.utils.parallel import run as prun
 from numpy.linalg import norm
 from numpy.matlib import repmat
+
+logger = logging.getLogger(__name__)
 
 
 @click.command()
