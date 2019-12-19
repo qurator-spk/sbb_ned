@@ -10,9 +10,9 @@ class FastTextEmbeddings(emb.base.Embeddings):
 
         super(FastTextEmbeddings, self).__init__(*args, **kwargs)
 
-        self._embeddings = load_facebook_vectors(path)
+        self._path = path
+        self._embeddings = None
 
-        pass
 
     @staticmethod
     def dims():
@@ -20,6 +20,10 @@ class FastTextEmbeddings(emb.base.Embeddings):
         return 300
 
     def get(self, keys):
+
+        if self._embeddings is None:
+
+            self._embeddings = load_facebook_vectors(self._path)
 
         for key in keys:
             yield key, self._embeddings[key]

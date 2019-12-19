@@ -18,10 +18,11 @@ class LookUpBySurface:
     search_k = None
     max_dist = None
 
-    def __init__(self, page_title, entity_surface_parts, entity_title, split_parts):
+    def __init__(self, page_title, entity_surface_parts, entity_title, entity_type, split_parts):
 
         self._entity_surface_parts = entity_surface_parts
         self._entity_title = entity_title
+        self._entity_type = entity_type
         self._page_title = page_title
         self._split_parts = split_parts
 
@@ -29,9 +30,11 @@ class LookUpBySurface:
 
         surface_text = " ".join(self._entity_surface_parts)
 
-        text_embeddings = get_embedding_vectors(LookUpBySurface.embeddings, surface_text, self._split_parts)
+        text_embeddings = get_embedding_vectors(LookUpBySurface.embeddings[self._entity_type], surface_text,
+                                                self._split_parts)
 
-        ranking, hits = best_matches(text_embeddings, LookUpBySurface.index, LookUpBySurface.mapping,
+        ranking, hits = best_matches(text_embeddings, LookUpBySurface.index[self._entity_type],
+                                     LookUpBySurface.mapping[self._entity_type],
                                      LookUpBySurface.search_k, LookUpBySurface.max_dist)
 
         ranking['on_page'] = self._page_title
@@ -40,7 +43,7 @@ class LookUpBySurface:
         return self._entity_title, ranking
 
     @staticmethod
-    def _get_all(data_sequence, ent_type, split_parts, sem=None):
+    def _get_all(data_sequence, ent_types, split_parts, sem=None):
 
         for _, article in data_sequence:
 
@@ -48,18 +51,19 @@ class LookUpBySurface:
             sen_link_titles = json.loads(article.link_titles)
             sen_tags = json.loads(article.tags)
 
-            if ent_type not in set([t if len(t) < 3 else t[2:] for tags in sen_tags for t in tags]):
-                # Do not further process articles that do not have any linked relevant entity of type "ent_type".
+            if len(ent_types.intersection({t if len(t) < 3 else t[2:] for tags in sen_tags for t in tags})) == 0:
+                # Do not further process sentences that do not contain a relevant linked entity of type "ent_types".
                 continue
 
             for sen, link_titles, tags in zip(sentences, sen_link_titles, sen_tags):
 
-                if ent_type not in set([t if len(t) < 3 else t[2:] for t in tags]):
-                    # Do not further process sentences that do not contain a relevant linked entity of type "ent_type".
+                if len(ent_types.intersection({t if len(t) < 3 else t[2:] for t in tags})) == 0:
+                    # Do not further process sentences that do not contain a relevant linked entity of type "ent_types".
                     continue
 
                 entity_surface_parts = []
                 entity_title = ''
+                entity_type = None
                 for word, link_title, tag in zip(sen, link_titles, tags):
 
                     if (tag == 'O' or tag.startswith('B-')) and len(entity_surface_parts) > 0:
@@ -67,41 +71,50 @@ class LookUpBySurface:
                         if sem is not None:
                             sem.acquire(timeout=10)
 
-                        yield LookUpBySurface(article.page_title, entity_surface_parts, entity_title, split_parts)
+                        yield LookUpBySurface(article.page_title, entity_surface_parts, entity_title, entity_type,
+                                              split_parts)
+
                         entity_surface_parts = []
 
-                    if tag != 'O' and tag[2:] == ent_type:
+                    if tag != 'O' and tag[2:] in ent_types:
 
                         entity_surface_parts.append(word)
                         entity_title = link_title
+                        entity_type = tag[2:]
 
                 if len(entity_surface_parts) > 0:
 
                     if sem is not None:
                         sem.acquire(timeout=10)
 
-                    yield LookUpBySurface(article.page_title, entity_surface_parts, entity_title, split_parts)
+                    yield LookUpBySurface(article.page_title, entity_surface_parts, entity_title, entity_type,
+                                          split_parts)
 
     @staticmethod
-    def run(embeddings, data_sequence, ent_type, split_parts, processes, n_trees, distance_measure, output_path,
+    def run(embeddings, data_sequence, split_parts, processes, n_trees, distance_measure, output_path,
             search_k, max_dist, sem=None):
 
-        # import ipdb;ipdb.set_trace()
-
-        return prun(LookUpBySurface._get_all(data_sequence, ent_type, split_parts, sem=sem), processes=processes,
+        return prun(LookUpBySurface._get_all(data_sequence, set(embeddings.keys()), split_parts, sem=sem),
+                    processes=processes,
                     initializer=LookUpBySurface.initialize,
-                    initargs=(embeddings, ent_type, n_trees, distance_measure, output_path, search_k, max_dist))
+                    initargs=(embeddings, n_trees, distance_measure, output_path, search_k, max_dist))
 
     @staticmethod
-    def initialize(embeddings, ent_type, n_trees, distance_measure, output_path, search_k, max_dist):
+    def initialize(embeddings, n_trees, distance_measure, output_path, search_k, max_dist):
 
-        if type(embeddings) == tuple:
-            LookUpBySurface.embeddings = embeddings[0](**embeddings[1])
-        else:
-            LookUpBySurface.embeddings = embeddings
+        LookUpBySurface.embeddings = dict()
+        LookUpBySurface.index = dict()
+        LookUpBySurface.mapping = dict()
 
-        LookUpBySurface.index, LookUpBySurface.mapping = \
-            load(LookUpBySurface.embeddings.config(), ent_type, n_trees, distance_measure, output_path)
+        for ent_type, emb in embeddings.items():
+
+            if type(emb) == tuple:
+                LookUpBySurface.embeddings[ent_type] = emb[0](**emb[1])
+            else:
+                LookUpBySurface.embeddings[ent_type] = emb
+
+            LookUpBySurface.index[ent_type], LookUpBySurface.mapping[ent_type] = \
+                load(LookUpBySurface.embeddings[ent_type].config(), ent_type, n_trees, distance_measure, output_path)
 
         LookUpBySurface.search_k = search_k
         LookUpBySurface.max_dist = max_dist

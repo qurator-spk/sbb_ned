@@ -10,6 +10,10 @@ OUTPUT_PATH ?=$(DATA_PATH)/entity_index
 
 ENTITIES_FILE ?=$(DATA_PATH)/wikipedia/wikipedia-ner-entities.pkl
 
+ENTITY_INDEX_PATH ?=$(DATA_PATH)/entity_index
+
+NED_FILE ?=$(DATA_PATH)/wikipedia/ned.sqlite
+
 $(OUTPUT_PATH):
 	mkdir -p $(OUTPUT_PATH)
 
@@ -79,4 +83,17 @@ flair-eval-combined-PER:
 
 flair-eval-combined:	flair-eval-combined-ORG flair-eval-combined-LOC flair-eval-combined-PER
 
+#Usage: ned-training-data [OPTIONS] TRAIN_SET_SQL_FILE NED_SQL_FILE
+#                         ENTITIES_FILE [fasttext] N_TREES [angular|euclidean]
+#                         ENTITY_INDEX_PATH
+
+
+
+ned-training-data:
+	ned-training-data ned-train.sqlite $(NED_FILE) $(ENTITIES_FILE) fasttext $(N_TREES) $(DIST) $(ENTITY_INDEX_PATH) 
+
+
 all: $(OUTPUT_PATH) fasttext-eval flair-eval
+
+
+

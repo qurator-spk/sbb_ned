@@ -20,6 +20,8 @@ setup(
     install_requires=install_requires,
     entry_points={
       'console_scripts': [
+        "per-sentence-ned-data=qurator.sbb_ned.cli:per_sentence_ned_data",
+        "ned-training-data=qurator.sbb_ned.cli:ned_training_data",
         "build-index=qurator.sbb_ned.cli:build",
         "build-context-matrix=qurator.sbb_ned.cli:build_context_matrix",
         "build-from-context-matrix=qurator.sbb_ned.cli:build_from_context_matrix",

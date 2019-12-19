@@ -6,6 +6,7 @@ warnings.filterwarnings('ignore', category=FutureWarning)
 from .index import build as build_index
 from .index import build_from_matrix, LookUpBySurface, LookUpBySurfaceAndContext
 from .embeddings.base import load_embeddings, EmbedWithContext
+from .ground_truth.data_processor import WikipediaDataset
 import click
 import numpy as np
 import pandas as pd
@@ -21,6 +22,9 @@ from pathlib import Path
 from qurator.utils.parallel import run as prun
 from numpy.linalg import norm
 from numpy.matlib import repmat
+
+import json
+import sqlite3
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +95,7 @@ def evaluate(tagged_parquet, embedding_type, ent_type, n_trees,
         results = []
 
     for total_processed, (entity_title, ranking) in \
-            enumerate(LookUpBySurface.run(embeddings, data_sequence, ent_type, split_parts, processes, n_trees,
+            enumerate(LookUpBySurface.run({ent_type: embeddings}, data_sequence, split_parts, processes, n_trees,
                                           distance_measure, output_path, search_k, max_dist)):
 
         # noinspection PyBroadException
@@ -352,7 +356,7 @@ class RefineLookup:
 
         for total_processed, ((entity_title, ranking), link_embedding) in \
                 enumerate(zip(
-                    LookUpBySurface.run(embeddings_1, data_sequence_1, ent_type_1, split_parts, processes, n_trees,
+                    LookUpBySurface.run({ent_type_1: embeddings_1}, data_sequence_1, split_parts, processes, n_trees,
                                         distance_measure_1, output_path, search_k_1, max_dist, sem=lookup_semaphore),
                     EmbedWithContext.run(embeddings_2, data_sequence_2, ent_type_2, w_size, batch_size,
                                          processes, sem=embed_semaphore))):
@@ -503,3 +507,178 @@ def evaluate_combined(tagged_parquet, ent_type,
     write_results()
 
     return result_path
+
+
+class NEDDataTask:
+
+    def __init__(self, page_id, text, tags, link_titles, page_title, ent_types=None):
+
+        self._page_id = page_id
+        self._text = text
+        self._tags = tags
+        self._link_titles = link_titles
+        self._page_title = page_title
+
+        if ent_types is None:
+            self._ent_types = {'PER', 'LOC', 'ORG'}
+
+    def __call__(self, *args, **kwargs):
+
+        sentences = json.loads(self._text)
+        link_titles = json.loads(self._link_titles)
+        tags = json.loads(self._tags)
+
+        df_sentence = []
+        df_linking = []
+
+        for sen, sen_link_titles, sen_tags in zip(sentences, link_titles, tags):
+
+            if len(self._ent_types.intersection({t if len(t) < 3 else t[2:] for t in sen_tags})) == 0:
+                # Do not further process sentences that do not contain a relevant linked entity of type "ent_types".
+                continue
+
+            tmp1 = {'id': [len(df_sentence)],
+                    'text': [json.dumps(sen)],
+                    'tags': [json.dumps(sen_tags)],
+                    'entities': [json.dumps(sen_link_titles)],
+                    'page_id': [self._page_id],
+                    'page_title': [self._page_title]}
+
+            sen_link_titles = [t for t in list(set(sen_link_titles)) if len(t) > 0]
+
+            tmp2 = {'target': sen_link_titles, 'sentence': len(sen_link_titles) * [len(df_sentence)]}
+
+            df_sentence.append(pd.DataFrame.from_dict(tmp1).reset_index(drop=True))
+            df_linking.append(pd.DataFrame.from_dict(tmp2).reset_index(drop=True))
+
+        if len(df_sentence) > 0:
+            return pd.concat(df_sentence), pd.concat(df_linking)
+        else:
+            return None, None
+
+    @staticmethod
+    def get_all(tagged_sqlite_file):
+
+        with sqlite3.connect(tagged_sqlite_file) as read_conn:
+            read_conn.execute('pragma journal_mode=wal')
+
+            total = int(read_conn.execute('select count(*) from tagged;').fetchone()[0])
+
+            pos = read_conn.cursor().execute('SELECT page_id, text, tags, link_titles, page_title from tagged')
+
+            for page_id, text, tags, link_titles, page_title in tqdm(pos, total=total):
+
+                yield NEDDataTask(page_id, text, tags, link_titles, page_title)
+
+
+@click.command()
+@click.argument('tagged-sqlite-file', type=click.Path(exists=True), required=True, nargs=1)
+@click.argument('ned-sqlite-file', type=click.Path(exists=False), required=True, nargs=1)
+@click.option('--processes', type=int, default=6)
+def per_sentence_ned_data(tagged_sqlite_file, ned_sqlite_file, processes):
+
+    with sqlite3.connect(ned_sqlite_file) as write_conn:
+
+        write_conn.execute('pragma journal_mode=wal')
+
+        sentence_counter = 0
+        link_counter = 0
+
+        for df_sentence, df_linking in prun(NEDDataTask.get_all(tagged_sqlite_file), processes=processes):
+
+            if df_sentence is None:
+                continue
+
+            df_sentence['id'] += sentence_counter
+            df_linking['sentence'] += sentence_counter
+            df_linking['id'] = [link_counter + i for i in range(len(df_linking))]
+
+            sentence_counter += len(df_sentence)
+            link_counter += len(df_linking)
+
+            df_sentence.set_index('id').to_sql('sentences', con=write_conn, if_exists='append', index_label='id')
+            df_linking.set_index('id').to_sql('links', con=write_conn, if_exists='append', index_label='id')
+
+        write_conn.execute('create index idx_target on links(target);')
+        write_conn.execute('create index idx_sentence on links(sentence);')
+        write_conn.execute('create index idx_page_id on sentences(page_id);')
+        write_conn.execute('create index idx_page_title on sentences(page_title);')
+
+
+@click.command()
+@click.argument('train-set-sql-file', type=click.Path(exists=False), required=True, nargs=1)
+@click.argument('ned-sql-file', type=click.Path(exists=True), required=True, nargs=1)
+@click.argument('entities-file', type=click.Path(exists=True), required=True, nargs=1)
+@click.argument('embedding-type', type=click.Choice(['fasttext']), required=True, nargs=1)
+@click.argument('n-trees', type=int, required=True, nargs=1)
+@click.argument('distance-measure', type=click.Choice(['angular', 'euclidean']), required=True, nargs=1)
+@click.argument('entity-index-path', type=click.Path(exists=True), required=True, nargs=1)
+def ned_training_data(train_set_sql_file,
+                      ned_sql_file, entities_file, embedding_type, n_trees, distance_measure, entity_index_path,
+                      search_k=50, max_dist=0.25):
+
+    epoch_size = 1000
+    label_map = None
+    max_seq_length = 128
+    tokenizer = None
+
+    embs, dims = load_embeddings(embedding_type)
+
+    embeddings = {'PER': embs, 'LOC': embs, 'ORG': embs}
+
+    with sqlite3.connect(train_set_sql_file) as write_conn:
+
+        write_conn.execute('pragma journal_mode=wal')
+
+        count = 0
+
+        for sen_a, sen_b, pos_a, pos_b, label in\
+            WikipediaDataset(epoch_size, label_map, max_seq_length, tokenizer,
+                             ned_sql_file, entities_file, embeddings, n_trees, distance_measure, entity_index_path,
+                             search_k, max_dist).get_sentence_pairs():
+
+            df = pd.DataFrame.from_dict({'id': count, 'sen_a': [json.dumps(sen_a)], 'sen_b': [json.dumps(sen_b)],
+                                         'pos_a': [pos_a], 'pos_b': [pos_b], 'label': [label]}).set_index('id')
+
+            df .to_sql('links', con=write_conn, if_exists='append', index_label='id')
+
+            count += 1
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
