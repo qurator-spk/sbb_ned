@@ -1,12 +1,13 @@
 import warnings
 import logging
+import os
 
 warnings.filterwarnings('ignore', category=FutureWarning)
 
 from .index import build as build_index
 from .index import build_from_matrix, LookUpBySurface, LookUpBySurfaceAndContext
 from .embeddings.base import load_embeddings, EmbedWithContext
-from .ground_truth.data_processor import WikipediaDataset
+from .ground_truth.data_processor import WikipediaDataset, InputExample, convert_examples_to_features
 import click
 import numpy as np
 import pandas as pd
@@ -25,6 +26,9 @@ from numpy.matlib import repmat
 
 import json
 import sqlite3
+
+from sklearn.utils import shuffle
+from qurator.sbb_ner.models.tokenization import BertTokenizer
 
 logger = logging.getLogger(__name__)
 
@@ -606,54 +610,133 @@ def per_sentence_ned_data(tagged_sqlite_file, ned_sqlite_file, processes):
 
 
 @click.command()
-@click.argument('train-set-sql-file', type=click.Path(exists=False), required=True, nargs=1)
+@click.argument('pairing-sql-file', type=click.Path(exists=False), required=True, nargs=1)
 @click.argument('ned-sql-file', type=click.Path(exists=True), required=True, nargs=1)
 @click.argument('entities-file', type=click.Path(exists=True), required=True, nargs=1)
 @click.argument('embedding-type', type=click.Choice(['fasttext']), required=True, nargs=1)
 @click.argument('n-trees', type=int, required=True, nargs=1)
 @click.argument('distance-measure', type=click.Choice(['angular', 'euclidean']), required=True, nargs=1)
 @click.argument('entity-index-path', type=click.Path(exists=True), required=True, nargs=1)
-def ned_training_data(train_set_sql_file,
-                      ned_sql_file, entities_file, embedding_type, n_trees, distance_measure, entity_index_path,
-                      search_k=50, max_dist=0.25):
+@click.option('--subset-file', type=click.Path(exists=True), default=None)
+@click.option('--nsamples', type=int, default=None)
+@click.option('--bad-count', type=int, default=10)
+@click.option('--lookup-processes', type=int, default=2)
+@click.option('--pairing-processes', type=int, default=10)
+def ned_pairing(pairing_sql_file,
+                ned_sql_file, entities_file,
+                embedding_type, n_trees, distance_measure, entity_index_path,
+                search_k=50, max_dist=0.25, subset_file=None, nsamples=None, bad_count=10,
+                lookup_processes=2, pairing_processes=10):
+
+    all_entities = pd.read_pickle(entities_file)
+
+    if nsamples is None:
+        nsamples = np.inf
 
     epoch_size = 1000
-    label_map = None
     max_seq_length = 128
     tokenizer = None
+    sen_subset = None
+
+    if subset_file is not None:
+        sen_subset = pd.read_pickle(subset_file)
 
     embs, dims = load_embeddings(embedding_type)
 
     embeddings = {'PER': embs, 'LOC': embs, 'ORG': embs}
 
-    with sqlite3.connect(train_set_sql_file) as write_conn:
+    with sqlite3.connect(pairing_sql_file) as write_conn:
 
         write_conn.execute('pragma journal_mode=wal')
 
         count = 0
 
-        for sen_a, sen_b, pos_a, pos_b, label in\
-            WikipediaDataset(epoch_size, label_map, max_seq_length, tokenizer,
-                             ned_sql_file, entities_file, embeddings, n_trees, distance_measure, entity_index_path,
-                             search_k, max_dist).get_sentence_pairs():
+        for id_a, id_b, sen_a, sen_b, pos_a, pos_b, end_a, end_b, label in\
+            tqdm(WikipediaDataset(epoch_size, max_seq_length, tokenizer, ned_sql_file, all_entities,
+                                  embeddings, n_trees, distance_measure, entity_index_path, search_k, max_dist,
+                                  sen_subset, bad_count, lookup_processes,
+                                  pairing_processes).get_sentence_pairs(), total=nsamples):
 
-            df = pd.DataFrame.from_dict({'id': count, 'sen_a': [json.dumps(sen_a)], 'sen_b': [json.dumps(sen_b)],
-                                         'pos_a': [pos_a], 'pos_b': [pos_b], 'label': [label]}).set_index('id')
+            df = pd.DataFrame.from_dict({'id': count, 'id_a': [json.dumps(id_a)], 'id_b': [json.dumps(id_b)],
+                                         'sen_a': [json.dumps(sen_a)], 'sen_b': [json.dumps(sen_b)],
+                                         'pos_a': [pos_a], 'pos_b': [pos_b], 'end_a': [end_a], 'end_b': [end_b],
+                                         'label': [label]}).set_index('id')
 
-            df .to_sql('links', con=write_conn, if_exists='append', index_label='id')
+            df.to_sql('pairs', con=write_conn, if_exists='append', index_label='id')
 
             count += 1
 
+            if float(count) > nsamples:
+                break
 
 
+@click.command()
+@click.argument('ned-sql-file', type=click.Path(exists=True), required=True, nargs=1)
+@click.argument('train-set-file', type=click.Path(exists=False), required=True, nargs=1)
+@click.argument('test-set-file', type=click.Path(exists=False), required=True, nargs=1)
+@click.option('--fraction-train', type=float, default=0.5)
+def ned_train_test_split(ned_sql_file, train_set_file, test_set_file, fraction_train):
+
+    with sqlite3.connect(ned_sql_file) as conn:
+
+        df = shuffle(pd.read_sql("select sentences.id from sentences;", conn))
+
+        df_train = df.iloc[0:int(fraction_train*len(df))]
+        df_test = df.iloc[int(fraction_train * len(df))+1:]
+
+        df_train.to_pickle(train_set_file)
+        df_test.to_pickle(test_set_file)
 
 
+@click.command()
+@click.argument('pairing-sql-file', type=click.Path(exists=True), required=True, nargs=1)
+@click.argument('model-dir', type=click.Path(exists=True), required=True, nargs=1)
+@click.option('--max-seq-length', type=int, default=128)
+@click.option('--do-lower-case', is_flag=True)
+@click.option('--nsamples', type=int, default=None)
+def ned_features(pairing_sql_file, model_dir, max_seq_length, do_lower_case=False, nsamples=None):
 
+    if nsamples is None:
+        nsamples = np.inf
 
+    tokenizer = BertTokenizer.from_pretrained(model_dir, do_lower_case=do_lower_case)
 
+    with sqlite3.connect(pairing_sql_file) as read_conn:
 
+        read_conn.execute('pragma journal_mode=wal')
 
+        total = int(read_conn.execute('select count(*) from pairs;').fetchone()[0])
 
+        pos = read_conn.cursor().execute('SELECT id_a, id_b, sen_a, sen_b, '
+                                         'pos_a, pos_b, end_a, end_b, label from pairs')
+
+        for counter, (id_a, id_b, sen_a, sen_b, pos_a, pos_b, end_a, end_b, label) in enumerate(tqdm(pos, total=total)):
+
+            sample = InputExample(guid="%s-%s" % (pairing_sql_file, "{}-{}".format(id_a, id_b)),
+                                  text_a=json.loads(sen_a), text_b=json.loads(sen_b),
+                                  pos_a=pos_a, pos_b=pos_b, end_a=end_a, end_b=end_b, label=label)
+
+            features = convert_examples_to_features(sample, max_seq_length, tokenizer)
+
+            print('CLASS: {}, ID: {}'.format(label, sample.guid))
+
+            text = ""
+            for s, t in zip(features.tokens, features.segment_ids):
+
+                if t == 2 and not s.startswith('##'):
+                    s = '[ENT]' + s
+
+                s = " {}".format(s) if not s.startswith('##') else s[2:]
+
+                if s == '[SEP]':
+                    s = '\n{}\n'.format(s)
+
+                text = text + s
+
+            print(text, '\n\n\n')
+
+            if counter > nsamples:
+                break
 
 
 

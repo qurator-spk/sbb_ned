@@ -21,7 +21,9 @@ setup(
     entry_points={
       'console_scripts': [
         "per-sentence-ned-data=qurator.sbb_ned.cli:per_sentence_ned_data",
-        "ned-training-data=qurator.sbb_ned.cli:ned_training_data",
+        "ned-pairing=qurator.sbb_ned.cli:ned_pairing",
+        "ned-train-test-split=qurator.sbb_ned.cli:ned_train_test_split",
+        "ned-features=qurator.sbb_ned.cli:ned_features",
         "build-index=qurator.sbb_ned.cli:build",
         "build-context-matrix=qurator.sbb_ned.cli:build_context_matrix",
         "build-from-context-matrix=qurator.sbb_ned.cli:build_from_context_matrix",

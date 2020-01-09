@@ -8,7 +8,7 @@ WINDOW_SIZE ?=10
 
 OUTPUT_PATH ?=$(DATA_PATH)/entity_index
 
-ENTITIES_FILE ?=$(DATA_PATH)/wikipedia/wikipedia-ner-entities.pkl
+ENTITIES_FILE ?=$(DATA_PATH)/wikipedia/wikipedia-ner-entities-no-redirects.pkl
 
 ENTITY_INDEX_PATH ?=$(DATA_PATH)/entity_index
 
@@ -88,9 +88,11 @@ flair-eval-combined:	flair-eval-combined-ORG flair-eval-combined-LOC flair-eval-
 #                         ENTITY_INDEX_PATH
 
 
+ned-train-test-split:
+	ned-train-test-split --fraction-train=0.5 $(NED_FILE) ned-train-subset.pkl ned-test-subset.pkl
 
-ned-training-data:
-	ned-training-data ned-train.sqlite $(NED_FILE) $(ENTITIES_FILE) fasttext $(N_TREES) $(DIST) $(ENTITY_INDEX_PATH) 
+ned-pairing-train:
+	ned-pairing --subset-file ned-train-subset.pkl --nsamples=3000000 ned-train.sqlite $(NED_FILE) $(ENTITIES_FILE) fasttext $(N_TREES) $(DIST) $(ENTITY_INDEX_PATH)
 
 
 all: $(OUTPUT_PATH) fasttext-eval flair-eval

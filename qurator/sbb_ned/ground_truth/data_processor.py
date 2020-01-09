@@ -1,6 +1,7 @@
 from __future__ import absolute_import, division, print_function
 
 import pandas as pd
+import numpy as np
 
 import torch
 
@@ -24,138 +25,221 @@ import json
 class InputExample(object):
     """A single training/test example for simple sequence classification."""
 
-    def __init__(self, guid, text_a, text_b, pos_a, pos_b, label):
+    def __init__(self, guid, text_a, text_b, pos_a, pos_b, end_a, end_b, label):
 
         self.guid = guid
         self.text_a = text_a
         self.text_b = text_b
         self.pos_a = pos_a
         self.pos_b = pos_b
+        self.end_a = end_a
+        self.end_b = end_b
         self.label = label
 
 
 class InputFeatures(object):
     """A single set of features of data."""
 
-    def __init__(self, guid, input_ids, input_mask, segment_ids, label_id, tokens):
+    def __init__(self, guid, input_ids, input_mask, segment_ids,  tokens, label):
         self.guid = guid
         self.input_ids = input_ids
         self.input_mask = input_mask
         self.segment_ids = segment_ids
-        self.label_id = label_id
         self.tokens = tokens
+        self.label = label
 
 
 class SentenceLookup:
 
     conn = None
+    sentence_subset = None
+    max_samples = 20
 
     def __init__(self, good, bad):
         self._good = good
         self._bad = bad
 
+    @staticmethod
+    def select_sentences(targets, ssubset):
+
+        tmp = []
+        for i, r in targets.iterrows():
+
+            s = shuffle(pd.read_sql(
+                "select sentences.id,sentences.page_title, links.target, sentences.text, sentences.entities "
+                "from links join sentences on links.sentence=sentences.id where links.target=?;",
+                SentenceLookup.conn, params=(r.guessed_title,)))
+
+            s = s.set_index('id').sort_index()
+
+            if ssubset is not None:
+                s = pd.merge(s, ssubset, left_index=True, right_index=True)
+
+            if len(s) == 0:
+                # print('1')
+                continue
+
+            tmp.append(s)
+
+        if len(tmp) == 0:
+            return []
+
+        tmp = pd.concat(tmp)
+
+        tmp = tmp.loc[~tmp.page_title.str.startswith('Liste ')]
+
+        return tmp
+
+    @staticmethod
+    def locate_entities(sent):
+
+        starts = []
+        ends = []
+
+        for _, row in sent.iterrows():
+            ent = json.loads(row.entities)
+            target = row.target
+
+            parts = [(k, len(list(g))) for k, g in itertools.groupby(ent)]
+
+            pos = end_pos = max_len = 0
+            for i, (entity, entity_len) in enumerate(parts):
+
+                if entity != target:
+                    continue
+
+                if entity_len <= max_len:
+                    continue
+
+                max_len = entity_len
+                pos = sum([l for _, l in parts[0:i]])
+                end_pos = pos + entity_len
+
+            starts.append(pos)
+            ends.append(end_pos)
+
+        return starts, ends
+
+    @staticmethod
+    def is_valid_sentence(sent):
+
+        valid = []
+
+        for _, row in sent.iterrows():
+            text = json.loads(row.text)
+
+            if text[0] == '#REDIRECT':
+                valid.append(False)
+                continue
+
+            if text[0] == '#WEITERLEITUNG':
+                valid.append(False)
+                continue
+
+            valid.append(True)
+
+        return valid
+
     def __call__(self, *args, **kwargs):
 
         if len(self._good) == 0:
+            # print('4')
             return None
 
-        good_sentences = []
-        for idx, row in self._good.iterrows():
-
-            sen = pd.read_sql(
-                "select sentences.page_title, links.target, sentences.text, sentences.entities from links "
-                "join sentences on links.sentence=sentences.id "
-                "where links.target=?;", SentenceLookup.conn, params=(row.guessed_title,))
-
-            if len(sen) == 0:
-                continue
-
-            good_sentences.append(sen)
-
-        if len(good_sentences) == 0:
-            return None
-
-        good_sentences = shuffle(pd.concat(good_sentences))
+        good_sentences = SentenceLookup.select_sentences(self._good, SentenceLookup.sentence_subset)
 
         if len(good_sentences) < 2:
+            # print('2, len(good): {}'.format(len(self._good)))
             return None
 
-        bad_sentences = []
-        for idx, row in self._bad.iterrows():
+        good_sentences = good_sentences.loc[SentenceLookup.is_valid_sentence(good_sentences)]
 
-            sen = pd.read_sql(
-                "select sentences.page_title, links.target, sentences.text, sentences.entities from links "
-                "join sentences on links.sentence=sentences.id "
-                "where links.target=?;", SentenceLookup.conn, params=(row.guessed_title,))
-
-            if len(sen) == 0:
-                continue
-
-            bad_sentences.append(sen)
-
-        if len(bad_sentences) == 0:
+        if len(good_sentences) < 2:
+            # print('2')
             return None
 
-        bad_sentences = shuffle(pd.concat(bad_sentences))
+        bad_sentences = SentenceLookup.select_sentences(self._bad, SentenceLookup.sentence_subset)
 
         if len(bad_sentences) < 2:
+            # print('3, len(bad): {}'.format(len(self._bad)))
             return None
 
-        num = min(20, min(len(good_sentences), len(bad_sentences)))
+        bad_sentences = bad_sentences.loc[SentenceLookup.is_valid_sentence(bad_sentences)]
+
+        if len(bad_sentences) < 2:
+            # print('3, len(bad): {}'.format(len(self._bad)))
+            return None
+
+        num = min(SentenceLookup.max_samples, min(len(good_sentences), len(bad_sentences)))
 
         good_sentences = good_sentences.iloc[:num]
         bad_sentences = bad_sentences.iloc[:num]
 
-        good_sentences['pos'] = \
-            [min([i for i, ent in enumerate(json.loads(good_sentences.iloc[p].entities))
-                  if ent == good_sentences.iloc[p].target]) for p in range(len(good_sentences))]
+        good_sentences['pos'], good_sentences['end'] = SentenceLookup.locate_entities(good_sentences)
+        bad_sentences['pos'], bad_sentences['end'] = SentenceLookup.locate_entities(bad_sentences)
 
-        bad_sentences['pos'] = \
-            [min([i for i, ent in enumerate(json.loads(bad_sentences.iloc[p].entities))
-                  if ent == bad_sentences.iloc[p].target]) for p in range(len(bad_sentences))]
+        good_sentences = good_sentences.reset_index()
+        bad_sentences = bad_sentences.reset_index()
 
-        combis = [(a, b) for a, b in itertools.combinations(range(num), 2)]
+        combis = [(a, b) for a, b in itertools.combinations(range(len(good_sentences)), 2)]
 
-        good_pairs = [(good_sentences.iloc[a].text, good_sentences.iloc[b].text,
-                       good_sentences.iloc[a].pos, good_sentences.iloc[b].pos, 1) for a, b in combis]
+        good_pairs = [(good_sentences.iloc[a].id, good_sentences.iloc[b].id,
+                       good_sentences.iloc[a].text, good_sentences.iloc[b].text,
+                       good_sentences.iloc[a].pos, good_sentences.iloc[b].pos,
+                       good_sentences.iloc[a].end, good_sentences.iloc[b].end, 1) for a, b in combis]
 
-        bad_pairs = [(good_sentences.iloc[a].text, bad_sentences.iloc[b].text,
-                      good_sentences.iloc[a].pos, bad_sentences.iloc[b].pos, -1) for a, b in combis]
+        combis = [(a, b) for a, b in itertools.product(range(len(good_sentences)), range(len(bad_sentences)))]
 
-        ret = pd.DataFrame(good_pairs + bad_pairs, columns=['sen_a', 'sen_b', 'pos_a', 'pos_b', 'label'])
+        bad_pairs = [(good_sentences.iloc[a].id, bad_sentences.iloc[b].id,
+                      good_sentences.iloc[a].text, bad_sentences.iloc[b].text,
+                      good_sentences.iloc[a].pos, bad_sentences.iloc[b].pos,
+                      good_sentences.iloc[a].end, bad_sentences.iloc[b].end, -1) for a, b in combis]
 
-        return ret
+        if len(bad_pairs) > len(good_pairs):
+            bad_pairs = bad_pairs[0:len(good_pairs)]
+        else:
+            good_pairs = good_pairs[0:len(bad_pairs)]
+
+        ret = pd.DataFrame(good_pairs + bad_pairs,
+                           columns=['id_a', 'id_b', 'sen_a', 'sen_b', 'pos_a', 'pos_b', 'end_a', 'end_b', 'label'])
+        return shuffle(ret)
 
     @staticmethod
-    def initialize(ned_sql_file):
+    def initialize(ned_sql_file, sentence_subset):
 
         SentenceLookup.conn = sqlite3.connect(ned_sql_file)
+
+        SentenceLookup.sentence_subset = sentence_subset.set_index('id').sort_index()
 
 
 class WikipediaDataset(Dataset):
     """
     """
 
-    def __init__(self, epoch_size, label_map, max_seq_length, tokenizer,
-                 ned_sql_file, entities_file, embeddings, n_trees, distance_measure, path, search_k, max_dist):
+    def __init__(self, epoch_size, max_seq_length, tokenizer,
+                 ned_sql_file, entities, embeddings, n_trees, distance_measure, path, search_k, max_dist,
+                 sentence_subset=None, bad_count=10, lookup_processes=2, pairing_processes=10):
 
         self._epoch_size = epoch_size
-        self._label_map = label_map
         self._max_seq_length = max_seq_length
         self._tokenizer = tokenizer
         self._ned_sql_file = ned_sql_file
-        self._entities = pd.read_pickle(entities_file)
+        self._entities = entities
         self._embeddings = embeddings
         self._n_trees = n_trees
         self._distance_measure = distance_measure
         self._path = path
         self._search_k = search_k
         self._max_dist = max_dist
+        self._sentence_subset = sentence_subset
+
+        self._bad_count = bad_count
+        self._max_bad_count = 50
 
         self._sequence = self.get_features()
         self._counter = 0
-
-        pass
+        self._lookup_processes = lookup_processes
+        self._pairing_processes = pairing_processes
 
     def random_entity(self):
 
@@ -179,36 +263,48 @@ class WikipediaDataset(Dataset):
         for entity_title, ranking in \
                 prun(self.get_random_lookup(), initializer=LookUpBySurface.initialize,
                      initargs=(self._embeddings, self._n_trees, self._distance_measure, self._path, self._search_k,
-                               self._max_dist), processes=2):
+                               self._max_dist), processes=self._lookup_processes):
 
             good = ranking.loc[ranking.guessed_title == entity_title].copy()
             bad = ranking.loc[ranking.guessed_title != entity_title].copy()
+
+            if len(good) == 0:  # There aren't any hits ... skip.
+                # print('0')
+                continue
+
+            # we want to have at least bad_count bad examples but also at most max_bad_count examples.
+            nbad = max(self._bad_count, min(self._max_bad_count, good['rank'].min()))
+
+            bad = bad.iloc[0:nbad]
 
             yield SentenceLookup(good, bad)
 
     def get_sentence_pairs(self):
 
         for pairs in prun(self.get_sentence_lookup(), initializer=SentenceLookup.initialize,
-                          initargs=(self._ned_sql_file,), processes=5):
+                          initargs=(self._ned_sql_file, self._sentence_subset), processes=self._pairing_processes):
 
             if pairs is None:
                 continue
 
             for idx, row in pairs.iterrows():
 
-                yield json.loads(row.sen_a), json.loads(row.sen_b), row.pos_a, row.pos_b, row.label
+                yield row.id_a, row.id_b,\
+                      json.loads(row.sen_a), json.loads(row.sen_b), \
+                      row.pos_a, row.pos_b, \
+                      row.end_a, row.end_b, \
+                      row.label
 
     def get_features(self):
 
-        for sen_a, sen_b, pos_a, pos_b, label in self.get_sentence_pairs():
+        for id_a, id_b, sen_a, sen_b, pos_a, pos_b, end_a, end_b, label in self.get_sentence_pairs():
 
-            sample = InputExample(guid="%s-%s" % (self._ned_sql_file, self._counter),
-                                  text_a=sen_a, text_b=sen_b, pos_a=pos_a, pos_b=pos_b, label=label)
+            sample = InputExample(guid="%s-%s" % (self._ned_sql_file, "{}-{}".format(id_a, id_b)),
+                                  text_a=sen_a, text_b=sen_b, pos_a=pos_a, pos_b=pos_b,
+                                  end_a=end_a, end_b=end_b, label=label)
             self._counter += 1
 
-            for fe in convert_examples_to_features(sample, self._label_map, self._max_seq_length, self._tokenizer):
-
-                yield fe
+            yield convert_examples_to_features(sample, self._max_seq_length, self._tokenizer)
 
     def __getitem__(self, index):
 
@@ -217,7 +313,7 @@ class WikipediaDataset(Dataset):
         fe = next(self._sequence)
 
         return torch.tensor(fe.input_ids, dtype=torch.long), torch.tensor(fe.input_mask, dtype=torch.long),\
-               torch.tensor(fe.segment_ids, dtype=torch.long), torch.tensor(fe.label_id, dtype=torch.long)
+               torch.tensor(fe.segment_ids, dtype=torch.long), torch.tensor(fe.label, dtype=torch.long)
 
     def __len__(self):
 
@@ -405,62 +501,97 @@ class DataProcessor(object):
 #         return data
 
 
-def convert_examples_to_features(example, label_map, max_seq_len, tokenizer):
+def convert_examples_to_features(example, max_seq_len, tokenizer):
     """
     :param example: instance of InputExample
-    :param label_map: Maps labels like B-ORG ... to numbers (ids).
     :param max_seq_len: Maximum length of sequences to be delivered to the model.
     :param tokenizer: BERT-Tokenizer
     :return:
     """
-    tokens = []
-    labels = []
 
-    for i, word in enumerate(example.text_a):  # example.text_a is a sequence of words
+    def make_tokens(text, entity_pos, entity_end):
 
-        token = tokenizer.tokenize(word)
-        tokens.extend(token)
+        tmp = []
+        entity_token_pos = 0
+        entity_len = 0
 
-        label_1 = example.label[i] if i < len(example.label) else 'O'
+        for i, word in enumerate(text):
 
-        for m in range(len(token)):  # a word might have been split into several tokens
-            if m == 0:
-                labels.append(label_1)
-            else:
-                labels.append("X")
+            word_tokens = tokenizer.tokenize(word)
 
-    start_pos = 0
-    while start_pos < len(tokens):
+            entity_token_pos = len(tmp) if i == entity_pos else entity_token_pos
+            entity_len = entity_len + len(word_tokens) if entity_pos <= i < entity_end else entity_len
 
-        window_len = min(max_seq_len - 2, len(tokens) - start_pos)  # -2 since we also need [CLS] and [SEP]
+            tmp.extend(word_tokens)
 
-        # Make sure that we do not split the sentence within a word.
-        while window_len > 1 and start_pos + window_len < len(tokens) and\
-                tokens[start_pos + window_len].startswith('##'):
-            window_len -= 1
+        return tmp, entity_token_pos, entity_len
 
-        if window_len == 1:
-            window_len = min(max_seq_len - 2, len(tokens) - start_pos)
+    full_tokens_a, pos_a, len_entity_a = make_tokens(example.text_a, example.pos_a, example.end_a)
+    full_tokens_b, pos_b, len_entity_b = make_tokens(example.text_b, example.pos_b, example.end_b)
 
-        token_window = tokens[start_pos:start_pos+window_len]
-        start_pos += window_len
+    total_len = len(full_tokens_a) + len(full_tokens_b)
 
-        augmented_tokens = ["[CLS]"] + token_window + ["[SEP]"]
+    a_start = pos_a
+    a_end = pos_a + len_entity_a
 
-        input_ids = tokenizer.convert_tokens_to_ids(augmented_tokens) + max(0, max_seq_len - len(augmented_tokens))*[0]
+    b_start = pos_b
+    b_end = pos_b + len_entity_b
 
-        input_mask = [1] * len(augmented_tokens) + max(0, max_seq_len - len(augmented_tokens))*[0]
+    def max_len_reached():
+        return a_end - a_start + b_end - b_start >= max_seq_len - 2  # -2 since we also need [CLS] and [SEP]
 
-        segment_ids = [0] + len(token_window) * [0] + [0] + max(0, max_seq_len - len(augmented_tokens))*[0]
+    while True:
 
-        label_ids = [label_map["[CLS]"]] + [label_map[labels[i]] for i in range(len(token_window))] + \
-                    [label_map["[SEP]"]] + max(0, max_seq_len - len(augmented_tokens)) * [0]
+        a_start = a_start - 1 if a_start > 0 else a_start
 
+        if max_len_reached():
+            break
+
+        b_start = b_start - 1 if b_start > 0 else b_start
+
+        if max_len_reached():
+            break
+
+        a_end = a_end + 1 if a_end < len(full_tokens_a) else a_end
+
+        if max_len_reached():
+            break
+
+        b_end = b_end + 1 if b_end < len(full_tokens_b) else b_end
+
+        if max_len_reached():
+            break
+
+        if a_end - a_start + b_end - b_start >= total_len:
+            break
+
+    tokens_a = full_tokens_a[a_start:a_end]
+    tokens_b = full_tokens_b[b_start:b_end]
+
+    len_pre_context_a = pos_a - a_start
+    len_pre_context_b = pos_b - b_start
+
+    len_post_context_a = len(tokens_a) - len_pre_context_a - len_entity_a
+    len_post_context_b = len(tokens_b) - len_pre_context_b - len_entity_b
+
+    augmented_tokens = ["[CLS]"] + tokens_a + ["[SEP]"] + tokens_b
+
+    input_ids = tokenizer.convert_tokens_to_ids(augmented_tokens) + max(0, max_seq_len - len(augmented_tokens))*[0]
+
+    input_mask = [1] * len(augmented_tokens) + max(0, max_seq_len - len(augmented_tokens))*[0]
+
+    segment_ids = [0] + len_pre_context_a*[0] + len_entity_a*[2] + len_post_context_a*[0] +\
+                  [1] + len_pre_context_b*[1] + len_entity_b*[2] + len_post_context_b*[1] + \
+                  max(0, max_seq_len - len(augmented_tokens)) * [0]
+
+    try:
         assert len(input_ids) == max_seq_len
         assert len(input_mask) == max_seq_len
         assert len(segment_ids) == max_seq_len
-        assert len(label_ids) == max_seq_len
+    except AssertionError:
+        import ipdb
+        ipdb.set_trace()
 
-        yield InputFeatures(guid=example.guid, input_ids=input_ids, input_mask=input_mask, segment_ids=segment_ids,
-                            label_id=label_ids, tokens=augmented_tokens)
+    return InputFeatures(guid=example.guid, input_ids=input_ids, input_mask=input_mask, segment_ids=segment_ids,
+                         tokens=augmented_tokens, label=example.label)
 
