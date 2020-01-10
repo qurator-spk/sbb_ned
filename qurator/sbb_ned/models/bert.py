@@ -1,11 +1,12 @@
 from __future__ import absolute_import, division, print_function
 # from inspect import currentframe
 
-import argparse
+# import argparse
 import logging
 import os
 import random
 import json
+import click
 
 import numpy as np
 import pandas as pd
@@ -15,18 +16,17 @@ import torch.nn.functional as F
 from pytorch_pretrained_bert.file_utils import PYTORCH_PRETRAINED_BERT_CACHE
 from pytorch_pretrained_bert.modeling import (CONFIG_NAME,  # WEIGHTS_NAME,
                                               BertConfig,
-                                              BertForTokenClassification)
+                                              BertForSequenceClassification)
 from pytorch_pretrained_bert.optimization import BertAdam, WarmupLinearSchedule
-# from pytorch_pretrained_bert.tokenization import BertTokenizer
-# from .tokenization import BertTokenizer
 from qurator.sbb_ner.models.tokenization import BertTokenizer
 from conlleval import evaluate as conll_eval
 
 from tqdm import tqdm, trange
 
-from qurator.sbb_ner.ground_truth.data_processor import NerProcessor, WikipediaNerProcessor
+from ..embeddings.base import load_embeddings
+from ..ground_truth.data_processor import WikipediaNEDProcessor
 
-from sklearn.model_selection import GroupKFold
+# from sklearn.model_selection import GroupKFold
 
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
                     datefmt='%m/%d/%Y %H:%M:%S',
@@ -39,7 +39,8 @@ def model_train(bert_model, max_seq_length, do_lower_case,
                 learning_rate, weight_decay, loss_scale, warmup_proportion,
                 processor, device, n_gpu, fp16, cache_dir, local_rank,
                 dry_run, no_cuda, output_dir=None):
-    label_map = processor.get_labels()
+
+    # label_map = processor.get_labels()
 
     if gradient_accumulation_steps < 1:
         raise ValueError("Invalid gradient_accumulation_steps parameter: {}, should be >= 1".format(
@@ -59,7 +60,8 @@ def model_train(bert_model, max_seq_length, do_lower_case,
     cache_dir = cache_dir if cache_dir else os.path.join(str(PYTORCH_PRETRAINED_BERT_CACHE),
                                                          'distributed_{}'.format(local_rank))
 
-    model = BertForTokenClassification.from_pretrained(bert_model, cache_dir=cache_dir, num_labels=len(label_map))
+    model = BertForSequenceClassification.from_pretrained(bert_model, cache_dir=cache_dir,
+                                                          num_labels=processor.num_labels())
 
     if fp16:
         model.half()
@@ -68,6 +70,7 @@ def model_train(bert_model, max_seq_length, do_lower_case,
 
     if local_rank != -1:
         try:
+            # noinspection PyPep8Naming
             from apex.parallel import DistributedDataParallel as DDP
         except ImportError:
             raise ImportError(
@@ -115,8 +118,7 @@ def model_train(bert_model, max_seq_length, do_lower_case,
     logger.info("  Num steps = %d", num_train_optimization_steps)
     logger.info("  Num epochs = %d", num_train_epochs)
 
-    model_config = {"bert_model": bert_model, "do_lower": do_lower_case,
-                    "max_seq_length": max_seq_length, "label_map": label_map}
+    model_config = {"bert_model": bert_model, "do_lower": do_lower_case, "max_seq_length": max_seq_length}
 
     def save_model(lh):
 
@@ -222,7 +224,7 @@ def model_train(bert_model, max_seq_length, do_lower_case,
     return model, model_config
 
 
-def model_eval(batch_size, label_map, processor, device, num_train_epochs=1, output_dir=None, model=None,
+def model_eval(batch_size, processor, device, num_train_epochs=1, output_dir=None, model=None,
                local_rank=-1, no_cuda=False, dry_run=False):
     output_eval_file = None
     if output_dir is not None:
@@ -256,17 +258,20 @@ def model_eval(batch_size, label_map, processor, device, num_train_epochs=1, out
                 break
 
             config = BertConfig(output_config_file)
-            model = BertForTokenClassification(config, num_labels=len(label_map))
+            model = BertForSequenceClassification(config, num_labels=processor.num_labels())
+            # noinspection PyUnresolvedReferences
             model.load_state_dict(torch.load(output_model_file,
                                              map_location=lambda storage, loc: storage if no_cuda else None))
+            # noinspection PyUnresolvedReferences
             model.to(device)
 
         if model is None:
             raise ValueError('Model required for evaluation.')
 
+        # noinspection PyUnresolvedReferences
         model.eval()
 
-        y_pred, y_true = model_predict_compare(dataloader, device, label_map, model, dry_run)
+        y_pred, y_true = model_predict_compare(dataloader, device, model, dry_run)
 
         lines = ['empty ' + 'XXX ' + v + ' ' + p for yt, yp in zip(y_true, y_pred) for v, p in zip(yt, yp)]
 
@@ -304,7 +309,7 @@ def model_eval(batch_size, label_map, processor, device, num_train_epochs=1, out
     return results
 
 
-def model_predict_compare(dataloader, device, label_map, model, dry_run=False):
+def model_predict_compare(dataloader, device, model, dry_run=False):
     y_true = []
     y_pred = []
     covered = set()
@@ -399,285 +404,152 @@ def get_device(local_rank=-1, no_cuda=False):
     return device, n_gpu
 
 
-def main():
-    parser = get_arg_parser()
+@click.command()
+@click.argument("bert-model", type=str, required=True, nargs=1)
+@click.argument("output-dir", type=str, required=True, nargs=1)
+@click.option("--train-set-file", type=click.Path(exists=True), default=None, help="")
+@click.option("--dev-set-file", type=click.Path(exists=True), default=None, help="")
+@click.option("--test-set-file", type=click.Path(exists=True), default=None, help="")
+@click.option("--train-size", default=0, type=int, help="")
+@click.option("--dev-size", default=0, type=int, help="")
+@click.option("--train-size", default=0, type=int, help="")
+@click.option("--cache-dir", type=click.Path(exists=True), default="",
+              help="Where do you want to store the pre-trained models downloaded from s3")
+@click.option("--max-seq-length", default=128, type=int,
+              help="The maximum total input sequence length after WordPiece tokenization. \n"
+                   "Sequences longer than this will be truncated, and sequences shorter \n than this will be padded.")
+@click.option("--do-lower-case", is_flag=True, help="Set this flag if you are using an uncased model.", default=False)
+@click.option("--train-batch-size", default=32, type=int, help="Total batch size for training.")
+@click.option("--eval-batch-size", default=8, type=int, help="Total batch size for eval.")
+@click.option("--learning-rate", default=3e-5, type=float, help="The initial learning rate for Adam.")
+@click.option("--weight-decay", default=0.01, type=float, help="Weight decay for Adam.")
+@click.option("--num-train-epochs", default=3.0,type=float, help="Total number of training epochs to perform/evaluate.")
+@click.option("--warmup-proportion", default=0.1, type=float,
+              help="Proportion of training to perform linear learning rate warmup for. E.g., 0.1 = 10%% of training.")
+@click.option("--no-cuda", is_flag=True, help="Whether not to use CUDA when available", default=False)
+@click.option("--dry-run", is_flag=True, default=False, help="Test mode.")
+@click.option("--local-rank", type=int, default=-1, help="local_rank for distributed training on gpus")
+@click.option('--seed', type=int, default=42, help="random seed for initialization")
+@click.option('--gradient-accumulation-steps', type=int, default=1,
+              help="Number of updates steps to accumulate before performing a backward/update pass.")
+@click.option('--fp16', is_flag=True, default=False, help="Whether to use 16-bit float precision instead of 32-bit")
+@click.option('--loss-scale', type=float, default=0.0,
+              help="Loss scaling to improve fp16 numeric stability. Only used when fp16 set to True.\n "
+                   "0 (default value): dynamic loss scaling.\n"
+                   "Positive power of 2: static loss scaling value.\n")
+@click.option("--ned-sql-file", type=click.Path(exists=True), default=None, required=False)
+@click.option('--embedding-type', type=click.Choice(['fasttext']), default='fasttext')
+@click.option('--n-trees', type=int, default=100)
+@click.option('--distance-measure', type=click.Choice(['angular', 'euclidean']), default='angular')
+@click.option('--entity-index-path', type=click.Path(exists=True), default=None)
+@click.option('--entities-file', type=click.Path(exists=True), default=None)
+def main(bert_model, output_dir,
+         train_set_file, dev_set_file, test_set_file,  cache_dir, max_seq_length,
+         train_size=0, dev_size=0, test_size=0,
+         do_lower_case=False, train_batch_size=32, eval_batch_size=8, learning_rate=3e-5,
+         weight_decay=0.01, num_train_epochs=3, warmup_proportion=0.1, no_cuda=False, dry_run=False, local_rank=-1,
+         seed=42, gradient_accumulation_steps=1, fp16=False, loss_scale=0.0,
+         ned_sql_file=None, search_k=50, max_dist=0.25, embedding_type='fasttext', n_trees=100,
+         distance_measure='angular', entity_index_path=None, entities_file=None):
+    """
+    ned_sql_file: \n
+    train_set_file: \n
+    dev_set_file: \n
+    test_set_file: \n
+    bert_model: Bert pre-trained model selected in the list:\n
+                bert-base-uncased, bert-large-uncased, bert-base-cased,\n
+                bert-large-cased, bert-base-multilingual-uncased,\n
+                bert-base-multilingual-cased, bert-base-chinese.\n
+    output_dir: The output directory where the model predictions
+                and checkpoints will be written.\n
+    """
 
-    args = parser.parse_args()
-
-    do_eval = len(args.dev_sets) > 0 and not args.do_cross_validation
-    do_train = len(args.train_sets) > 0 and not args.do_cross_validation
-
-    device, n_gpu = get_device(args.local_rank, args.no_cuda)
+    device, n_gpu = get_device(local_rank, no_cuda)
 
     logger.info("device: {} n_gpu: {}, distributed training: {}, 16-bits training: {}".format(
-        device, n_gpu, bool(args.local_rank != -1), args.fp16))
+        device, n_gpu, bool(local_rank != -1), fp16))
 
-    random.seed(args.seed)
-    np.random.seed(args.seed)
-    torch.manual_seed(args.seed)
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
 
-    if not do_train and not do_eval and not args.do_cross_validation:
-        raise ValueError("At least one of `do_train` or `do_eval` must be True.")
+    if not train_size > 0 and not dev_size > 0:
+        raise ValueError("At least one of train_size or dev_size must be > 0.")
 
-    if not os.path.exists(args.output_dir):
-        os.makedirs(args.output_dir)
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
 
-    task_name = args.task_name.lower()
+    # task_name = task_name.lower()
 
-    processors = {"ner": NerProcessor, "wikipedia-ner": WikipediaNerProcessor}
+    if ned_sql_file is not None:
 
-    if task_name not in processors:
-        raise ValueError("Task not found: %s" % task_name)
+        if entity_index_path is None:
+            raise RuntimeError("entity-index-path required!")
 
-    if args.do_cross_validation:
+        if entities_file is None:
+            raise RuntimeError("entities-file required!")
 
-        cross_val_result_file = "cross_validation_results.pkl"
+        embs, dims = load_embeddings(embedding_type)
 
-        cross_val_result_file = os.path.join(args.output_dir, cross_val_result_file)
+        embeddings = {'PER': embs, 'LOC': embs, 'ORG': embs}
 
-        sets = set(args.train_sets.split('|')) if args.train_sets is not None else set()
+        train_subset = pd.read_pickle(train_set_file)
+        dev_subset = pd.read_pickle(dev_set_file)
+        test_subset = pd.read_pickle(test_set_file)
 
-        gt = pd.read_pickle(args.gt_file)
+        all_entities = pd.read_pickle(entities_file)
 
-        gt = gt.loc[gt.dataset.isin(sets)]
+        processor_args = {'train_subset': train_subset,
+                          'dev_subset': dev_subset,
+                          'test_subset': test_subset,
+                          'train_size': train_size,
+                          'dev_size': dev_size,
+                          'test_size': test_size,
+                          'ned_sql_file': ned_sql_file,
+                          'max_seq_length': max_seq_length,
+                          'entities': all_entities,
+                          'embeddings': embeddings,
+                          'n_trees': n_trees,
+                          'distance_measure': distance_measure,
+                          'entity_index_path': entity_index_path,
+                          'search_k': search_k,
+                          'max_dist': max_dist,
+                          'sentence_subset': None,
+                          'bad_count': 10,
+                          'lookup_processes': 2,
+                          'pairing_processes': 10}
 
-        k_fold = GroupKFold(n_splits=args.n_splits)
+        processor_class = WikipediaNEDProcessor
+    else:
+        raise RuntimeError("Do not know what processor to use.")
 
-        eval_results = list()
+    if train_size > 0:
+        tokenizer = BertTokenizer.from_pretrained(bert_model, do_lower_case=do_lower_case)
 
-        tokenizer = BertTokenizer.from_pretrained(args.bert_model, do_lower_case=args.do_lower_case)
+        processor = processor_class(tokenizer=tokenizer, *processor_args)
 
-        for ep in range(1, int(args.num_train_epochs) + 1):
+        model_train(bert_model=bert_model, output_dir=output_dir, max_seq_length=max_seq_length,
+                    do_lower_case=do_lower_case, num_train_epochs=num_train_epochs,
+                    train_batch_size=train_batch_size,
+                    gradient_accumulation_steps=gradient_accumulation_steps,
+                    learning_rate=learning_rate, weight_decay=weight_decay, loss_scale=loss_scale,
+                    warmup_proportion=warmup_proportion, processor=processor, device=device, n_gpu=n_gpu,
+                    fp16=fp16, cache_dir=cache_dir, local_rank=local_rank, dry_run=dry_run,
+                    no_cuda=no_cuda)
 
-            for sp, (train, test) in enumerate(k_fold.split(X=gt, groups=gt.nsentence)):
-                tr = gt.iloc[train].copy()
-                te = gt.iloc[test].copy()
+    # noinspection PyUnresolvedReferences
+    if dev_size > 0 and (local_rank == -1 or torch.distributed.get_rank() == 0):
 
-                tr['dataset'] = 'TRAIN'
-                te['dataset'] = 'TEST'
-
-                gt_tmp = pd.concat([tr, te])
-
-                processor = \
-                    processors[task_name](train_sets='TRAIN', dev_sets='TEST', test_sets='TEST',
-                                          gt=gt_tmp, max_seq_length=args.max_seq_length,
-                                          tokenizer=tokenizer, data_epochs=args.num_data_epochs,
-                                          epoch_size=args.epoch_size)
-
-                model, model_config = \
-                    model_train(bert_model=args.bert_model, max_seq_length=args.max_seq_length,
-                                do_lower_case=args.do_lower_case, num_train_epochs=ep,
-                                train_batch_size=args.train_batch_size,
-                                gradient_accumulation_steps=args.gradient_accumulation_steps,
-                                learning_rate=args.learning_rate, weight_decay=args.weight_decay,
-                                loss_scale=args.loss_scale, warmup_proportion=args.warmup_proportion,
-                                processor=processor, device=device, n_gpu=n_gpu, fp16=args.fp16,
-                                cache_dir=args.cache_dir, local_rank=args.local_rank, dry_run=args.dry_run,
-                                no_cuda=args.no_cuda)
-
-                label_map = {v: k for k, v in model_config['label_map'].items()}
-
-                eval_result = \
-                    model_eval(model=model, label_map=label_map, processor=processor, device=device,
-                               batch_size=args.eval_batch_size, local_rank=args.local_rank,
-                               no_cuda=args.no_cuda, dry_run=args.dry_run).reset_index()
-
-                eval_result['split'] = sp
-                eval_result['epoch'] = ep
-                eval_results.append(eval_result)
-
-                del model  # release CUDA memory
-
-            pd.concat(eval_results).to_pickle(cross_val_result_file)
-
-    if do_train:
-        tokenizer = BertTokenizer.from_pretrained(args.bert_model, do_lower_case=args.do_lower_case)
-
-        processor = \
-            processors[task_name](train_sets=args.train_sets, dev_sets=args.dev_sets, test_sets=args.test_sets,
-                                  gt_file=args.gt_file, max_seq_length=args.max_seq_length,
-                                  tokenizer=tokenizer, data_epochs=args.num_data_epochs,
-                                  epoch_size=args.epoch_size)
-
-        model_train(bert_model=args.bert_model, output_dir=args.output_dir, max_seq_length=args.max_seq_length,
-                    do_lower_case=args.do_lower_case, num_train_epochs=args.num_train_epochs,
-                    train_batch_size=args.train_batch_size,
-                    gradient_accumulation_steps=args.gradient_accumulation_steps,
-                    learning_rate=args.learning_rate, weight_decay=args.weight_decay, loss_scale=args.loss_scale,
-                    warmup_proportion=args.warmup_proportion, processor=processor, device=device, n_gpu=n_gpu,
-                    fp16=args.fp16, cache_dir=args.cache_dir, local_rank=args.local_rank, dry_run=args.dry_run,
-                    no_cuda=args.no_cuda)
-
-    if do_eval and (args.local_rank == -1 or torch.distributed.get_rank() == 0):
-        model_config = json.load(open(os.path.join(args.output_dir, "model_config.json"), "r"))
-
-        label_to_id = model_config['label_map']
-
-        label_map = {v: k for k, v in model_config['label_map'].items()}
+        model_config = json.load(open(os.path.join(output_dir, "model_config.json"), "r"))
 
         tokenizer = BertTokenizer.from_pretrained(model_config['bert_model'],
                                                   do_lower_case=model_config['do_lower'])
 
-        processor = \
-            processors[task_name](train_sets=None, dev_sets=args.dev_sets, test_sets=args.test_sets,
-                                  gt_file=args.gt_file, max_seq_length=model_config['max_seq_length'],
-                                  tokenizer=tokenizer, data_epochs=args.num_data_epochs,
-                                  epoch_size=args.epoch_size, label_map=label_to_id)
+        processor = processor_class(tokenizer=tokenizer, *processor_args)
 
-        model_eval(label_map=label_map, processor=processor, device=device, num_train_epochs=args.num_train_epochs,
-                   output_dir=args.output_dir, batch_size=args.eval_batch_size, local_rank=args.local_rank,
-                   no_cuda=args.no_cuda, dry_run=args.dry_run)
-
-
-def get_arg_parser():
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument("--gt_file",
-                        default=None,
-                        type=str,
-                        required=True,
-                        help="The pickle file that contains all NER ground truth as pandas DataFrame."
-                             " Required columns: ['nsentence', 'nword', 'word', 'tag', 'dataset]."
-                             " The selection of training, test and dev set is performed on the 'dataset' column.")
-
-    parser.add_argument("--train_sets",
-                        default='',
-                        type=str,
-                        required=False,
-                        help="Specifiy one or more tags from the dataset column in order to mark samples"
-                             " that belong to the training set. Example: 'GERM-EVAL-TRAIN|DE-CONLL-TRAIN'. ")
-
-    parser.add_argument("--dev_sets",
-                        default='',
-                        type=str,
-                        required=False,
-                        help="Specifiy one or more tags from the dataset column in order to mark samples"
-                             " that belong to the dev set. Example: 'GERM-EVAL-DEV|DE-CONLL-TESTA'. ")
-
-    parser.add_argument("--test_sets",
-                        default='',
-                        type=str,
-                        required=False,
-                        help="Specifiy one or more tags from the dataset column in order to mark samples"
-                             " that belong to the test set. Example: 'GERM-EVAL-TEST|DE-CONLL-TESTB'. ")
-
-    parser.add_argument("--bert_model", default=None, type=str, required=False,
-                        help="Bert pre-trained model selected in the list: bert-base-uncased, "
-                             "bert-large-uncased, bert-base-cased, bert-large-cased, bert-base-multilingual-uncased, "
-                             "bert-base-multilingual-cased, bert-base-chinese.")
-
-    parser.add_argument("--task_name",
-                        default=None,
-                        type=str,
-                        required=True,
-                        help="The name of the task to train.")
-
-    parser.add_argument("--output_dir",
-                        default=None,
-                        type=str,
-                        required=False,
-                        help="The output directory where the model predictions and checkpoints will be written.")
-
-    # Other parameters
-    parser.add_argument("--cache_dir",
-                        default="",
-                        type=str,
-                        help="Where do you want to store the pre-trained models downloaded from s3")
-
-    parser.add_argument("--max_seq_length",
-                        default=128,
-                        type=int,
-                        help="The maximum total input sequence length after WordPiece tokenization. \n"
-                             "Sequences longer than this will be truncated, and sequences shorter \n"
-                             "than this will be padded.")
-
-    parser.add_argument("--do_lower_case",
-                        action='store_true',
-                        help="Set this flag if you are using an uncased model.")
-
-    parser.add_argument("--train_batch_size",
-                        default=32,
-                        type=int,
-                        help="Total batch size for training.")
-
-    parser.add_argument("--eval_batch_size",
-                        default=8,
-                        type=int,
-                        help="Total batch size for eval.")
-
-    parser.add_argument("--learning_rate",
-                        default=3e-5,
-                        type=float,
-                        help="The initial learning rate for Adam.")
-
-    parser.add_argument("--weight_decay",
-                        default=0.01,
-                        type=float,
-                        help="Weight decay for Adam.")
-
-    parser.add_argument("--num_train_epochs",
-                        default=3.0,
-                        type=float,
-                        help="Total number of training epochs to perform/evaluate.")
-
-    parser.add_argument("--num_data_epochs",
-                        default=1.0,
-                        type=float,
-                        help="Re-cycle data after num_data_epochs.")
-
-    parser.add_argument("--epoch_size",
-                        default=10000,
-                        type=float,
-                        help="Size of one epoch.")
-
-    parser.add_argument("--do_cross_validation",
-                        action='store_true',
-                        help="Do cross-validation.")
-
-    parser.add_argument("--n_splits",
-                        default=5,
-                        type=int,
-                        help="Number of folds in cross_validation.")
-
-    parser.add_argument("--warmup_proportion",
-                        default=0.1,
-                        type=float,
-                        help="Proportion of training to perform linear learning rate warmup for. "
-                             "E.g., 0.1 = 10%% of training.")
-
-    parser.add_argument("--no_cuda",
-                        action='store_true',
-                        help="Whether not to use CUDA when available")
-
-    parser.add_argument("--dry_run",
-                        action='store_true',
-                        help="Test mode.")
-
-    parser.add_argument("--local_rank",
-                        type=int,
-                        default=-1,
-                        help="local_rank for distributed training on gpus")
-
-    parser.add_argument('--seed',
-                        type=int,
-                        default=42,
-                        help="random seed for initialization")
-
-    parser.add_argument('--gradient_accumulation_steps',
-                        type=int,
-                        default=1,
-                        help="Number of updates steps to accumulate before performing a backward/update pass.")
-
-    parser.add_argument('--fp16',
-                        action='store_true',
-                        help="Whether to use 16-bit float precision instead of 32-bit")
-
-    parser.add_argument('--loss_scale',
-                        type=float, default=0,
-                        help="Loss scaling to improve fp16 numeric stability. Only used when fp16 set to True.\n"
-                             "0 (default value): dynamic loss scaling.\n"
-                             "Positive power of 2: static loss scaling value.\n")
-    return parser
+        model_eval(processor=processor, device=device, num_train_epochs=num_train_epochs,
+                   output_dir=output_dir, batch_size=eval_batch_size, local_rank=local_rank,
+                   no_cuda=no_cuda, dry_run=dry_run)
 
 
 if __name__ == "__main__":

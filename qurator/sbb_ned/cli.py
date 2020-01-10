@@ -1,6 +1,5 @@
 import warnings
 import logging
-import os
 
 warnings.filterwarnings('ignore', category=FutureWarning)
 
@@ -649,13 +648,11 @@ def ned_pairing(pairing_sql_file,
 
         write_conn.execute('pragma journal_mode=wal')
 
-        count = 0
-
-        for id_a, id_b, sen_a, sen_b, pos_a, pos_b, end_a, end_b, label in\
-            tqdm(WikipediaDataset(epoch_size, max_seq_length, tokenizer, ned_sql_file, all_entities,
-                                  embeddings, n_trees, distance_measure, entity_index_path, search_k, max_dist,
-                                  sen_subset, bad_count, lookup_processes,
-                                  pairing_processes).get_sentence_pairs(), total=nsamples):
+        for count, (id_a, id_b, sen_a, sen_b, pos_a, pos_b, end_a, end_b, label) in\
+            enumerate(tqdm(WikipediaDataset(epoch_size, max_seq_length, tokenizer, ned_sql_file, all_entities,
+                                            embeddings, n_trees, distance_measure, entity_index_path, search_k,
+                                            max_dist, sen_subset, bad_count, lookup_processes,
+                                            pairing_processes).get_sentence_pairs(), total=nsamples)):
 
             df = pd.DataFrame.from_dict({'id': count, 'id_a': [json.dumps(id_a)], 'id_b': [json.dumps(id_b)],
                                          'sen_a': [json.dumps(sen_a)], 'sen_b': [json.dumps(sen_b)],
@@ -663,8 +660,6 @@ def ned_pairing(pairing_sql_file,
                                          'label': [label]}).set_index('id')
 
             df.to_sql('pairs', con=write_conn, if_exists='append', index_label='id')
-
-            count += 1
 
             if float(count) > nsamples:
                 break
@@ -726,10 +721,10 @@ def ned_features(pairing_sql_file, model_dir, max_seq_length, do_lower_case=Fals
                 if t == 2 and not s.startswith('##'):
                     s = '[ENT]' + s
 
-                s = " {}".format(s) if not s.startswith('##') else s[2:]
-
                 if s == '[SEP]':
                     s = '\n{}\n'.format(s)
+                else:
+                    s = " {}".format(s) if not s.startswith('##') else s[2:]
 
                 text = text + s
 

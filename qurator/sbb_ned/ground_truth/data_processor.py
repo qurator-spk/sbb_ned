@@ -1,13 +1,16 @@
 from __future__ import absolute_import, division, print_function
 
+import logging
+import os
 import pandas as pd
-import numpy as np
+# import numpy as np
 
 import torch
 
-from torch.utils.data import (DataLoader, RandomSampler, SequentialSampler,
-                              TensorDataset, Dataset)
-from torch.utils.data.distributed import DistributedSampler
+from torch.utils.data import (DataLoader, SequentialSampler, Dataset)
+
+# from torch.utils.data import (RandomSampler, TensorDataset)
+# from torch.utils.data.distributed import DistributedSampler
 
 from sklearn.utils import shuffle
 
@@ -20,6 +23,13 @@ import sqlite3
 import itertools
 
 import json
+
+
+logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
+                    datefmt='%m/%d/%Y %H:%M:%S',
+                    level=logging.INFO)
+
+logger = logging.getLogger(__name__)
 
 
 class InputExample(object):
@@ -65,18 +75,16 @@ class SentenceLookup:
         tmp = []
         for i, r in targets.iterrows():
 
-            s = shuffle(pd.read_sql(
+            s = pd.read_sql(
                 "select sentences.id,sentences.page_title, links.target, sentences.text, sentences.entities "
                 "from links join sentences on links.sentence=sentences.id where links.target=?;",
-                SentenceLookup.conn, params=(r.guessed_title,)))
-
-            s = s.set_index('id').sort_index()
+                SentenceLookup.conn, params=(r.guessed_title,)).set_index('id').sort_index()
 
             if ssubset is not None:
                 s = pd.merge(s, ssubset, left_index=True, right_index=True)
 
             if len(s) == 0:
-                # print('1')
+                logger.debug('1')
                 continue
 
             tmp.append(s)
@@ -88,7 +96,7 @@ class SentenceLookup:
 
         tmp = tmp.loc[~tmp.page_title.str.startswith('Liste ')]
 
-        return tmp
+        return shuffle(tmp)
 
     @staticmethod
     def locate_entities(sent):
@@ -128,11 +136,7 @@ class SentenceLookup:
         for _, row in sent.iterrows():
             text = json.loads(row.text)
 
-            if text[0] == '#REDIRECT':
-                valid.append(False)
-                continue
-
-            if text[0] == '#WEITERLEITUNG':
+            if text[0].lower() in {'#redirect', '#weiterleitung'}:
                 valid.append(False)
                 continue
 
@@ -149,25 +153,25 @@ class SentenceLookup:
         good_sentences = SentenceLookup.select_sentences(self._good, SentenceLookup.sentence_subset)
 
         if len(good_sentences) < 2:
-            # print('2, len(good): {}'.format(len(self._good)))
+            logger.debug('2, len(good): {}'.format(len(self._good)))
             return None
 
         good_sentences = good_sentences.loc[SentenceLookup.is_valid_sentence(good_sentences)]
 
         if len(good_sentences) < 2:
-            # print('2')
+            logger.debug('2, len(good): {}'.format(len(self._good)))
             return None
 
         bad_sentences = SentenceLookup.select_sentences(self._bad, SentenceLookup.sentence_subset)
 
         if len(bad_sentences) < 2:
-            # print('3, len(bad): {}'.format(len(self._bad)))
+            logger.debug('3, len(bad): {}'.format(len(self._bad)))
             return None
 
         bad_sentences = bad_sentences.loc[SentenceLookup.is_valid_sentence(bad_sentences)]
 
         if len(bad_sentences) < 2:
-            # print('3, len(bad): {}'.format(len(self._bad)))
+            logger.debug('3, len(bad): {}'.format(len(self._bad)))
             return None
 
         num = min(SentenceLookup.max_samples, min(len(good_sentences), len(bad_sentences)))
@@ -193,7 +197,7 @@ class SentenceLookup:
         bad_pairs = [(good_sentences.iloc[a].id, bad_sentences.iloc[b].id,
                       good_sentences.iloc[a].text, bad_sentences.iloc[b].text,
                       good_sentences.iloc[a].pos, bad_sentences.iloc[b].pos,
-                      good_sentences.iloc[a].end, bad_sentences.iloc[b].end, -1) for a, b in combis]
+                      good_sentences.iloc[a].end, bad_sentences.iloc[b].end, 0) for a, b in combis]
 
         if len(bad_pairs) > len(good_pairs):
             bad_pairs = bad_pairs[0:len(good_pairs)]
@@ -216,11 +220,11 @@ class WikipediaDataset(Dataset):
     """
     """
 
-    def __init__(self, epoch_size, max_seq_length, tokenizer,
-                 ned_sql_file, entities, embeddings, n_trees, distance_measure, path, search_k, max_dist,
+    def __init__(self, size, max_seq_length, tokenizer,
+                 ned_sql_file, entities, embeddings, n_trees, distance_measure, entity_index_path, search_k, max_dist,
                  sentence_subset=None, bad_count=10, lookup_processes=2, pairing_processes=10):
 
-        self._epoch_size = epoch_size
+        self._size = size
         self._max_seq_length = max_seq_length
         self._tokenizer = tokenizer
         self._ned_sql_file = ned_sql_file
@@ -228,7 +232,7 @@ class WikipediaDataset(Dataset):
         self._embeddings = embeddings
         self._n_trees = n_trees
         self._distance_measure = distance_measure
-        self._path = path
+        self._entity_index_path = entity_index_path
         self._search_k = search_k
         self._max_dist = max_dist
         self._sentence_subset = sentence_subset
@@ -262,14 +266,14 @@ class WikipediaDataset(Dataset):
 
         for entity_title, ranking in \
                 prun(self.get_random_lookup(), initializer=LookUpBySurface.initialize,
-                     initargs=(self._embeddings, self._n_trees, self._distance_measure, self._path, self._search_k,
-                               self._max_dist), processes=self._lookup_processes):
+                     initargs=(self._embeddings, self._n_trees, self._distance_measure, self._entity_index_path,
+                               self._search_k, self._max_dist), processes=self._lookup_processes):
 
             good = ranking.loc[ranking.guessed_title == entity_title].copy()
             bad = ranking.loc[ranking.guessed_title != entity_title].copy()
 
             if len(good) == 0:  # There aren't any hits ... skip.
-                # print('0')
+                logger.debug('0')
                 continue
 
             # we want to have at least bad_count bad examples but also at most max_bad_count examples.
@@ -317,7 +321,7 @@ class WikipediaDataset(Dataset):
 
     def __len__(self):
 
-        return int(self._epoch_size)
+        return int(self._size)
 
 
 class DataProcessor(object):
@@ -331,174 +335,66 @@ class DataProcessor(object):
         """Gets a collection of `InputExample`s for the dev set."""
         raise NotImplementedError()
 
-    def get_labels(self):
-        """Gets the list of labels for this data set."""
+    def get_test_examples(self, batch_size, local_rank):
+        """Gets a collection of `InputExample`s for the test set."""
+        raise NotImplementedError()
+
+    @staticmethod
+    def num_labels():
         raise NotImplementedError()
 
     def get_evaluation_file(self):
         raise NotImplementedError()
 
 
-# class WikipediaNerProcessor(DataProcessor):
-#
-#     def __init__(self, train_sets, dev_sets, test_sets, gt_file, max_seq_length, tokenizer,
-#                  data_epochs, epoch_size, **kwargs):
-#         del kwargs
-#
-#         self._max_seq_length = max_seq_length
-#         self._tokenizer = tokenizer
-#         self._train_set_file = train_sets
-#         self._dev_set_file = dev_sets
-#         self._test_set_file = test_sets
-#         self._gt_file = gt_file
-#         self._data_epochs = data_epochs
-#         self._epoch_size = epoch_size
-#
-#     def get_train_examples(self, batch_size, local_rank):
-#         """See base class."""
-#
-#         return self._make_data_loader(self._train_set_file, batch_size, local_rank)
-#
-#     def get_dev_examples(self, batch_size, local_rank):
-#         """See base class."""
-#
-#         return self._make_data_loader(self._dev_set_file, batch_size, local_rank)
-#
-#     def get_labels(self):
-#         """See base class."""
-#
-#         labels = ["O", "B-PER", "I-PER", "B-LOC", "I-LOC", "B-ORG", "I-ORG", "X", "[CLS]", "[SEP]"]
-#
-#         return {label: i for i, label in enumerate(labels)}
-#
-#     def get_evaluation_file(self):
-#         dev_set_name = os.path.splitext(os.path.basename(self._dev_set_file))[0]
-#
-#         return "eval_results-{}.pkl".format(dev_set_name)
-#
-#     def _make_data_loader(self, set_file, batch_size, local_rank):
-#         del local_rank
-#
-#         data = WikipediaDataset(set_file=set_file, gt_file=self._gt_file,
-#                                 data_epochs=self._data_epochs, epoch_size=self._epoch_size,
-#                                 label_map=self.get_labels(), tokenizer=self._tokenizer,
-#                                 max_seq_length=self._max_seq_length)
-#
-#         sampler = SequentialSampler(data)
-#
-#         return DataLoader(data, sampler=sampler, batch_size=batch_size)
+class WikipediaNEDProcessor(DataProcessor):
 
+    def __init__(self, train_subset, dev_subset, test_subset, train_size, dev_size, test_size, ned_sql_file,  **kwargs):
 
-# class NEDProcessor(DataProcessor):
-#
-#     def __init__(self, train_sets, dev_sets, test_sets, max_seq_length, tokenizer,
-#                  label_map=None, gt=None, gt_file=None, **kwargs):
-#
-#         del kwargs
-#
-#         self._max_seg_length = max_seq_length
-#         self._tokenizer = tokenizer
-#         self._train_sets = set(train_sets.split('|')) if train_sets is not None else set()
-#         self._dev_sets = set(dev_sets.split('|')) if dev_sets is not None else set()
-#         self._test_sets = set(test_sets.split('|')) if test_sets is not None else set()
-#
-#         self._gt = gt
-#
-#         if self._gt is None:
-#             self._gt = pd.read_pickle(gt_file)
-#
-#         self._label_map = label_map
-#
-#         print('TRAIN SETS: ', train_sets)
-#         print('DEV SETS: ', dev_sets)
-#         print('TEST SETS: ', test_sets)
-#
-#     def get_train_examples(self, batch_size, local_rank):
-#         """See base class."""
-#
-#         return self.make_data_loader(
-#                             self.create_examples(self._read_lines(self._train_sets), "train"), batch_size, local_rank,
-#                             self.get_labels(), self._max_seg_length, self._tokenizer)
-#
-#     def get_dev_examples(self, batch_size, local_rank):
-#         """See base class."""
-#         return self.make_data_loader(
-#                         self.create_examples(self._read_lines(self._dev_sets), "dev"), batch_size, local_rank,
-#                         self.get_labels(), self._max_seg_length, self._tokenizer)
-#
-#     def get_labels(self):
-#         """See base class."""
-#
-#         if self._label_map is not None:
-#             return self._label_map
-#
-#         gt = self._gt
-#         gt = gt.loc[gt.dataset.isin(self._train_sets.union(self._dev_sets).union(self._test_sets))]
-#
-#         labels = sorted(gt.tag.unique().tolist()) + ["X", "[CLS]", "[SEP]"]
-#
-#         self._label_map = {label: i for i, label in enumerate(labels, 1)}
-#
-#         self._label_map['UNK'] = 0
-#
-#         return self._label_map
-#
-#     def get_evaluation_file(self):
-#
-#         return "eval_results-{}.pkl".format("-".join(sorted(self._dev_sets)))
-#
-#     @staticmethod
-#     def create_examples(lines, set_type):
-#
-#         for i, (sentence, label) in enumerate(lines):
-#             guid = "%s-%s" % (set_type, i)
-#             text_a = sentence
-#             text_b = None
-#             label = label
-#
-#             yield InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label)
-#
-#     @staticmethod
-#     def make_data_loader(examples, batch_size, local_rank, label_map, max_seq_length, tokenizer, features=None,
-#                          sequential=False):
-#
-#         if features is None:
-#             features = [fe for ex in examples for fe in
-#                         convert_examples_to_features(ex, label_map, max_seq_length, tokenizer)]
-#
-#         all_input_ids = torch.tensor([f.input_ids for f in features], dtype=torch.long)
-#         all_input_mask = torch.tensor([f.input_mask for f in features], dtype=torch.long)
-#         all_segment_ids = torch.tensor([f.segment_ids for f in features], dtype=torch.long)
-#         all_label_ids = torch.tensor([f.label_id for f in features], dtype=torch.long)
-#
-#         data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids)
-#
-#         if local_rank == -1:
-#             if sequential:
-#                 train_sampler = SequentialSampler(data)
-#             else:
-#                 train_sampler = RandomSampler(data)
-#         else:
-#             if sequential:
-#                 train_sampler = SequentialSampler(data)
-#             else:
-#                 train_sampler = DistributedSampler(data)
-#
-#         return DataLoader(data, sampler=train_sampler, batch_size=batch_size)
-#
-#     def _read_lines(self, sets):
-#
-#         gt = self._gt
-#         gt = gt.loc[gt.dataset.isin(sets)]
-#
-#         data = list()
-#         for i, sent in gt.groupby('nsentence'):
-#
-#             sent = sent.sort_values('nword', ascending=True)
-#
-#             data.append((sent.word.tolist(), sent.tag.tolist()))
-#
-#         return data
+        self._train_subset = train_subset
+        self._dev_subset = dev_subset
+        self._test_subset = test_subset
+
+        self._train_size = train_size
+        self._dev_size = dev_size
+        self._test_size = test_size
+
+        self._ned_sql_file = ned_sql_file
+
+        self._kwargs = kwargs
+
+    def get_train_examples(self, batch_size, local_rank):
+        """See base class."""
+
+        return self._make_data_loader(self._train_subset, self._train_size, batch_size, local_rank)
+
+    def get_dev_examples(self, batch_size, local_rank):
+        """See base class."""
+
+        return self._make_data_loader(self._dev_subset, self._dev_size, batch_size, local_rank)
+
+    def get_test_examples(self, batch_size, local_rank):
+        """See base class."""
+
+        return self._make_data_loader(self._test_subset, self._test_size, batch_size, local_rank)
+
+    @staticmethod
+    def num_labels():
+        return 2
+
+    def get_evaluation_file(self):
+        evaluation_file = os.path.splitext(os.path.basename(self._ned_sql_file))[0]
+
+        return "eval_results-{}.pkl".format(evaluation_file)
+
+    def _make_data_loader(self, subset, size, batch_size, local_rank):
+        del local_rank
+
+        data = WikipediaDataset(size=size, sentence_subset=subset, ned_sql_file=self._ned_sql_file, *self._kwargs)
+
+        sampler = SequentialSampler(data)
+
+        return DataLoader(data, sampler=sampler, batch_size=batch_size)
 
 
 def convert_examples_to_features(example, max_seq_len, tokenizer):
@@ -581,7 +477,7 @@ def convert_examples_to_features(example, max_seq_len, tokenizer):
     input_mask = [1] * len(augmented_tokens) + max(0, max_seq_len - len(augmented_tokens))*[0]
 
     segment_ids = [0] + len_pre_context_a*[0] + len_entity_a*[2] + len_post_context_a*[0] +\
-                  [1] + len_pre_context_b*[1] + len_entity_b*[2] + len_post_context_b*[1] + \
+                  [1] + len_pre_context_b*[1] + len_entity_b*[2] + len_post_context_b*[1] +\
                   max(0, max_seq_len - len(augmented_tokens)) * [0]
 
     try:
@@ -594,4 +490,3 @@ def convert_examples_to_features(example, max_seq_len, tokenizer):
 
     return InputFeatures(guid=example.guid, input_ids=input_ids, input_mask=input_mask, segment_ids=segment_ids,
                          tokens=augmented_tokens, label=example.label)
-

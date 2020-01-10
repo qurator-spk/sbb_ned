@@ -24,6 +24,7 @@ setup(
         "ned-pairing=qurator.sbb_ned.cli:ned_pairing",
         "ned-train-test-split=qurator.sbb_ned.cli:ned_train_test_split",
         "ned-features=qurator.sbb_ned.cli:ned_features",
+        "ned-bert=qurator.sbb_ned.models.bert:main",
         "build-index=qurator.sbb_ned.cli:build",
         "build-context-matrix=qurator.sbb_ned.cli:build_context_matrix",
         "build-from-context-matrix=qurator.sbb_ned.cli:build_from_context_matrix",
