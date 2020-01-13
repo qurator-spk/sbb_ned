@@ -390,7 +390,7 @@ class WikipediaNEDProcessor(DataProcessor):
     def _make_data_loader(self, subset, size, batch_size, local_rank):
         del local_rank
 
-        data = WikipediaDataset(size=size, sentence_subset=subset, ned_sql_file=self._ned_sql_file, *self._kwargs)
+        data = WikipediaDataset(size=size, sentence_subset=subset, ned_sql_file=self._ned_sql_file, **self._kwargs)
 
         sampler = SequentialSampler(data)
 
@@ -476,8 +476,8 @@ def convert_examples_to_features(example, max_seq_len, tokenizer):
 
     input_mask = [1] * len(augmented_tokens) + max(0, max_seq_len - len(augmented_tokens))*[0]
 
-    segment_ids = [0] + len_pre_context_a*[0] + len_entity_a*[2] + len_post_context_a*[0] +\
-                  [1] + len_pre_context_b*[1] + len_entity_b*[2] + len_post_context_b*[1] +\
+    segment_ids = [0] + len_pre_context_a*[0] + len_entity_a*[0] + len_post_context_a*[0] +\
+                  [1] + len_pre_context_b*[1] + len_entity_b*[1] + len_post_context_b*[1] +\
                   max(0, max_seq_len - len(augmented_tokens)) * [0]
 
     try:

@@ -94,6 +94,8 @@ ned-train-test-split:
 ned-pairing-train:
 	ned-pairing --subset-file ned-train-subset.pkl --nsamples=3000000 ned-train.sqlite $(NED_FILE) $(ENTITIES_FILE) fasttext $(N_TREES) $(DIST) $(ENTITY_INDEX_PATH)
 
+ned-train:
+	ned-bert --train-batch-size=64 --train-size=100000 --num-train-epochs=20 --ned-sql-file $(NED_FILE) --train-set-file ned-train-subset.pkl --dev-set-file ned-test-subset.pkl --test-set-file ned-test-subset.pkl data/digisam/BERT_de_finetuned ./ned-model --entity-index-path $(ENTITY_INDEX_PATH) --entities-file $(ENTITIES_FILE) 
 
 all: $(OUTPUT_PATH) fasttext-eval flair-eval
 

@@ -181,6 +181,8 @@ def model_train(bert_model, max_seq_length, do_lower_case,
 
                 input_ids, input_mask, segment_ids, label_ids = batch
 
+                # import ipdb;ipdb.set_trace()
+
                 loss = model(input_ids, segment_ids, input_mask, label_ids)
 
                 if n_gpu > 1:
@@ -413,7 +415,7 @@ def get_device(local_rank=-1, no_cuda=False):
 @click.option("--train-size", default=0, type=int, help="")
 @click.option("--dev-size", default=0, type=int, help="")
 @click.option("--train-size", default=0, type=int, help="")
-@click.option("--cache-dir", type=click.Path(exists=True), default="",
+@click.option("--cache-dir", type=click.Path(), default=None,
               help="Where do you want to store the pre-trained models downloaded from s3")
 @click.option("--max-seq-length", default=128, type=int,
               help="The maximum total input sequence length after WordPiece tokenization. \n"
@@ -423,7 +425,7 @@ def get_device(local_rank=-1, no_cuda=False):
 @click.option("--eval-batch-size", default=8, type=int, help="Total batch size for eval.")
 @click.option("--learning-rate", default=3e-5, type=float, help="The initial learning rate for Adam.")
 @click.option("--weight-decay", default=0.01, type=float, help="Weight decay for Adam.")
-@click.option("--num-train-epochs", default=3.0,type=float, help="Total number of training epochs to perform/evaluate.")
+@click.option("--num-train-epochs", default=3.0, type=float, help="Total number of training epochs to perform/evaluate.")
 @click.option("--warmup-proportion", default=0.1, type=float,
               help="Proportion of training to perform linear learning rate warmup for. E.g., 0.1 = 10%% of training.")
 @click.option("--no-cuda", is_flag=True, help="Whether not to use CUDA when available", default=False)
@@ -514,7 +516,6 @@ def main(bert_model, output_dir,
                           'entity_index_path': entity_index_path,
                           'search_k': search_k,
                           'max_dist': max_dist,
-                          'sentence_subset': None,
                           'bad_count': 10,
                           'lookup_processes': 2,
                           'pairing_processes': 10}
@@ -526,7 +527,7 @@ def main(bert_model, output_dir,
     if train_size > 0:
         tokenizer = BertTokenizer.from_pretrained(bert_model, do_lower_case=do_lower_case)
 
-        processor = processor_class(tokenizer=tokenizer, *processor_args)
+        processor = processor_class(tokenizer=tokenizer, **processor_args)
 
         model_train(bert_model=bert_model, output_dir=output_dir, max_seq_length=max_seq_length,
                     do_lower_case=do_lower_case, num_train_epochs=num_train_epochs,
