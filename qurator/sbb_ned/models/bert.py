@@ -527,16 +527,16 @@ def main(bert_model, output_dir,
     if train_size > 0:
         tokenizer = BertTokenizer.from_pretrained(bert_model, do_lower_case=do_lower_case)
 
-        processor = processor_class(tokenizer=tokenizer, **processor_args)
+        with processor_class(tokenizer=tokenizer, **processor_args) as processor:
 
-        model_train(bert_model=bert_model, output_dir=output_dir, max_seq_length=max_seq_length,
-                    do_lower_case=do_lower_case, num_train_epochs=num_train_epochs,
-                    train_batch_size=train_batch_size,
-                    gradient_accumulation_steps=gradient_accumulation_steps,
-                    learning_rate=learning_rate, weight_decay=weight_decay, loss_scale=loss_scale,
-                    warmup_proportion=warmup_proportion, processor=processor, device=device, n_gpu=n_gpu,
-                    fp16=fp16, cache_dir=cache_dir, local_rank=local_rank, dry_run=dry_run,
-                    no_cuda=no_cuda)
+            model_train(bert_model=bert_model, output_dir=output_dir, max_seq_length=max_seq_length,
+                        do_lower_case=do_lower_case, num_train_epochs=num_train_epochs,
+                        train_batch_size=train_batch_size,
+                        gradient_accumulation_steps=gradient_accumulation_steps,
+                        learning_rate=learning_rate, weight_decay=weight_decay, loss_scale=loss_scale,
+                        warmup_proportion=warmup_proportion, processor=processor, device=device, n_gpu=n_gpu,
+                        fp16=fp16, cache_dir=cache_dir, local_rank=local_rank, dry_run=dry_run,
+                        no_cuda=no_cuda)
 
     # noinspection PyUnresolvedReferences
     if dev_size > 0 and (local_rank == -1 or torch.distributed.get_rank() == 0):
@@ -546,11 +546,11 @@ def main(bert_model, output_dir,
         tokenizer = BertTokenizer.from_pretrained(model_config['bert_model'],
                                                   do_lower_case=model_config['do_lower'])
 
-        processor = processor_class(tokenizer=tokenizer, *processor_args)
+        with processor_class(tokenizer=tokenizer, *processor_args) as processor:
 
-        model_eval(processor=processor, device=device, num_train_epochs=num_train_epochs,
-                   output_dir=output_dir, batch_size=eval_batch_size, local_rank=local_rank,
-                   no_cuda=no_cuda, dry_run=dry_run)
+            model_eval(processor=processor, device=device, num_train_epochs=num_train_epochs,
+                       output_dir=output_dir, batch_size=eval_batch_size, local_rank=local_rank,
+                       no_cuda=no_cuda, dry_run=dry_run)
 
 
 if __name__ == "__main__":

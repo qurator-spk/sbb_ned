@@ -17,6 +17,7 @@ from sklearn.utils import shuffle
 from ..index import LookUpBySurface
 
 from qurator.utils.parallel import run as prun
+#from multiprocessing import Semaphore
 
 import sqlite3
 
@@ -220,6 +221,8 @@ class WikipediaDataset(Dataset):
     """
     """
 
+    quit = False
+
     def __init__(self, size, max_seq_length, tokenizer,
                  ned_sql_file, entities, embeddings, n_trees, distance_measure, entity_index_path, search_k, max_dist,
                  sentence_subset=None, bad_count=10, lookup_processes=2, pairing_processes=10):
@@ -244,6 +247,7 @@ class WikipediaDataset(Dataset):
         self._counter = 0
         self._lookup_processes = lookup_processes
         self._pairing_processes = pairing_processes
+        self._quit = False
 
     def random_entity(self):
 
@@ -259,6 +263,9 @@ class WikipediaDataset(Dataset):
 
         for page_title, ent_type in self.random_entity():
 
+            if WikipediaDataset.quit:
+                break
+
             yield LookUpBySurface(page_title, entity_surface_parts=[page_title], entity_title=page_title,
                                   entity_type=ent_type, split_parts=True)
 
@@ -269,11 +276,15 @@ class WikipediaDataset(Dataset):
                      initargs=(self._embeddings, self._n_trees, self._distance_measure, self._entity_index_path,
                                self._search_k, self._max_dist), processes=self._lookup_processes):
 
+            if WikipediaDataset.quit:
+                break
+
             good = ranking.loc[ranking.guessed_title == entity_title].copy()
             bad = ranking.loc[ranking.guessed_title != entity_title].copy()
 
             if len(good) == 0:  # There aren't any hits ... skip.
                 logger.debug('0')
+
                 continue
 
             # we want to have at least bad_count bad examples but also at most max_bad_count examples.
@@ -288,10 +299,16 @@ class WikipediaDataset(Dataset):
         for pairs in prun(self.get_sentence_lookup(), initializer=SentenceLookup.initialize,
                           initargs=(self._ned_sql_file, self._sentence_subset), processes=self._pairing_processes):
 
+            if WikipediaDataset.quit:
+                break
+
             if pairs is None:
                 continue
 
             for idx, row in pairs.iterrows():
+
+                if self._quit:
+                    break
 
                 yield row.id_a, row.id_b,\
                       json.loads(row.sen_a), json.loads(row.sen_b), \
@@ -302,6 +319,9 @@ class WikipediaDataset(Dataset):
     def get_features(self):
 
         for id_a, id_b, sen_a, sen_b, pos_a, pos_b, end_a, end_b, label in self.get_sentence_pairs():
+
+            if WikipediaDataset.quit:
+                break
 
             sample = InputExample(guid="%s-%s" % (self._ned_sql_file, "{}-{}".format(id_a, id_b)),
                                   text_a=sen_a, text_b=sen_b, pos_a=pos_a, pos_b=pos_b,
@@ -347,54 +367,70 @@ class DataProcessor(object):
         raise NotImplementedError()
 
 
-class WikipediaNEDProcessor(DataProcessor):
+class WikipediaNEDProcessor:
 
-    def __init__(self, train_subset, dev_subset, test_subset, train_size, dev_size, test_size, ned_sql_file,  **kwargs):
+    class Internal(DataProcessor):
 
-        self._train_subset = train_subset
-        self._dev_subset = dev_subset
-        self._test_subset = test_subset
+        def __init__(self, train_subset, dev_subset, test_subset, train_size, dev_size, test_size, ned_sql_file,
+                     **kwargs):
 
-        self._train_size = train_size
-        self._dev_size = dev_size
-        self._test_size = test_size
+            self._train_subset = train_subset
+            self._dev_subset = dev_subset
+            self._test_subset = test_subset
 
-        self._ned_sql_file = ned_sql_file
+            self._train_size = train_size
+            self._dev_size = dev_size
+            self._test_size = test_size
 
+            self._ned_sql_file = ned_sql_file
+
+            self._kwargs = kwargs
+
+        def get_train_examples(self, batch_size, local_rank):
+            """See base class."""
+
+            return self._make_data_loader(self._train_subset, self._train_size, batch_size, local_rank)
+
+        def get_dev_examples(self, batch_size, local_rank):
+            """See base class."""
+
+            return self._make_data_loader(self._dev_subset, self._dev_size, batch_size, local_rank)
+
+        def get_test_examples(self, batch_size, local_rank):
+            """See base class."""
+
+            return self._make_data_loader(self._test_subset, self._test_size, batch_size, local_rank)
+
+        @staticmethod
+        def num_labels():
+            return 2
+
+        def get_evaluation_file(self):
+            evaluation_file = os.path.splitext(os.path.basename(self._ned_sql_file))[0]
+
+            return "eval_results-{}.pkl".format(evaluation_file)
+
+        def _make_data_loader(self, subset, size, batch_size, local_rank):
+            del local_rank
+
+            data = WikipediaDataset(size=size, sentence_subset=subset, ned_sql_file=self._ned_sql_file, **self._kwargs)
+
+            sampler = SequentialSampler(data)
+
+            return DataLoader(data, sampler=sampler, batch_size=batch_size)
+
+    def __init__(self, *args,  **kwargs):
+
+        self._args = args
         self._kwargs = kwargs
 
-    def get_train_examples(self, batch_size, local_rank):
-        """See base class."""
+    def __enter__(self):
 
-        return self._make_data_loader(self._train_subset, self._train_size, batch_size, local_rank)
+        return WikipediaNEDProcessor.Internal(*self._args, **self._kwargs)
 
-    def get_dev_examples(self, batch_size, local_rank):
-        """See base class."""
+    def __exit__(self, exc_type, exc_val, exc_tb):
 
-        return self._make_data_loader(self._dev_subset, self._dev_size, batch_size, local_rank)
-
-    def get_test_examples(self, batch_size, local_rank):
-        """See base class."""
-
-        return self._make_data_loader(self._test_subset, self._test_size, batch_size, local_rank)
-
-    @staticmethod
-    def num_labels():
-        return 2
-
-    def get_evaluation_file(self):
-        evaluation_file = os.path.splitext(os.path.basename(self._ned_sql_file))[0]
-
-        return "eval_results-{}.pkl".format(evaluation_file)
-
-    def _make_data_loader(self, subset, size, batch_size, local_rank):
-        del local_rank
-
-        data = WikipediaDataset(size=size, sentence_subset=subset, ned_sql_file=self._ned_sql_file, **self._kwargs)
-
-        sampler = SequentialSampler(data)
-
-        return DataLoader(data, sampler=sampler, batch_size=batch_size)
+        WikipediaDataset.quit = True
 
 
 def convert_examples_to_features(example, max_seq_len, tokenizer):
