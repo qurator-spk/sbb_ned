@@ -17,6 +17,7 @@ from sklearn.utils import shuffle
 from ..index import LookUpBySurface
 
 from qurator.utils.parallel import run as prun
+from qurator.utils.parallel import run_unordered as prun_unordered
 from multiprocessing import Semaphore
 
 import sqlite3
@@ -274,9 +275,10 @@ class WikipediaDataset(Dataset):
     def get_sentence_lookup(self):
 
         for entity_title, ranking in \
-                prun(self.get_random_lookup(), initializer=LookUpBySurface.initialize,
-                     initargs=(self._embeddings, self._n_trees, self._distance_measure, self._entity_index_path,
-                               self._search_k, self._max_dist), processes=self._lookup_processes):
+                prun_unordered(self.get_random_lookup(), initializer=LookUpBySurface.initialize,
+                               initargs=(self._embeddings, self._n_trees, self._distance_measure,
+                                         self._entity_index_path, self._search_k, self._max_dist),
+                               processes=self._lookup_processes):
 
             if WikipediaDataset.quit:
                 break
@@ -298,8 +300,9 @@ class WikipediaDataset(Dataset):
 
     def get_sentence_pairs(self):
 
-        for pairs in prun(self.get_sentence_lookup(), initializer=SentenceLookup.initialize,
-                          initargs=(self._ned_sql_file, self._sentence_subset), processes=self._pairing_processes):
+        for pairs in prun_unordered(self.get_sentence_lookup(), initializer=SentenceLookup.initialize,
+                                    initargs=(self._ned_sql_file, self._sentence_subset),
+                                    processes=self._pairing_processes):
 
             if WikipediaDataset.quit:
                 break
@@ -339,8 +342,8 @@ class WikipediaDataset(Dataset):
 
     def get_features(self):
 
-        for features in prun(self.get_feature_tasks(), initializer=ConvertSamples2Features.initialize,
-                             initargs=(self._tokenizer, self._max_seq_length), processes=10):
+        for features in prun_unordered(self.get_feature_tasks(), initializer=ConvertSamples2Features.initialize,
+                                       initargs=(self._tokenizer, self._max_seq_length), processes=10):
 
             yield features
 
