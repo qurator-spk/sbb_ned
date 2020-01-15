@@ -61,17 +61,6 @@ flair-eval-PER:
 	evaluate-with-context $(OUTPUT_PATH)/context-embeddings-embt_flair-entt_PER-wsize_$(WINDOW_SIZE)-dm_$(DIST)-nt_$(N_TREES).ann $(OUTPUT_PATH)/context-embeddings-embt_flair-entt_PER-wsize_$(WINDOW_SIZE)-dm_$(DIST)-nt_$(N_TREES).mapping $(DATA_PATH)/wikipedia/wikipedia-tagged.parquet flair PER $(DIST) $(OUTPUT_PATH) --processes=$(PROCESSES) --max-iter=100000
 flair-eval:	flair-index flair-eval-ORG flair-eval-LOC flair-eval-PER
 
-
-#%Usage: evaluate-combined [OPTIONS] TAGGED_PARQUET ENT_TYPE [fasttext] N_TREES
-#%                         [angular|euclidean] [flair] W_SIZE BATCH_SIZE
-#%                         OUTPUT_PATH
-#%
-#%Options:
-#%  --search-k-1 INTEGER
-#%  --max-iter FLOAT
-#%#  --processes INTEGER
-#%  --help                Show this message and exit.
-
 flair-eval-combined-ORG:
 	evaluate-combined $(DATA_PATH)/wikipedia/wikipedia-tagged.parquet ORG fasttext $(N_TREES) $(DIST) flair $(WINDOW_SIZE) $(BATCH_SIZE) $(OUTPUT_PATH) --processes=$(PROCESSES) --max-iter=1000000
 
@@ -83,11 +72,6 @@ flair-eval-combined-PER:
 
 flair-eval-combined:	flair-eval-combined-ORG flair-eval-combined-LOC flair-eval-combined-PER
 
-#Usage: ned-training-data [OPTIONS] TRAIN_SET_SQL_FILE NED_SQL_FILE
-#                         ENTITIES_FILE [fasttext] N_TREES [angular|euclidean]
-#                         ENTITY_INDEX_PATH
-
-
 ned-train-test-split:
 	ned-train-test-split --fraction-train=0.5 $(NED_FILE) ned-train-subset.pkl ned-test-subset.pkl
 
@@ -95,7 +79,7 @@ ned-pairing-train:
 	ned-pairing --subset-file ned-train-subset.pkl --nsamples=3000000 ned-train.sqlite $(NED_FILE) $(ENTITIES_FILE) fasttext $(N_TREES) $(DIST) $(ENTITY_INDEX_PATH)
 
 ned-train:
-	ned-bert --train-batch-size=64 --train-size=1000 --num-train-epochs=1 --ned-sql-file $(NED_FILE) --train-set-file ned-train-subset.pkl --dev-set-file ned-test-subset.pkl --test-set-file ned-test-subset.pkl data/digisam/BERT_de_finetuned ./ned-model --entity-index-path $(ENTITY_INDEX_PATH) --entities-file $(ENTITIES_FILE) 
+	ned-bert --train-batch-size=128 --train-size=100000 --num-train-epochs=400 --ned-sql-file $(NED_FILE) --train-set-file ned-train-subset.pkl --dev-set-file ned-test-subset.pkl --test-set-file ned-test-subset.pkl data/digisam/BERT_de_finetuned ./ned-model --model-file pytorch_model.bin --entity-index-path $(ENTITY_INDEX_PATH) --entities-file $(ENTITIES_FILE) 
 
 all: $(OUTPUT_PATH) fasttext-eval flair-eval
 

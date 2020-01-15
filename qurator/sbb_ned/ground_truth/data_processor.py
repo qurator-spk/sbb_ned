@@ -17,7 +17,7 @@ from sklearn.utils import shuffle
 from ..index import LookUpBySurface
 
 from qurator.utils.parallel import run as prun
-#from multiprocessing import Semaphore
+from multiprocessing import Semaphore
 
 import sqlite3
 
@@ -225,7 +225,7 @@ class WikipediaDataset(Dataset):
 
     def __init__(self, size, max_seq_length, tokenizer,
                  ned_sql_file, entities, embeddings, n_trees, distance_measure, entity_index_path, search_k, max_dist,
-                 sentence_subset=None, bad_count=10, lookup_processes=2, pairing_processes=10):
+                 sentence_subset=None, bad_count=10, lookup_processes=0, pairing_processes=0):
 
         self._size = size
         self._max_seq_length = max_seq_length
@@ -247,7 +247,7 @@ class WikipediaDataset(Dataset):
         self._counter = 0
         self._lookup_processes = lookup_processes
         self._pairing_processes = pairing_processes
-        self._quit = False
+        self._lookup_sem = Semaphore(100)
 
     def random_entity(self):
 
@@ -265,6 +265,8 @@ class WikipediaDataset(Dataset):
 
             if WikipediaDataset.quit:
                 break
+
+            self._lookup_sem.acquire(timeout=100)
 
             yield LookUpBySurface(page_title, entity_surface_parts=[page_title], entity_title=page_title,
                                   entity_type=ent_type, split_parts=True)
@@ -284,7 +286,7 @@ class WikipediaDataset(Dataset):
 
             if len(good) == 0:  # There aren't any hits ... skip.
                 logger.debug('0')
-
+                self._lookup_sem.release()
                 continue
 
             # we want to have at least bad_count bad examples but also at most max_bad_count examples.
@@ -303,11 +305,12 @@ class WikipediaDataset(Dataset):
                 break
 
             if pairs is None:
+                self._lookup_sem.release()
                 continue
 
             for idx, row in pairs.iterrows():
 
-                if self._quit:
+                if WikipediaDataset.quit:
                     break
 
                 yield row.id_a, row.id_b,\
@@ -316,7 +319,9 @@ class WikipediaDataset(Dataset):
                       row.end_a, row.end_b, \
                       row.label
 
-    def get_features(self):
+            self._lookup_sem.release()
+
+    def get_feature_tasks(self):
 
         for id_a, id_b, sen_a, sen_b, pos_a, pos_b, end_a, end_b, label in self.get_sentence_pairs():
 
@@ -328,7 +333,16 @@ class WikipediaDataset(Dataset):
                                   end_a=end_a, end_b=end_b, label=label)
             self._counter += 1
 
-            yield convert_examples_to_features(sample, self._max_seq_length, self._tokenizer)
+            # yield convert_examples_to_features(sample, self._max_seq_length, self._tokenizer)
+
+            yield ConvertSamples2Features(sample)
+
+    def get_features(self):
+
+        for features in prun(self.get_feature_tasks(), initializer=ConvertSamples2Features.initialize,
+                             initargs=(self._tokenizer, self._max_seq_length), processes=10):
+
+            yield features
 
     def __getitem__(self, index):
 
@@ -431,6 +445,27 @@ class WikipediaNEDProcessor:
     def __exit__(self, exc_type, exc_val, exc_tb):
 
         WikipediaDataset.quit = True
+
+
+class ConvertSamples2Features:
+
+    tokenizer = None
+    max_seq_len = 0
+
+    def __init__(self, sample):
+
+        self._sample = sample
+
+    def __call__(self, *args, **kwargs):
+
+        return convert_examples_to_features(self._sample, ConvertSamples2Features.max_seq_len,
+                                            ConvertSamples2Features.tokenizer)
+
+    @staticmethod
+    def initialize(tokenizer, max_seq_len):
+
+        ConvertSamples2Features.tokenizer = tokenizer
+        ConvertSamples2Features.max_seq_len = max_seq_len
 
 
 def convert_examples_to_features(example, max_seq_len, tokenizer):

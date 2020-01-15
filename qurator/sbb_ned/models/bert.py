@@ -38,7 +38,7 @@ def model_train(bert_model, max_seq_length, do_lower_case,
                 num_train_epochs, train_batch_size, gradient_accumulation_steps,
                 learning_rate, weight_decay, loss_scale, warmup_proportion,
                 processor, device, n_gpu, fp16, cache_dir, local_rank,
-                dry_run, no_cuda, output_dir=None):
+                dry_run, no_cuda, output_dir=None, model_file=None):
 
     # label_map = processor.get_labels()
 
@@ -125,7 +125,10 @@ def model_train(bert_model, max_seq_length, do_lower_case,
         if output_dir is None:
             return
 
-        output_model_file = os.path.join(output_dir, "pytorch_model_ep{}.bin".format(ep))
+        if model_file is None:
+            output_model_file = os.path.join(output_dir, "pytorch_model_ep{}.bin".format(ep))
+        else:
+            output_model_file = os.path.join(output_dir, model_file)
 
         # Save a trained model and the associated configuration
         model_to_save = model.module if hasattr(model, 'module') else model  # Only save the model it-self
@@ -149,7 +152,10 @@ def model_train(bert_model, max_seq_length, do_lower_case,
         if output_dir is None:
             return False
 
-        output_model_file = os.path.join(output_dir, "pytorch_model_ep{}.bin".format(epoch))
+        if model_file is None:
+            output_model_file = os.path.join(output_dir, "pytorch_model_ep{}.bin".format(epoch))
+        else:
+            output_model_file = os.path.join(output_dir, model_file)
 
         if not os.path.exists(output_model_file):
             return False
@@ -166,7 +172,7 @@ def model_train(bert_model, max_seq_length, do_lower_case,
             logger.info("Dry run. Stop.")
             break
 
-        if load_model(ep):
+        if model_file is None and load_model(ep):
             global_step += len(train_dataloader) // gradient_accumulation_steps
             continue
 
@@ -409,6 +415,7 @@ def get_device(local_rank=-1, no_cuda=False):
 @click.command()
 @click.argument("bert-model", type=str, required=True, nargs=1)
 @click.argument("output-dir", type=str, required=True, nargs=1)
+@click.option("--model-file", type=click.Path(), default=None, help="")
 @click.option("--train-set-file", type=click.Path(exists=True), default=None, help="")
 @click.option("--dev-set-file", type=click.Path(exists=True), default=None, help="")
 @click.option("--test-set-file", type=click.Path(exists=True), default=None, help="")
@@ -452,7 +459,7 @@ def main(bert_model, output_dir,
          weight_decay=0.01, num_train_epochs=3, warmup_proportion=0.1, no_cuda=False, dry_run=False, local_rank=-1,
          seed=42, gradient_accumulation_steps=1, fp16=False, loss_scale=0.0,
          ned_sql_file=None, search_k=50, max_dist=0.25, embedding_type='fasttext', n_trees=100,
-         distance_measure='angular', entity_index_path=None, entities_file=None):
+         distance_measure='angular', entity_index_path=None, entities_file=None, model_file=None):
     """
     ned_sql_file: \n
     train_set_file: \n
@@ -517,8 +524,8 @@ def main(bert_model, output_dir,
                           'search_k': search_k,
                           'max_dist': max_dist,
                           'bad_count': 10,
-                          'lookup_processes': 2,
-                          'pairing_processes': 10}
+                          'lookup_processes': 4,
+                          'pairing_processes': 20}
 
         processor_class = WikipediaNEDProcessor
     else:
@@ -536,7 +543,7 @@ def main(bert_model, output_dir,
                         learning_rate=learning_rate, weight_decay=weight_decay, loss_scale=loss_scale,
                         warmup_proportion=warmup_proportion, processor=processor, device=device, n_gpu=n_gpu,
                         fp16=fp16, cache_dir=cache_dir, local_rank=local_rank, dry_run=dry_run,
-                        no_cuda=no_cuda)
+                        no_cuda=no_cuda, model_file=model_file)
 
     # noinspection PyUnresolvedReferences
     if dev_size > 0 and (local_rank == -1 or torch.distributed.get_rank() == 0):
