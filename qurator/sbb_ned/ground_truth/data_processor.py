@@ -249,6 +249,7 @@ class WikipediaDataset(Dataset):
         self._lookup_processes = lookup_processes
         self._pairing_processes = pairing_processes
         self._lookup_sem = Semaphore(100)
+        self._convert_sem = Semaphore(1000)
 
     def random_entity(self):
 
@@ -303,6 +304,9 @@ class WikipediaDataset(Dataset):
 
             yield SentenceLookup(good, bad)
 
+            del good
+            del bad
+
     def get_sentence_pairs(self):
 
         for pairs in prun_unordered(self.get_sentence_lookup(), initializer=SentenceLookup.initialize,
@@ -328,6 +332,7 @@ class WikipediaDataset(Dataset):
                       row.label
 
             self._lookup_sem.release()
+            del pairs
 
     def get_feature_tasks(self):
 
@@ -336,6 +341,13 @@ class WikipediaDataset(Dataset):
             if WikipediaDataset.quit:
                 break
 
+            while True:
+                if self._convert_sem.acquire(timeout=10):
+                    break
+
+                if WikipediaDataset.quit:
+                    return
+
             sample = InputExample(guid="%s-%s" % (self._ned_sql_file, "{}-{}".format(id_a, id_b)),
                                   text_a=sen_a, text_b=sen_b, pos_a=pos_a, pos_b=pos_b,
                                   end_a=end_a, end_b=end_b, label=label)
@@ -343,15 +355,21 @@ class WikipediaDataset(Dataset):
 
             yield ConvertSamples2Features(sample)
 
+            del sample
+
     def get_features(self):
 
         for features in prun_unordered(self.get_feature_tasks(), initializer=ConvertSamples2Features.initialize,
                                        initargs=(self._tokenizer, self._max_seq_length), processes=10):
 
+            self._convert_sem.release()
+
             if features is None:
                 continue
 
             yield features
+
+            del features
 
     def __getitem__(self, index):
 
