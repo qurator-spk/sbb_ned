@@ -16,7 +16,7 @@ from sklearn.utils import shuffle
 
 from ..index import LookUpBySurface
 
-from qurator.utils.parallel import run as prun
+# from qurator.utils.parallel import run as prun
 from qurator.utils.parallel import run_unordered as prun_unordered
 from multiprocessing import Semaphore
 
@@ -265,9 +265,14 @@ class WikipediaDataset(Dataset):
         for page_title, ent_type in self.random_entity():
 
             if WikipediaDataset.quit:
-                break
+                return
 
-            self._lookup_sem.acquire(timeout=100)
+            while True:
+                if self._lookup_sem.acquire(timeout=10):
+                    break
+
+                if WikipediaDataset.quit:
+                    return
 
             yield LookUpBySurface(page_title, entity_surface_parts=[page_title], entity_title=page_title,
                                   entity_type=ent_type, split_parts=True)
@@ -336,14 +341,15 @@ class WikipediaDataset(Dataset):
                                   end_a=end_a, end_b=end_b, label=label)
             self._counter += 1
 
-            # yield convert_examples_to_features(sample, self._max_seq_length, self._tokenizer)
-
             yield ConvertSamples2Features(sample)
 
     def get_features(self):
 
         for features in prun_unordered(self.get_feature_tasks(), initializer=ConvertSamples2Features.initialize,
                                        initargs=(self._tokenizer, self._max_seq_length), processes=10):
+
+            if features is None:
+                continue
 
             yield features
 
@@ -559,8 +565,8 @@ def convert_examples_to_features(example, max_seq_len, tokenizer):
         assert len(input_mask) == max_seq_len
         assert len(segment_ids) == max_seq_len
     except AssertionError:
-        import ipdb
-        ipdb.set_trace()
+        logger.error('AssertionError, convert_examples_to_features')
+        return None
 
     return InputFeatures(guid=example.guid, input_ids=input_ids, input_mask=input_mask, segment_ids=segment_ids,
                          tokens=augmented_tokens, label=example.label)

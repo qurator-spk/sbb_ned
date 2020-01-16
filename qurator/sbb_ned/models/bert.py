@@ -173,6 +173,7 @@ def model_train(bert_model, max_seq_length, do_lower_case,
             break
 
         if model_file is None and load_model(ep):
+
             global_step += len(train_dataloader) // gradient_accumulation_steps
             continue
 
