@@ -117,6 +117,7 @@ def model_train(bert_model, max_seq_length, do_lower_case,
     logger.info("  Batch size = %d", train_batch_size)
     logger.info("  Num steps = %d", num_train_optimization_steps)
     logger.info("  Num epochs = %d", num_train_epochs)
+    logger.info("  Target learning rate = %f", learning_rate)
 
     model_config = {"bert_model": bert_model, "do_lower": do_lower_case, "max_seq_length": max_seq_length}
 
