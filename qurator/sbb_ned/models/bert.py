@@ -19,7 +19,7 @@ from pytorch_pretrained_bert.modeling import (CONFIG_NAME,  # WEIGHTS_NAME,
                                               BertForSequenceClassification)
 from pytorch_pretrained_bert.optimization import BertAdam, WarmupLinearSchedule
 from qurator.sbb_ner.models.tokenization import BertTokenizer
-from conlleval import evaluate as conll_eval
+# from conlleval import evaluate as conll_eval
 
 from tqdm import tqdm, trange
 
@@ -187,11 +187,9 @@ def model_train(bert_model, max_seq_length, do_lower_case,
 
                 batch = tuple(t.to(device) for t in batch)
 
-                input_ids, input_mask, segment_ids, label_ids = batch
+                input_ids, input_mask, segment_ids, labels = batch
 
-                # import ipdb;ipdb.set_trace()
-
-                loss = model(input_ids, segment_ids, input_mask, label_ids)
+                loss = model(input_ids, segment_ids, input_mask, labels)
 
                 if n_gpu > 1:
                     loss = loss.mean()  # mean() to average on multi-gpu.
@@ -235,7 +233,8 @@ def model_train(bert_model, max_seq_length, do_lower_case,
 
 
 def model_eval(batch_size, processor, device, num_train_epochs=1, output_dir=None, model=None,
-               local_rank=-1, no_cuda=False, dry_run=False):
+               local_rank=-1, no_cuda=False, dry_run=False, model_file=None):
+
     output_eval_file = None
     if output_dir is not None:
         output_eval_file = os.path.join(output_dir, processor.get_evaluation_file())
@@ -249,9 +248,45 @@ def model_eval(batch_size, processor, device, num_train_epochs=1, output_dir=Non
 
     results = list()
 
-    output_config_file = None
     if output_dir is not None:
         output_config_file = os.path.join(output_dir, CONFIG_NAME)
+
+        if not os.path.exists(output_config_file):
+            raise RuntimeError("Cannot find model configuration file {}.".format(output_config_file))
+
+        config = BertConfig(output_config_file)
+    else:
+        raise RuntimeError("Cannot find model configuration file. Output directory is missing.")
+
+    model = None
+
+    def load_model(epoch):
+
+        nonlocal model
+
+        if output_dir is None:
+            return False
+
+        if model_file is None:
+            output_model_file = os.path.join(output_dir, "pytorch_model_ep{}.bin".format(epoch))
+        else:
+            output_model_file = os.path.join(output_dir, model_file)
+
+        if not os.path.exists(output_model_file):
+            logger.info("Stopping at epoch {} since model file is missing ({}).".format(ep, output_model_file))
+            return False
+
+        logger.info("Loading epoch {} from disk...".format(epoch))
+        model = BertForSequenceClassification(config, num_labels=processor.num_labels())
+
+        # noinspection PyUnresolvedReferences
+        model.load_state_dict(torch.load(output_model_file,
+                                         map_location=lambda storage, loc: storage if no_cuda else None))
+
+        # noinspection PyUnresolvedReferences
+        model.to(device)
+
+        return True
 
     for ep in trange(1, int(num_train_epochs) + 1, desc="Epoch"):
 
@@ -259,21 +294,8 @@ def model_eval(batch_size, processor, device, num_train_epochs=1, output_dir=Non
             logger.info("Dry run. Stop.")
             break
 
-        if output_config_file is not None:
-            # Load a trained model and config that you have fine-tuned
-            output_model_file = os.path.join(output_dir, "pytorch_model_ep{}.bin".format(ep))
-
-            if not os.path.exists(output_model_file):
-                logger.info("Stopping at epoch {} since model file is missing.".format(ep))
-                break
-
-            config = BertConfig(output_config_file)
-            model = BertForSequenceClassification(config, num_labels=processor.num_labels())
-            # noinspection PyUnresolvedReferences
-            model.load_state_dict(torch.load(output_model_file,
-                                             map_location=lambda storage, loc: storage if no_cuda else None))
-            # noinspection PyUnresolvedReferences
-            model.to(device)
+        if not load_model(ep):
+            break
 
         if model is None:
             raise ValueError('Model required for evaluation.')
@@ -281,34 +303,7 @@ def model_eval(batch_size, processor, device, num_train_epochs=1, output_dir=Non
         # noinspection PyUnresolvedReferences
         model.eval()
 
-        y_pred, y_true = model_predict_compare(dataloader, device, model, dry_run)
-
-        lines = ['empty ' + 'XXX ' + v + ' ' + p for yt, yp in zip(y_true, y_pred) for v, p in zip(yt, yp)]
-
-        res = conll_eval(lines)
-
-        # print(res)
-
-        evals = \
-            pd.concat([pd.DataFrame.from_dict(res['overall']['evals'], orient='index', columns=['ALL']),
-                       pd.DataFrame.from_dict(res['slots']['LOC']['evals'], orient='index', columns=['LOC']),
-                       pd.DataFrame.from_dict(res['slots']['PER']['evals'], orient='index', columns=['PER']),
-                       pd.DataFrame.from_dict(res['slots']['ORG']['evals'], orient='index', columns=['ORG']),
-                       ], axis=1).T
-
-        stats = \
-            pd.concat(
-                [pd.DataFrame.from_dict(res['overall']['stats'], orient='index', columns=['ALL']),
-                 pd.DataFrame.from_dict(res['slots']['LOC']['stats'], orient='index', columns=['LOC']),
-                 pd.DataFrame.from_dict(res['slots']['PER']['stats'], orient='index', columns=['PER']),
-                 pd.DataFrame.from_dict(res['slots']['ORG']['stats'], orient='index', columns=['ORG'])],
-                axis=1, sort=True).T
-
-        evals['epoch'] = ep
-        stats['epoch'] = ep
-
-        results.append(pd.concat([evals.reset_index().set_index(['index', 'epoch']),
-                                  stats.reset_index().set_index(['index', 'epoch'])], axis=1))
+        y_pred, y_true, logits = model_predict_compare(dataloader, device, model)
 
         if output_eval_file is not None:
             pd.concat(results).to_pickle(output_eval_file)
@@ -319,86 +314,90 @@ def model_eval(batch_size, processor, device, num_train_epochs=1, output_dir=Non
     return results
 
 
-def model_predict_compare(dataloader, device, model, dry_run=False):
+def model_predict_compare(dataloader, device, model):
     y_true = []
     y_pred = []
-    covered = set()
-    for input_ids, input_mask, segment_ids, label_ids in tqdm(dataloader, desc="Evaluating"):
+    # covered = set()
+    for input_ids, input_mask, segment_ids, labels in tqdm(dataloader, desc="Evaluating", total=len(dataloader)):
+
         input_ids = input_ids.to(device)
         input_mask = input_mask.to(device)
         segment_ids = segment_ids.to(device)
-        label_ids = label_ids.to(device)
+        labels = labels.to(device)
 
         with torch.no_grad():
             logits = model(input_ids, segment_ids, input_mask)
 
+        # decision_values = torch.argmax(F.log_softmax(logits, dim=2), dim=2)
         logits = torch.argmax(F.log_softmax(logits, dim=2), dim=2)
         logits = logits.detach().cpu().numpy()
-        label_ids = label_ids.to('cpu').numpy()
+        labels = labels.to('cpu').numpy()
         input_mask = input_mask.to('cpu').numpy()
 
-        for i, mask in enumerate(input_mask):
-            temp_1 = []
-            temp_2 = []
-            for j, m in enumerate(mask):
-                if j == 0:
-                    continue
-                if m:
-                    if label_map[label_ids[i][j]] != "X":
-                        temp_1.append(label_map[label_ids[i][j]])
-                        temp_2.append(label_map[logits[i][j]])
-                else:
-                    temp_1.pop()
-                    temp_2.pop()
-                    y_true.append(temp_1)
-                    y_pred.append(temp_2)
+        import ipdb;ipdb.set_trace()
 
-                    covered = covered.union(set(temp_1))
-                    break
+        # for i, mask in enumerate(input_mask):
+        #     temp_1 = []
+        #     temp_2 = []
+        #     for j, m in enumerate(mask):
+        #         if j == 0:
+        #             continue
+        #         if m:
+        #             if label_map[labels[i][j]] != "X":
+        #                 temp_1.append(label_map[labels[i][j]])
+        #                 temp_2.append(label_map[logits[i][j]])
+        #         else:
+        #             temp_1.pop()
+        #             temp_2.pop()
+        #             y_true.append(temp_1)
+        #             y_pred.append(temp_2)
+        #
+        #             covered = covered.union(set(temp_1))
+        #             break
 
-        if dry_run:
+        # if dry_run:
+        #
+        #     if 'I-LOC' not in covered:
+        #         continue
+        #     if 'I-ORG' not in covered:
+        #         continue
+        #     if 'I-PER' not in covered:
+        #         continue
+        #
+        #     break
+    return y_pred, y_true, logits
 
-            if 'I-LOC' not in covered:
-                continue
-            if 'I-ORG' not in covered:
-                continue
-            if 'I-PER' not in covered:
-                continue
 
-            break
-    return y_pred, y_true
-
-
-def model_predict(dataloader, device, label_map, model):
-    y_pred = []
-    for input_ids, input_mask, segment_ids, label_ids in dataloader:
-        input_ids = input_ids.to(device)
-        input_mask = input_mask.to(device)
-        segment_ids = segment_ids.to(device)
-
-        with torch.no_grad():
-            logits = model(input_ids, segment_ids, input_mask)
-
-        logits = torch.argmax(F.log_softmax(logits, dim=2), dim=2)
-        logits = logits.detach().cpu().numpy()
-        input_mask = input_mask.to('cpu').numpy()
-
-        for i, mask in enumerate(input_mask):
-            temp_2 = []
-            for j, m in enumerate(mask):
-                if j == 0:  # skip first token since its [CLS]
-                    continue
-                if m:
-                    temp_2.append(label_map[logits[i][j]])
-                else:
-                    temp_2.pop()  # skip last token since its [SEP]
-                    y_pred.append(temp_2)
-                    break
-            else:
-                temp_2.pop()  # skip last token since its [SEP]
-                y_pred.append(temp_2)
-
-    return y_pred
+# def model_predict(dataloader, device, label_map, model):
+#     y_pred = []
+#     for input_ids, input_mask, segment_ids, label_ids in dataloader:
+#         input_ids = input_ids.to(device)
+#         input_mask = input_mask.to(device)
+#         segment_ids = segment_ids.to(device)
+#
+#         with torch.no_grad():
+#             logits = model(input_ids, segment_ids, input_mask)
+#
+#         logits = torch.argmax(F.log_softmax(logits, dim=2), dim=2)
+#         logits = logits.detach().cpu().numpy()
+#         input_mask = input_mask.to('cpu').numpy()
+#
+#         for i, mask in enumerate(input_mask):
+#             temp_2 = []
+#             for j, m in enumerate(mask):
+#                 if j == 0:  # skip first token since its [CLS]
+#                     continue
+#                 if m:
+#                     temp_2.append(label_map[logits[i][j]])
+#                 else:
+#                     temp_2.pop()  # skip last token since its [SEP]
+#                     y_pred.append(temp_2)
+#                     break
+#             else:
+#                 temp_2.pop()  # skip last token since its [SEP]
+#                 y_pred.append(temp_2)
+#
+#     return y_pred
 
 
 def get_device(local_rank=-1, no_cuda=False):
@@ -559,7 +558,7 @@ def main(bert_model, output_dir,
 
             model_eval(processor=processor, device=device, num_train_epochs=num_train_epochs,
                        output_dir=output_dir, batch_size=eval_batch_size, local_rank=local_rank,
-                       no_cuda=no_cuda, dry_run=dry_run)
+                       no_cuda=no_cuda, dry_run=dry_run, model_file=model_file)
 
 
 if __name__ == "__main__":

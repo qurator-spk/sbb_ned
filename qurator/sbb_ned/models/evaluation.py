@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
+
 def compute_lr(target_lr, n_epochs, train_set_size, batch_size, warmup):
     total = (n_epochs - 1) * int(np.ceil(train_set_size / batch_size))
     progress = [float(t) / total for t in range(0, total)]
@@ -30,7 +31,7 @@ def load_train_log(directories, num_epochs, target_lr, **kwargs):
     return pd.concat(parts).reset_index(drop=True)
 
 
-def plot_loss_against_lr(loss, batch_size=128, train_set_size=100000, warmup=0.1, wnd_size=6000):
+def plot_loss_against_lr(loss, wnd_size=6000):
     fig = plt.figure(figsize=(11.69, 8.27))
 
     ax1 = fig.add_subplot(111)
