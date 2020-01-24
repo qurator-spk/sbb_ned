@@ -1,7 +1,6 @@
 from __future__ import absolute_import, division, print_function
 # from inspect import currentframe
 
-# import argparse
 import logging
 import os
 import random
@@ -19,7 +18,6 @@ from pytorch_pretrained_bert.modeling import (CONFIG_NAME,  # WEIGHTS_NAME,
                                               BertForSequenceClassification)
 from pytorch_pretrained_bert.optimization import BertAdam, WarmupLinearSchedule
 from qurator.sbb_ner.models.tokenization import BertTokenizer
-# from conlleval import evaluate as conll_eval
 
 from tqdm import tqdm, trange
 
@@ -39,8 +37,6 @@ def model_train(bert_model, max_seq_length, do_lower_case,
                 learning_rate, weight_decay, loss_scale, warmup_proportion,
                 processor, device, n_gpu, fp16, cache_dir, local_rank,
                 dry_run, no_cuda, output_dir=None, model_file=None):
-
-    # label_map = processor.get_labels()
 
     if gradient_accumulation_steps < 1:
         raise ValueError("Invalid gradient_accumulation_steps parameter: {}, should be >= 1".format(
@@ -246,8 +242,6 @@ def model_eval(batch_size, processor, device, num_train_epochs=1, output_dir=Non
     logger.info("  Num examples = %d", len(dataloader))
     logger.info("  Batch size = %d", batch_size)
 
-    results = list()
-
     if output_dir is not None:
         output_config_file = os.path.join(output_dir, CONFIG_NAME)
 
@@ -288,6 +282,7 @@ def model_eval(batch_size, processor, device, num_train_epochs=1, output_dir=Non
 
         return True
 
+    results = []
     for ep in trange(1, int(num_train_epochs) + 1, desc="Epoch"):
 
         if dry_run and ep > 1:
@@ -303,21 +298,15 @@ def model_eval(batch_size, processor, device, num_train_epochs=1, output_dir=Non
         # noinspection PyUnresolvedReferences
         model.eval()
 
-        y_pred, y_true, logits = model_predict_compare(dataloader, device, model)
+        results.append(model_predict_compare(dataloader, device, model))
 
         if output_eval_file is not None:
             pd.concat(results).to_pickle(output_eval_file)
 
-    results = pd.concat(results)
-    print(results)
-
-    return results
-
 
 def model_predict_compare(dataloader, device, model):
-    y_true = []
-    y_pred = []
-    # covered = set()
+
+    decision_values = list()
     for input_ids, input_mask, segment_ids, labels in tqdm(dataloader, desc="Evaluating", total=len(dataloader)):
 
         input_ids = input_ids.to(device)
@@ -328,44 +317,12 @@ def model_predict_compare(dataloader, device, model):
         with torch.no_grad():
             logits = model(input_ids, segment_ids, input_mask)
 
-        # decision_values = torch.argmax(F.log_softmax(logits, dim=2), dim=2)
-        logits = torch.argmax(F.log_softmax(logits, dim=2), dim=2)
-        logits = logits.detach().cpu().numpy()
-        labels = labels.to('cpu').numpy()
-        input_mask = input_mask.to('cpu').numpy()
+        tmp = pd.DataFrame(F.softmax(logits, dim=1).cpu().numpy())
+        tmp['labels'] = labels.cpu().numpy()
 
-        import ipdb;ipdb.set_trace()
+        decision_values.append(tmp)
 
-        # for i, mask in enumerate(input_mask):
-        #     temp_1 = []
-        #     temp_2 = []
-        #     for j, m in enumerate(mask):
-        #         if j == 0:
-        #             continue
-        #         if m:
-        #             if label_map[labels[i][j]] != "X":
-        #                 temp_1.append(label_map[labels[i][j]])
-        #                 temp_2.append(label_map[logits[i][j]])
-        #         else:
-        #             temp_1.pop()
-        #             temp_2.pop()
-        #             y_true.append(temp_1)
-        #             y_pred.append(temp_2)
-        #
-        #             covered = covered.union(set(temp_1))
-        #             break
-
-        # if dry_run:
-        #
-        #     if 'I-LOC' not in covered:
-        #         continue
-        #     if 'I-ORG' not in covered:
-        #         continue
-        #     if 'I-PER' not in covered:
-        #         continue
-        #
-        #     break
-    return y_pred, y_true, logits
+    return pd.concat(decision_values)
 
 
 # def model_predict(dataloader, device, label_map, model):
@@ -489,8 +446,6 @@ def main(bert_model, output_dir,
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    # task_name = task_name.lower()
-
     if ned_sql_file is not None:
 
         if entity_index_path is None:
@@ -554,7 +509,7 @@ def main(bert_model, output_dir,
         tokenizer = BertTokenizer.from_pretrained(model_config['bert_model'],
                                                   do_lower_case=model_config['do_lower'])
 
-        with processor_class(tokenizer=tokenizer, *processor_args) as processor:
+        with processor_class(tokenizer=tokenizer, **processor_args) as processor:
 
             model_eval(processor=processor, device=device, num_train_epochs=num_train_epochs,
                        output_dir=output_dir, batch_size=eval_batch_size, local_rank=local_rank,
