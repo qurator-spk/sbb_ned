@@ -74,11 +74,22 @@ flair-eval-combined-PER:
 
 flair-eval-combined:	flair-eval-combined-ORG flair-eval-combined-LOC flair-eval-combined-PER
 
+############################################################################################################################################
+
+$(NED_FILE):
+	ned-sentence-data --processes=20 data/wikipedia/wikipedia-tagged.sqlite $(NED_FILE)
 ned-train-test-split:
 	ned-train-test-split --fraction-train=0.5 $(NED_FILE) ned-train-subset.pkl ned-test-subset.pkl
 
 ned-pairing-train:
 	ned-pairing --subset-file ned-train-subset.pkl --nsamples=3000000 ned-train.sqlite $(NED_FILE) $(ENTITIES_FILE) fasttext $(N_TREES) $(DIST) $(ENTITY_INDEX_PATH)
+
+ned-pairing-examples:
+	ned-pairing-examples --nsamples=20000 ned-train.sqlite data/digisam/BERT_de_finetuned > ned-pairing-examples.txt
+
+ned-train-test:
+	ned-bert --learning-rate=3e-5 --seed=42 --train-batch-size=128 --train-size=100000 --num-train-epochs=1 --ned-sql-file $(NED_FILE) --train-set-file $(NED_TRAIN_SUBSET_FILE) --dev-set-file $(NED_TEST_SUBSET_FILE) --test-set-file $(NED_TEST_SUBSET_FILE) data/digisam/BERT_de_finetuned ./ned-model-test --model-file pytorch_model.bin --entity-index-path $(ENTITY_INDEX_PATH) --entities-file $(ENTITIES_FILE)
+
 
 ned-train-0:
 	ned-bert --learning-rate=3e-5 --seed=42 --train-batch-size=128 --train-size=100000 --num-train-epochs=400 --ned-sql-file $(NED_FILE) --train-set-file $(NED_TRAIN_SUBSET_FILE) --dev-set-file $(NED_TEST_SUBSET_FILE) --test-set-file $(NED_TEST_SUBSET_FILE) data/digisam/BERT_de_finetuned ./ned-model-0 --model-file pytorch_model.bin --entity-index-path $(ENTITY_INDEX_PATH) --entities-file $(ENTITIES_FILE)
@@ -87,7 +98,12 @@ ned-train-1:
 	ned-bert --learning-rate=5e-6 --seed=23 --train-batch-size=128 --train-size=100000 --num-train-epochs=1000 --ned-sql-file $(NED_FILE) --train-set-file $(NED_TRAIN_SUBSET_FILE) --dev-set-file $(NED_TEST_SUBSET_FILE) --test-set-file $(NED_TEST_SUBSET_FILE) data/BERT/NED/model-0 ./ned-model-1 --model-file pytorch_model.bin --entity-index-path $(ENTITY_INDEX_PATH) --entities-file $(ENTITIES_FILE) 
 
 ned-test:
-	ned-bert --seed=29 --eval-batch-size=1 --dev-size=100000 --num-train-epochs=1000 --ned-sql-file $(NED_FILE) --train-set-file $(NED_TRAIN_SUBSET_FILE) --dev-set-file $(NED_TEST_SUBSET_FILE) --test-set-file $(NED_TEST_SUBSET_FILE) data/BERT/NED/model-0 ./ned-model-1 --model-file pytorch_model.bin --entity-index-path $(ENTITY_INDEX_PATH) --entities-file $(ENTITIES_FILE) 
+	ned-bert --seed=29 --eval-batch-size=128 --dev-size=100000 --num-train-epochs=10 --ned-sql-file $(NED_FILE) --train-set-file $(NED_TRAIN_SUBSET_FILE) --dev-set-file $(NED_TEST_SUBSET_FILE) --test-set-file $(NED_TEST_SUBSET_FILE) data/BERT/NED/model-0 data/BERT/NED/model-0 --model-file pytorch_model.bin --entity-index-path $(ENTITY_INDEX_PATH) --entities-file $(ENTITIES_FILE) 
+
+ned-test-test:
+	ned-bert --seed=29 --eval-batch-size=128 --dev-size=100000 --num-train-epochs=10 --ned-sql-file $(NED_FILE) --train-set-file $(NED_TRAIN_SUBSET_FILE) --dev-set-file $(NED_TEST_SUBSET_FILE) --test-set-file $(NED_TEST_SUBSET_FILE) ./ned.model-test ./ned-model-test --model-file pytorch_model.bin --entity-index-path $(ENTITY_INDEX_PATH) --entities-file $(ENTITIES_FILE) 
+
+
 
 
 all: $(OUTPUT_PATH) fasttext-eval flair-eval

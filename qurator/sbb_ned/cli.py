@@ -578,7 +578,7 @@ class NEDDataTask:
 @click.argument('tagged-sqlite-file', type=click.Path(exists=True), required=True, nargs=1)
 @click.argument('ned-sqlite-file', type=click.Path(exists=False), required=True, nargs=1)
 @click.option('--processes', type=int, default=6)
-def per_sentence_ned_data(tagged_sqlite_file, ned_sqlite_file, processes):
+def ned_sentence_data(tagged_sqlite_file, ned_sqlite_file, processes):
 
     with sqlite3.connect(ned_sqlite_file) as write_conn:
 
@@ -689,7 +689,7 @@ def ned_train_test_split(ned_sql_file, train_set_file, test_set_file, fraction_t
 @click.option('--max-seq-length', type=int, default=128)
 @click.option('--do-lower-case', is_flag=True)
 @click.option('--nsamples', type=int, default=None)
-def ned_features(pairing_sql_file, model_dir, max_seq_length, do_lower_case=False, nsamples=None):
+def ned_pairing_examples(pairing_sql_file, model_dir, max_seq_length, do_lower_case=False, nsamples=None):
 
     if nsamples is None:
         nsamples = np.inf
