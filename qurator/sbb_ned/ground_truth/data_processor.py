@@ -495,7 +495,7 @@ class ConvertSamples2Features:
         ConvertSamples2Features.max_seq_len = max_seq_len
 
 
-def convert_examples_to_features(example, max_seq_len, tokenizer):
+def convert_examples_to_features(example, max_seq_len, tokenizer, mark_entities=False):
     """
     :param example: instance of InputExample
     :param max_seq_len: Maximum length of sequences to be delivered to the model.
@@ -574,8 +574,11 @@ def convert_examples_to_features(example, max_seq_len, tokenizer):
 
     input_mask = [1] * len(augmented_tokens) + max(0, max_seq_len - len(augmented_tokens))*[0]
 
-    segment_ids = [0] + len_pre_context_a*[0] + len_entity_a*[0] + len_post_context_a*[0] +\
-                  [1] + len_pre_context_b*[1] + len_entity_b*[1] + len_post_context_b*[1] +\
+    entity_a_id = 2 if mark_entities else 0
+    entity_b_id = 2 if mark_entities else 1
+
+    segment_ids = [0] + len_pre_context_a*[0] + len_entity_a*[entity_a_id] + len_post_context_a*[0] +\
+                  [1] + len_pre_context_b*[1] + len_entity_b*[entity_b_id] + len_post_context_b*[1] +\
                   max(0, max_seq_len - len(augmented_tokens)) * [0]
 
     try:

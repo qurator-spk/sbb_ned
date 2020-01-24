@@ -711,7 +711,7 @@ def ned_features(pairing_sql_file, model_dir, max_seq_length, do_lower_case=Fals
                                   text_a=json.loads(sen_a), text_b=json.loads(sen_b),
                                   pos_a=pos_a, pos_b=pos_b, end_a=end_a, end_b=end_b, label=label)
 
-            features = convert_examples_to_features(sample, max_seq_length, tokenizer)
+            features = convert_examples_to_features(sample, max_seq_length, tokenizer, mark_entities=True)
 
             print('CLASS: {}, ID: {}'.format(label, sample.guid))
 
