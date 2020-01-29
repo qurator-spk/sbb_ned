@@ -1,17 +1,75 @@
 
-function task_select() {
+function runNER (input_text, onSuccess) {
 
-    var task = $('#task').val();
+    let post_data = { "text" : input_text }
 
-    if ((task != "ner") && (task != "bert-tokens")){
-        $('#model_select').hide()
-    }
-    else {
-        $('#model_select').show()
-    }
+    $.ajax({
+            url:  "../ner/ner/1" ,
+            data: JSON.stringify(post_data),
+            type: 'POST',
+            contentType: "application/json",
+            success: onSuccess,
+            error: function(error) {
+                console.log(error);
+            }
+        }
+    );
+}
 
-    $("#resultregion").html("");
-    $("#legende").html("");
+function runNED (input, onSuccess) {
+
+    let post_data = input;
+
+    $.ajax({
+            url:  "ned" ,
+            data: JSON.stringify(post_data),
+            type: 'POST',
+            contentType: "application/json",
+            success: onSuccess,
+            error: function(error) {
+                console.log(error);
+            }
+        }
+    );
+}
+
+
+
+function showNERText( data ) {
+
+    var text_region_html =
+        `<div class="card">
+            <div class="card-header">
+                Ergebnis:
+            </div>
+            <div class="card-block">
+                <div id="ner-text" style="overflow-y:scroll;height: 55vh;"></div>
+            </div>
+        </div>`;
+
+    text_html = ""
+    data.forEach(
+        function(sentence) {
+            sentence.forEach(
+                function(token) {
+
+                     if (text_html != "") text_html += ' '
+
+                     if (token.prediction == 'O')
+                        text_html += token.word
+                     else if (token.prediction.endsWith('PER'))
+                        text_html += '<font color="red">' + token.word + '</font>'
+                     else if (token.prediction.endsWith('LOC'))
+                        text_html += '<font color="green">' + token.word + '</font>'
+                     else if (token.prediction.endsWith('ORG'))
+                        text_html += '<font color="blue">' + token.word + '</font>'
+                })
+             text_html += '<br/>'
+        }
+    )
+    $("#result-text").html(text_region_html)
+    $("#ner-text").html(text_html)
+    //$("#legende").html(legende_html)
 }
 
 function do_task(task, model_id, input_text) {

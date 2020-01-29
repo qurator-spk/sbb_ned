@@ -8,49 +8,32 @@ $(document).ready(function(){
         }
     );
 
-    $.get( "models")
-        .done(
-            function( data ) {
-                var tmp="";
-                $.each(data,
-                    function(index, item){
+    let url_params = new URLSearchParams(window.location.search);
 
-                        selected=""
-                        if (item.default) {
-                            selected = "selected"
-                        }
+    let do_update=false;
 
-                        tmp += '<option value="' + item.id + '" ' + selected + ' >' + item.name + '</option>'
-                    });
-                    $('#model').html(tmp);
+    if (url_params.has('text')) {
 
-                    var url_params = new URLSearchParams(window.location.search);
+        let text = decodeURIComponent(url_params.get('text'))
 
-                    var do_update=false;
+        $('#inputtext').val(text);
 
-                    if (url_params.has('text')) {
+        do_update = true;
 
-                        var text = decodeURIComponent(url_params.get('text'))
+        window.history.replaceState({}, '', `${location.pathname}`);
+    }
 
-                        $('#inputtext').val(text);
+    //task_select()
 
-                        do_update = true;
+    if (do_update) update();
 
-                        window.history.replaceState({}, '', `${location.pathname}`);
-                    }
-
-                    task_select()
-
-                    if (do_update) update();
-                }
-            );
 });
 
 function update() {
 
-    var task = $('#task').val();
-    var model_id = $('#model').val();
-    var input_text = $('#inputtext').val()
+    //var task = $('#task').val();
+    //var model_id = $('#model').val();
+    let input_text = $('#inputtext').val()
 
     if (input_text.length < 30000) {
 
@@ -64,7 +47,18 @@ function update() {
         window.history.replaceState({}, '', `${location.pathname}`);
     }
 
+    runNER(input_text,
+        function (result) {
+            showNERText(result);
 
+            console.log(result);
 
-    do_task(task, model_id, input_text);
+            runNED(result,
+                function(ned_result) {
+                    console.log('hello world');
+                });
+        }
+    );
+
+    //do_task(task, model_id, input_text);
 }
