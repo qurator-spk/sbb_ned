@@ -304,10 +304,11 @@ def model_eval(batch_size, processor, device, num_train_epochs=1, output_dir=Non
             pd.concat(results).to_pickle(output_eval_file)
 
 
-def model_predict_compare(dataloader, device, model):
+def model_predict_compare(dataloader, device, model, disable_output=False):
 
     decision_values = list()
-    for input_ids, input_mask, segment_ids, labels in tqdm(dataloader, desc="Evaluating", total=len(dataloader)):
+    for input_ids, input_mask, segment_ids, labels in tqdm(dataloader, desc="Evaluating", total=len(dataloader),
+                                                           disable=disable_output):
 
         input_ids = input_ids.to(device)
         input_mask = input_mask.to(device)
@@ -323,38 +324,6 @@ def model_predict_compare(dataloader, device, model):
         decision_values.append(tmp)
 
     return pd.concat(decision_values)
-
-
-# def model_predict(dataloader, device, label_map, model):
-#     y_pred = []
-#     for input_ids, input_mask, segment_ids, label_ids in dataloader:
-#         input_ids = input_ids.to(device)
-#         input_mask = input_mask.to(device)
-#         segment_ids = segment_ids.to(device)
-#
-#         with torch.no_grad():
-#             logits = model(input_ids, segment_ids, input_mask)
-#
-#         logits = torch.argmax(F.log_softmax(logits, dim=2), dim=2)
-#         logits = logits.detach().cpu().numpy()
-#         input_mask = input_mask.to('cpu').numpy()
-#
-#         for i, mask in enumerate(input_mask):
-#             temp_2 = []
-#             for j, m in enumerate(mask):
-#                 if j == 0:  # skip first token since its [CLS]
-#                     continue
-#                 if m:
-#                     temp_2.append(label_map[logits[i][j]])
-#                 else:
-#                     temp_2.pop()  # skip last token since its [SEP]
-#                     y_pred.append(temp_2)
-#                     break
-#             else:
-#                 temp_2.pop()  # skip last token since its [SEP]
-#                 y_pred.append(temp_2)
-#
-#     return y_pred
 
 
 def get_device(local_rank=-1, no_cuda=False):

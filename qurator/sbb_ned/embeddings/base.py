@@ -39,7 +39,7 @@ def get_embedding_vectors(embeddings, text, split_parts):
         vector_parts.append(vp)
         vectors.append(emb.astype(np.float32))
 
-    ret = pd.DataFrame(vectors, index=vector_parts)
+    ret = pd.DataFrame(vectors, index=vector_parts).drop_duplicates()
 
     return ret
 
@@ -50,7 +50,7 @@ def load_embeddings(embedding_type):
 
     if embedding_type == 'fasttext':
 
-        from qurator.sbb_ned.embeddings.fasttext import FastTextEmbeddings
+        from .fasttext import FastTextEmbeddings
 
         embeddings = FastTextEmbeddings('../data/fasttext/cc.de.300.bin')
         dims = FastTextEmbeddings.dims()

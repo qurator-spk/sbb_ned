@@ -55,7 +55,7 @@ function update() {
 
             runNED(result,
                 function(ned_result) {
-                    console.log('hello world');
+                    console.log(ned_result);
                 });
         }
     );

@@ -329,15 +329,25 @@ def best_matches(text_embeddings, index, mapping, search_k=10, max_dist=0.25, su
 
         for page_title, matched in hits.groupby('page_title', as_index=False):
 
-            num_matched_parts = len(matched)
+            weighted = (len(hits)/hits.part.value_counts()[matched.drop_duplicates(subset=['part']).part]).sum()
+
+            num_matched_parts = len(matched.drop_duplicates(subset=['part']))
+
+            # weighted = factor * len(matched.drop_duplicates(subset=['part']))
+
+            # if len(matched) >= 3:
+            #    import ipdb;ipdb.set_trace()
 
             summarized_dist_over_all_parts = matched.dist.apply(summarizer)
 
-            ranking.append((page_title, summarized_dist_over_all_parts, num_matched_parts))
+            ranking.append((page_title, summarized_dist_over_all_parts, weighted))
 
-        ranking = pd.DataFrame(ranking, columns=['guessed_title', 'dist', 'len_pa']).\
-            sort_values(['len_pa', 'dist'], ascending=[False, True]).\
-            reset_index(drop=True)
+        ranking = pd.DataFrame(ranking, columns=['guessed_title', 'dist', 'len_pa'])
+
+        ranking['len_guessed'] = ranking.guessed_title.str.len()
+
+        ranking = ranking.sort_values(['len_pa', 'dist', 'len_guessed'],
+                                      ascending=[False, True, True]).reset_index(drop=True)
 
         ranking['rank'] = ranking.index
 

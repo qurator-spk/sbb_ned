@@ -28,7 +28,8 @@ function runNED (input, onSuccess) {
             success: onSuccess,
             error: function(error) {
                 console.log(error);
-            }
+            },
+            timeout: 360000
         }
     );
 }

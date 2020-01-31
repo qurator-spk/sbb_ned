@@ -1,2 +1,17 @@
 {
+  "MAX_SEQ_LENGTH": 128,
+  "MODEL_DIR": "data/BERT/NED/model-0",
+  "MODEL_FILE": "pytorch_model.bin",
+  "BATCH_SIZE": 512,
+  "EPOCH": "",
+  "NED_SQL_FILE": "data/wikipedia/ned.sqlite",
+  "EMBEDDING_TYPE": "fasttext",
+  "N_TREES": 100,
+  "DISTANCE_MEASURE": "angular",
+  "ENTITY_INDEX_PATH": "data/entity_index",
+  "SEARCH_K": 50,
+  "MAX_DIST":0.25,
+  "LOOKUP_PROCESSES": 2,
+  "PAIRING_PROCESSES": 20,
+  "FEATURE_PROCESSES": 20
 }

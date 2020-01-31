@@ -479,11 +479,14 @@ class ConvertSamples2Features:
     tokenizer = None
     max_seq_len = 0
 
-    def __init__(self, sample):
+    def __init__(self, sample=None):
 
         self._sample = sample
 
     def __call__(self, *args, **kwargs):
+
+        if self._sample is None:
+            return None
 
         return convert_examples_to_features(self._sample, ConvertSamples2Features.max_seq_len,
                                             ConvertSamples2Features.tokenizer)
