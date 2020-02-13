@@ -10,20 +10,17 @@ import pandas as pd
 # import torch
 
 import torch
-from torch.utils.data import (DataLoader, SequentialSampler, Dataset, TensorDataset)
+from torch.utils.data import (DataLoader, SequentialSampler, TensorDataset)
 
 from collections import OrderedDict
 
-# from somajo import Tokenizer, SentenceSplitter
-#
 from qurator.sbb_ned.models.bert import get_device, model_predict_compare
 
-# from qurator.sbb_ner.ground_truth.data_processor import NerProcessor, convert_examples_to_features
 from qurator.sbb_ner.models.tokenization import BertTokenizer
 from pytorch_pretrained_bert.modeling import (CONFIG_NAME, BertConfig, BertForSequenceClassification)
 
 from ..embeddings.base import load_embeddings
-from ..models.ned_lookup import NEDLookup, NEDDataset
+from ..models.ned_lookup import NEDLookup
 
 app = Flask(__name__)
 
@@ -111,7 +108,9 @@ class NEDLookupStore:
                       max_dist=app.config['MAX_DIST'],
                       lookup_processes=app.config['LOOKUP_PROCESSES'],
                       pairing_processes=app.config['PAIRING_PROCESSES'],
-                      feature_processes=app.config['FEATURE_PROCESSES'])
+                      feature_processes=app.config['FEATURE_PROCESSES'],
+                      max_candidates=app.config['MAX_CANDIDATES'],
+                      max_pairs=app.config['MAX_PAIRS'])
 
         return NEDLookupStore.ned_lookup
 
@@ -124,14 +123,16 @@ def entry():
     return redirect("/index.html", code=302)
 
 
-def parse_entities(ner):
+@app.route('/parse', methods=['GET', 'POST'])
+def parse_entities():
+    ner = request.json
 
     parsed = dict()
 
     for sent in ner:
 
         entities = []
-        entity_types = dict()
+        entity_types = []
 
         entity = []
         ent_type = None
@@ -140,8 +141,9 @@ def parse_entities(ner):
 
             if len(entity) > 0 and (p['prediction'] == 'O' or p['prediction'].startswith('B-')
                                     or p['prediction'][2:] != ent_type):
+
                 entities += len(entity) * [" ".join(entity)]
-                entity_types[" ".join(entity)] = ent_type
+                entity_types += len(entity) * [ent_type]
                 entity = []
                 ent_type = None
 
@@ -152,9 +154,11 @@ def parse_entities(ner):
                     ent_type = p['prediction'][2:]
             else:
                 entities.append("")
+                entity_types.append("")
 
         if len(entity) > 0:
-            entities += len(entity) * " ".join(entity)
+            entities += len(entity) * [" ".join(entity)]
+            entity_types += len(entity) * [ent_type]
 
         parsed_sent = \
             {
@@ -163,38 +167,46 @@ def parse_entities(ner):
                 'entities': json.dumps(entities),
             }
 
-        for ent in list(set(entities)):
+        already_processed = dict()
 
-            if len(ent) == 0:
+        for entity, ent_type in zip(entities, entity_types):
+
+            if len(entity) == 0:
                 continue
 
-            if ent in parsed:
-                parsed[ent]['sentences'].append(parsed_sent)
+            entity_id = "{}-{}".format(entity, ent_type)
+
+            if entity_id in already_processed:
+                continue
+
+            already_processed[entity_id] = 1
+
+            if entity_id in parsed:
+                parsed[entity_id]['sentences'].append(parsed_sent)
             else:
-                parsed[ent] = {'sentences': [parsed_sent], 'type': entity_types[ent]}
+                try:
+                    parsed[entity_id] = {'sentences': [parsed_sent], 'type': ent_type, 'target': entity}
+                except KeyError:
+                    import ipdb
+                    ipdb.set_trace()
 
-    for k in parsed.keys():
-
-        parsed[k]['sentences'] = pd.DataFrame(parsed[k]['sentences'])
-        parsed[k]['sentences']['target'] = k
-
-    return parsed
+    return jsonify(parsed)
 
 
 @app.route('/ned', methods=['GET', 'POST'])
 def ned():
 
-    ner = request.json
+    parsed = request.json
 
     model, device = ned_lookup_store.get_model()
 
-    parsed = parse_entities(ner)
-
-    ned_candidates, ned_features = ned_lookup_store.get_lookup().get_features(parsed)
+    # parsed = parse_entities(ner)
 
     model_ranking = OrderedDict()
 
-    for candidates, features in zip(ned_candidates, ned_features):
+    def classify_with_bert(entity_id, features, candidates):
+
+        # del candidates
 
         all_input_ids = torch.tensor([f.input_ids for f in features], dtype=torch.long)
         all_input_mask = torch.tensor([f.input_mask for f in features], dtype=torch.long)
@@ -209,17 +221,60 @@ def ned():
 
         decision = model_predict_compare(data_loader, device, model, disable_output=True)
 
-        decision['target'] = [f.guid[1] for f in features]
-        decision['surface'] = [f.guid[0] for f in features]
+        decision['guessed_title'] = [f.guid[1] for f in features]
+        decision['target'] = [f.guid[0] for f in features]
+
+        assert len(decision.target.unique()) == 1
 
         decision['scores'] = np.log(decision[1] / decision[0])
 
-        ranking = decision.groupby('target').sum().sort_values('scores', ascending=False)
+        # decision = decision.query('scores > {}'.format(app.config['DECISION_THRESHOLD']))
+
+        # ranking = decision.groupby('guessed_title').max().sort_values('scores', ascending=False)
+
+        # model_ranking[decision.target.unique()[0]] = \
+        #     [i for i in ranking[['scores']].T.to_dict(orient='records', into=OrderedDict)[0].items()]
+
+        #
+
+        threshold = app.config['DECISION_THRESHOLD']
+
+        # noinspection PyUnresolvedReferences
+        ranking = [(k, ((g.scores > threshold).sum() - (g.scores < -threshold).sum())) # / len(g))
+                   for k, g in decision.groupby('guessed_title')]
+
+        ranking = pd.DataFrame(ranking, columns=['guessed_title', 'sentence_score'])
+
+        ranking = candidates.merge(ranking, on='guessed_title')
+
+        #    sort_values(['len_pa', 'len_guessed', 'sentence_score'], ascending=[False, True, True]).\
+        #    reset_index(drop=True)
+
+        # ranking['rank'] = ranking.index
+
+        ranking = ranking.sort_values(['sentence_score', 'rank'], ascending=[False, True])
+
+        # ranking = pd.DataFrame([(k,
+        #                          len(g.query('scores > {}'.format(app.config['DECISION_THRESHOLD'])))/len(g)
+        #                          )
+        #                         for k, g in decision.groupby('target')],
+        #                        columns=['target', 'hits']).\
+
+        ranking = ranking.\
+            query('sentence_score > 0 or guessed_title=="{}"'.format(decision.target.unique()[0])).\
+            set_index('guessed_title')
 
         # import ipdb;ipdb.set_trace()
 
-        model_ranking[decision.surface.unique()[0]] = \
-            ranking[['scores']].T.to_dict(orient='records', into=OrderedDict)[0]
+        if len(ranking) == 0:
+            return
+
+        model_ranking[entity_id] = \
+            [i for i in ranking[['sentence_score']].T.to_dict(orient='records', into=OrderedDict)[0].items()]
+
+    ned_lookup_store.get_lookup().run_on_features(parsed, classify_with_bert)
+
+    # import ipdb;ipdb.set_trace()
 
     return jsonify(model_ranking)
 

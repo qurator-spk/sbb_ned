@@ -1,222 +1,258 @@
 
-function runNER (input_text, onSuccess) {
+function NED() {
 
-    let post_data = { "text" : input_text }
+    var that = null;
 
-    $.ajax({
-            url:  "../ner/ner/1" ,
-            data: JSON.stringify(post_data),
-            type: 'POST',
-            contentType: "application/json",
-            success: onSuccess,
-            error: function(error) {
-                console.log(error);
-            }
-        }
-    );
-}
-
-function runNED (input, onSuccess) {
-
-    let post_data = input;
-
-    $.ajax({
-            url:  "ned" ,
-            data: JSON.stringify(post_data),
-            type: 'POST',
-            contentType: "application/json",
-            success: onSuccess,
-            error: function(error) {
-                console.log(error);
-            },
-            timeout: 360000
-        }
-    );
-}
-
-
-
-function showNERText( data ) {
-
-    var text_region_html =
-        `<div class="card">
-            <div class="card-header">
-                Ergebnis:
-            </div>
-            <div class="card-block">
-                <div id="ner-text" style="overflow-y:scroll;height: 55vh;"></div>
-            </div>
-        </div>`;
-
-    text_html = ""
-    data.forEach(
-        function(sentence) {
-            sentence.forEach(
-                function(token) {
-
-                     if (text_html != "") text_html += ' '
-
-                     if (token.prediction == 'O')
-                        text_html += token.word
-                     else if (token.prediction.endsWith('PER'))
-                        text_html += '<font color="red">' + token.word + '</font>'
-                     else if (token.prediction.endsWith('LOC'))
-                        text_html += '<font color="green">' + token.word + '</font>'
-                     else if (token.prediction.endsWith('ORG'))
-                        text_html += '<font color="blue">' + token.word + '</font>'
-                })
-             text_html += '<br/>'
-        }
-    )
-    $("#result-text").html(text_region_html)
-    $("#ner-text").html(text_html)
-    //$("#legende").html(legende_html)
-}
-
-function do_task(task, model_id, input_text) {
-
-    var post_data = { "text" : input_text }
-
-    var text_region_html =
-        `<div class="card">
-            <div class="card-header">
-                Ergebnis:
-            </div>
-            <div class="card-block">
-                <div id="textregion" style="overflow-y:scroll;height: 55vh;"></div>
-            </div>
-        </div>`;
-
-    var legende_html =
-         `<div class="card">
-            <div class="card-header">
-                Legende:
-                <div class="ml-2" >[<font color="red">Person</font>]</div>
-                <div class="ml-2" >[<font color="green">Ort</font>]</div>
-                <div class="ml-2" >[<font color="blue">Organisation</font>]</div>
-                <div class="ml-2" >[keine Named Entity]</div>
-            </div>
-        </div>`;
+    var ner_result = null;
+    var ner_parsed = null;
+    var ned_result = { };
 
     var spinner_html =
-        `<div class="d-flex justify-content-center">
-            <div class="spinner-border align-center" role="status">
-                <span class="sr-only">Loading...</span>
-            </div>
-         </div>`;
+            `<div class="d-flex justify-content-center">
+                <div class="spinner-border align-center" role="status">
+                    <span class="sr-only">Loading...</span>
+                </div>
+             </div>`;
 
-    $("#legende").html("");
+    function runNER (input_text, onSuccess) {
 
-    if (task == "fulltext") {
-        $("#resultregion").html(text_region_html)
-        $("#textregion").html(input_text)
-    }
-    else if (task == "tokenize") {
+        $("#result-entities").html("");
+        $("#result-text").html(spinner_html);
 
-        $("#resultregion").html(spinner_html)
-
-        $.ajax(
-            {
-            url:  "tokenized",
-            data: JSON.stringify(post_data),
-            type: 'POST',
-            contentType: "application/json",
-            success:
-                function( data ) {
-                    text_html = ""
-                    data.forEach(
-                        function(sentence) {
-
-                            text_html += JSON.stringify(sentence)
-
-                            text_html += '<br/>'
-                        }
-                    )
-                    $("#resultregion").html(text_region_html)
-                    $("#textregion").html(text_html)
-                    $("#legende").html(legende_html)
-                }
-            ,
-            error:
-                function(error) {
-                    console.log(error);
-                }
-            })
-    }
-    else if (task == "ner") {
-
-        $("#resultregion").html(spinner_html)
+        let post_data = { "text" : input_text };
 
         $.ajax({
-            url:  "ner/" + model_id,
-            data: JSON.stringify(post_data),
-            type: 'POST',
-            contentType: "application/json",
-            success:
-                function( data ) {
-                    text_html = ""
-                    data.forEach(
-                        function(sentence) {
-                            sentence.forEach(
-                                function(token) {
+                url:  "../ner/ner/1" ,
+                data: JSON.stringify(post_data),
+                type: 'POST',
+                contentType: "application/json",
+                success:
+                    function(result) {
+                        ner_result = result;
+                        onSuccess(result);
 
-                                     if (text_html != "") text_html += ' '
-
-                                     if (token.prediction == 'O')
-                                        text_html += token.word
-                                     else if (token.prediction.endsWith('PER'))
-                                        text_html += '<font color="red">' + token.word + '</font>'
-                                     else if (token.prediction.endsWith('LOC'))
-                                        text_html += '<font color="green">' + token.word + '</font>'
-                                     else if (token.prediction.endsWith('ORG'))
-                                        text_html += '<font color="blue">' + token.word + '</font>'
-                                })
-                             text_html += '<br/>'
-                        }
-                    )
-                    $("#resultregion").html(text_region_html)
-                    $("#textregion").html(text_html)
-                    $("#legende").html(legende_html)
-                }
-            ,
-            error: function(error) {
-                console.log(error);
+                        console.log(result);
+                    },
+                error:
+                    function(error) {
+                        console.log(error);
+                    }
             }
-        });
-     }
-     else if (task == "bert-tokens") {
-        $("#resultregion").html(spinner_html);
+        );
+    }
 
-        $.ajax(
-            {
-            url:  "ner-bert-tokens/" + model_id,
-            data: JSON.stringify(post_data),
-            type: 'POST',
-            contentType: "application/json",
-            success:
-                function( data ) {
-                    text_html = ""
-                    data.forEach(
-                        function(sentence) {
-                            sentence.forEach(
-                                function(part) {
+    function parseNER (input, onSuccess) {
 
-                                     if (text_html != "") text_html += ' '
+        let post_data = input;
 
-                                     text_html += part.token + "(" + part.prediction + ")"
-                                })
-                             text_html += '<br/>'
+        $.ajax({
+                url:  "parse" ,
+                data: JSON.stringify(post_data),
+                type: 'POST',
+                contentType: "application/json",
+                success:
+                    function(result) {
+                        ner_parsed = result;
+                        onSuccess(result);
+                    },
+                error:
+                    function(error) {
+                        console.log(error);
+                    },
+                timeout: 360000
+            }
+        );
+    }
+
+    function runNED (input, onSuccess) {
+
+        if (ner_parsed == null) {
+            console.log('Parsed NER data missing.');
+            return;
+        }
+
+        let post_data = input;
+
+        $.ajax({
+                url:  "ned" ,
+                data: JSON.stringify(post_data),
+                type: 'POST',
+                contentType: "application/json",
+                success:
+                    function(result) {
+                        Object.assign(ned_result, result);
+                        onSuccess(result);
+                    },
+                error:
+                    function(error) {
+                        console.log(error);
+                    },
+                timeout: 360000
+            }
+        );
+    }
+
+    function makeResultList(entities) {
+        var entities_html = "";
+
+        entities.forEach(
+            function(candidate, index) {
+
+                if (index > 10) return;
+
+                //if (Number(candidate[1]) < 0.1) return;
+
+                entities_html += '<a href="https://de.wikipedia.org/wiki/' + candidate[0] + '">'
+                                        + candidate[0] + '(' + Number(candidate[1]).toFixed(2) + ')' + '</a> <br/>';
+            }
+        );
+
+        $("#result-entities").html(entities_html);
+    }
+
+    function selectEntity(entity, onSuccess) {
+
+        $("#result-entities").html(spinner_html);
+
+        console.log(entity);
+
+        if (entity in ned_result) {
+            makeResultList(ned_result[entity]);
+            return;
+        }
+
+        if (!(entity in ner_parsed) ){
+            $("#result-entities").html("NO NER DATA.");
+            return;
+        }
+
+        var input = {};
+        input[entity] = ner_parsed[entity];
+
+        runNED(input,
+            function() {
+                if (entity in ned_result) {
+                    makeResultList(ned_result[entity]);
+
+                    onSuccess();
+                }
+                else {
+                    $("#result-entities").html("NOT FOUND");
+                }
+            }
+        );
+
+        // console.log(ned_result[entity]);
+    }
+
+    function showNERText( data ) {
+
+        function getColor(entity_type) {
+            if (entity_type.endsWith('PER'))
+                return "red"
+            else if (entity_type.endsWith('LOC'))
+                return "green"
+            else if (entity_type.endsWith('ORG'))
+                return "blue"
+        }
+
+        var text_region_html =
+            `<div class="card">
+                <div class="card-header">
+                    Ergebnis:
+                </div>
+                <div class="card-block">
+                    <div id="ner-text" style="overflow-y:scroll;height: 55vh;"></div>
+                </div>
+            </div>`;
+
+        var text_html = "";
+        var entities = [];
+        var entity_types = [];
+
+        data.forEach(
+            function(sentence) {
+
+                var entity_text = ""
+                var entity_type = ""
+
+                sentence.forEach(
+                    function(token) {
+
+                         if ((entity_text != "") && ((token.prediction == 'O') || (token.prediction.startsWith('B-')))) {
+
+                            text_html += ' <font color="' + getColor(entity_type) + '">'
+                                                + '<a id="ent-sel-'+ entities.length +'"> '+ entity_text + '</a>' +
+                                           '</font> ';
+                            entities.push(entity_text);
+                            entity_types.push(entity_type.slice(entity_type.length-3));
+                            entity_text = "";
                         }
-                    )
-                    $("#resultregion").html(text_region_html)
-                    $("#textregion").html(text_html)
-                    $("#legende").html(legende_html)
-                }
-            ,
-            error:
-                function(error) {
-                    console.log(error);
-                }
-            })
-     }
+
+                         if (token.prediction == 'O') {
+
+                            if (text_html != "") text_html += ' ';
+
+                            text_html += token.word;
+                         }
+                         else {
+                            entity_type = token.prediction
+
+                            if (entity_text != "") entity_text += " ";
+
+                            entity_text += token.word;
+                         }
+                    });
+
+                 if (entity_text != "")
+                    text_html += ' <font color="' + getColor(entity_type) + '">' + entity_text + '</font> ';
+                    entities.push(entity_text);
+                    entity_types.push(entity_type.slice(entity_type.length-3));
+
+                 text_html += '<br/>';
+            }
+        )
+        $("#result-text").html(text_region_html);
+        $("#ner-text").html(text_html);
+
+        entities.forEach(
+            function(entity, idx) {
+                $("#ent-sel-" + idx).click(
+                    function() {
+                        $(".selected").removeClass('selected');
+
+                        selectEntity(entity + "-" + entity_types[idx],
+                            function() {
+                                $("#ent-sel-" + idx).addClass('selected');
+                            }
+                        );
+                    }
+                );
+            }
+        );
+    }
+
+    that = {
+        init:
+            function(input_text) {
+
+                $("#result-text").empty();
+                $("#ner-text").empty();
+
+                runNER(input_text,
+                    function (ner_result) {
+                        showNERText(ner_result);
+
+                        console.log(ner_result);
+
+                        parseNER(ner_result,
+                            function(ned_result) {
+                                console.log(ned_result);
+                            });
+                    }
+                );
+            }
+    };
+
+    return that;
 }

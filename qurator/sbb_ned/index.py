@@ -18,13 +18,14 @@ class LookUpBySurface:
     search_k = None
     max_dist = None
 
-    def __init__(self, page_title, entity_surface_parts, entity_title, entity_type, split_parts):
+    def __init__(self, page_title, entity_surface_parts, entity_title, entity_type, split_parts, max_candidates=None):
 
         self._entity_surface_parts = entity_surface_parts
         self._entity_title = entity_title
         self._entity_type = entity_type
         self._page_title = page_title
         self._split_parts = split_parts
+        self._max_candidates = max_candidates
 
     def __call__(self, *args, **kwargs):
 
@@ -39,6 +40,9 @@ class LookUpBySurface:
 
         ranking['on_page'] = self._page_title
         ranking['surface'] = surface_text
+
+        if self._max_candidates is not None:
+            ranking = ranking.iloc[0:self._max_candidates]
 
         return self._entity_title, ranking
 
