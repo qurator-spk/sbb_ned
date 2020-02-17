@@ -34,37 +34,64 @@ logger = logging.getLogger(__name__)
 
 @click.command()
 @click.argument('all-entities-file', type=click.Path(exists=True), required=True, nargs=1)
-@click.argument('embedding-type', type=click.Choice(['fasttext']), required=True, nargs=1)
+@click.argument('embedding-type', type=click.Choice(['fasttext', 'bert']), required=True, nargs=1)
 @click.argument('entity-type', type=str, required=True, nargs=1)
 @click.argument('n-trees', type=int, required=True, nargs=1)
 @click.argument('output-path', type=click.Path(exists=True), required=True, nargs=1)
-@click.option('--n-processes', type=int, default=6)
-@click.option('--distance-measure', type=click.Choice(['angular', 'euclidean']), default='angular')
-@click.option('--split-parts', type=bool, default=True)
+@click.option('--n-processes', type=int, default=6, help='Number of parallel processes. default: 6.')
+@click.option('--distance-measure', type=click.Choice(['angular', 'euclidean']), default='angular',
+              help="default: angular")
+@click.option('--split-parts', type=bool, is_flag=True, help="Process entity surfaces in parts.")
+@click.option('--model-path', type=click.Path(exists=True),
+              default=None, help="From where to load the embedding model.")
+@click.option('--layers', type=str, default="-1,-2,-3,-4", help="Which layers to use. default -1,-2,-3,-4")
+@click.option('--pooling', type=str, default="first", help="How to pool the output for different tokens/words. "
+                                                           "default: first.")
+@click.option('--scalar-mix', type=bool, is_flag=True, help="Use scalar mix of layers.")
 def build(all_entities_file, embedding_type, entity_type, n_trees, output_path,
-          n_processes, distance_measure, split_parts):
+          n_processes, distance_measure, split_parts, model_path, layers, pooling, scalar_mix):
+    """
+    ALL_ENTITIES_FILE: Pandas DataFrame pickle containing all entites.
+
+    EMBEDDING_TYPE: Type of embedding [ fasttext, bert ]
+
+    ENTITY_TYPE: Type of entities, for instance ORG, LOC, PER ...
+
+    N_TREES: Number of trees in the approximative nearest neighbour index
+
+    OUTPUT_PATH: Where to write the result files.
+    """
 
     all_entities = pd.read_pickle(all_entities_file)
 
-    embeddings, dims = load_embeddings(embedding_type)
+    embeddings = load_embeddings(embedding_type, model_path=model_path, layers=layers, pooling_operation=pooling,
+                                 use_scalar_mix=scalar_mix)
 
-    build_index(all_entities, embeddings, dims, entity_type, n_trees, n_processes, distance_measure, split_parts,
+    build_index(all_entities, embeddings, entity_type, n_trees, n_processes, distance_measure, split_parts,
                 output_path)
 
 
 @click.command()
 @click.argument('tagged-parquet', type=click.Path(exists=True), required=True, nargs=1)
-@click.argument('embedding-type', type=click.Choice(['fasttext']), required=True, nargs=1)
+@click.argument('embedding-type', type=click.Choice(['fasttext', 'bert']), required=True, nargs=1)
 @click.argument('ent-type', type=str, required=True, nargs=1)
 @click.argument('n-trees', type=int, required=True, nargs=1)
 @click.argument('distance-measure', type=click.Choice(['angular', 'euclidean']), required=True, nargs=1)
 @click.argument('output-path', type=click.Path(exists=True), required=True, nargs=1)
-@click.option('--max-iter', type=float, default=np.inf)
+@click.option('--search-k', type=int, default=50, help="Number of NN to be considered. default: 50.")
+@click.option('--max-dist', type=float, default=0.25, help="Maximum permitted NN distance. default: 0.25")
+@click.option('--processes', type=int, default=6, help='Number of parallel processes. default: 6.')
+@click.option('--save-interval', type=int, default=10000, help='Save result every N steps. default: 10000.')
+@click.option('--split-parts', type=bool, is_flag=True, help="Process entity surfaces in parts.")
+@click.option('--max-iter', type=float, default=np.inf, help="Number of evaluation iterations. "
+                                                             "default: evaluate everything.")
+@click.option('--model-path', type=click.Path(exists=True),
+              default=None, help="from where to load the embedding model.")
 def evaluate(tagged_parquet, embedding_type, ent_type, n_trees,
-             distance_measure, output_path, search_k=50, max_dist=0.25, processes=6, save_interval=10000,
-             split_parts=True, max_iter=np.inf):
+             distance_measure, output_path, search_k, max_dist, processes, save_interval,
+             split_parts, max_iter, model_path):
 
-    embeddings, dims = load_embeddings(embedding_type)
+    embeddings = load_embeddings(embedding_type, model_path=model_path)
 
     print("Reading entity linking ground-truth file: {}".format(tagged_parquet))
     df = dd.read_parquet(tagged_parquet)
@@ -154,7 +181,7 @@ def build_context_matrix(all_entities_file, tagged_parquet, embedding_type, ent_
                          processes=6, save_interval=100000, max_iter=np.inf, w_size=10, batch_size=100,
                          start_iteration=0):
 
-    embeddings, dims = load_embeddings(embedding_type)
+    embeddings = load_embeddings(embedding_type)
 
     print("Reading entity linking ground-truth file: {}.".format(tagged_parquet))
     df = dd.read_parquet(tagged_parquet)
@@ -171,13 +198,17 @@ def build_context_matrix(all_entities_file, tagged_parquet, embedding_type, ent_
 
     all_entities = all_entities.reset_index().reset_index().set_index('page_title').sort_index()
 
-    context_emb = np.zeros([len(all_entities), dims + 1], dtype=np.float32)
+    context_emb = None  # lazy creation
 
     for it, link_result in \
             enumerate(
                 EmbedWithContext.run(embeddings, data_sequence, ent_type, w_size, batch_size,
                                      processes, start_iteration=start_iteration)):
         try:
+            if context_emb is None:
+                dims = len(link_result.drop(['entity_title', 'count']).astype(np.float32).values)
+                context_emb = np.zeros([len(all_entities), dims + 1], dtype=np.float32)
+
             if it % save_interval == 0:
                 print('Saving ...')
 
@@ -238,7 +269,7 @@ def evaluate_with_context(index_file, mapping_file, tagged_parquet, embedding_ty
                           output_path, processes=6, save_interval=10000, max_iter=np.inf, w_size=10, batch_size=100,
                           start_iteration=0, search_k=10):
 
-    embeddings, dims = load_embeddings(embedding_type)
+    embeddings = load_embeddings(embedding_type)
 
     print("Reading entity linking ground-truth file: {}.".format(tagged_parquet))
     df = dd.read_parquet(tagged_parquet)
@@ -276,7 +307,7 @@ def evaluate_with_context(index_file, mapping_file, tagged_parquet, embedding_ty
 
     for total_processed, (entity_title, result) in \
             enumerate(
-                LookUpBySurfaceAndContext.run(index_file, mapping_file, dims, distance_measure, search_k, embeddings,
+                LookUpBySurfaceAndContext.run(index_file, mapping_file, distance_measure, search_k, embeddings,
                                               data_sequence, start_iteration, ent_type, w_size, batch_size, processes,
                                               evaluation_semaphore)):
         try:
@@ -417,9 +448,9 @@ def evaluate_combined(tagged_parquet, ent_type,
                       search_k_1=50, max_dist=0.25, processes=6, save_interval=10000,
                       max_iter=np.inf, split_parts=True):
 
-    embeddings_1, dims_1 = load_embeddings(embedding_type_1)
+    embeddings_1 = load_embeddings(embedding_type_1)
 
-    embeddings_2, dims_2 = load_embeddings(embedding_type_2)
+    embeddings_2 = load_embeddings(embedding_type_2)
 
     print("Reading entity linking ground-truth file: {}".format(tagged_parquet))
     df = dd.read_parquet(tagged_parquet)
@@ -640,7 +671,7 @@ def ned_pairing(pairing_sql_file,
     if subset_file is not None:
         sen_subset = pd.read_pickle(subset_file)
 
-    embs, dims = load_embeddings(embedding_type)
+    embs = load_embeddings(embedding_type)
 
     embeddings = {'PER': embs, 'LOC': embs, 'ORG': embs}
 

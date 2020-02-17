@@ -16,10 +16,6 @@ class FlairEmbeddings(emb.base.Embeddings):
 
         self._embeddings = StackedEmbeddings([FLEmbeddings(forward), FLEmbeddings(backward)])
 
-    @staticmethod
-    def dims():
-        return 4096
-
     def get(self, keys, return_positions):
 
         from flair.embeddings import Sentence
@@ -40,7 +36,7 @@ class FlairEmbeddings(emb.base.Embeddings):
 
     def config(self):
 
-        return {'description': self.description(), 'dims': self.dims()}
+        return {'description': self.description()}
 
     def description(self):
 

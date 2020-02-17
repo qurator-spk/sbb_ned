@@ -92,7 +92,7 @@ class NEDLookupStore:
 
             return NEDLookupStore.ned_lookup
 
-        embs, dims = load_embeddings(app.config['EMBEDDING_TYPE'])
+        embs = load_embeddings(app.config['EMBEDDING_TYPE'], model_path=app.config["EMBEDDING_MODEL_PATH"])
 
         embeddings = {'PER': embs, 'LOC': embs, 'ORG': embs}
 

@@ -6,6 +6,7 @@
   "EPOCH": "",
   "NED_SQL_FILE": "data/wikipedia/ned.sqlite",
   "EMBEDDING_TYPE": "fasttext",
+  "EMBEDDING_MODEL_PATH": "data/fasttext/cc.de.300.bin",
   "N_TREES": 100,
   "DISTANCE_MEASURE": "angular",
   "ENTITY_INDEX_PATH": "data/entity_index",

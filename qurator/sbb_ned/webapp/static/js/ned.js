@@ -118,6 +118,7 @@ function NED() {
 
         if (entity in ned_result) {
             makeResultList(ned_result[entity]);
+            onSuccess();
             return;
         }
 

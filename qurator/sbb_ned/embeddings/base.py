@@ -13,10 +13,6 @@ class Embeddings:
     def __init__(self, *args, **kwargs):
         pass
 
-    @staticmethod
-    def dims():
-        raise NotImplementedError()
-
     def get(self, key):
         raise NotImplementedError()
 
@@ -44,7 +40,7 @@ def get_embedding_vectors(embeddings, text, split_parts):
     return ret
 
 
-def load_embeddings(embedding_type):
+def load_embeddings(embedding_type, **kwargs):
 
     print("Loading embeddings ...")
 
@@ -52,24 +48,32 @@ def load_embeddings(embedding_type):
 
         from .fasttext import FastTextEmbeddings
 
-        embeddings = FastTextEmbeddings('../data/fasttext/cc.de.300.bin')
-        dims = FastTextEmbeddings.dims()
+        embeddings = FastTextEmbeddings(**kwargs)
     elif embedding_type == 'flair':
 
-        from qurator.sbb_ned.embeddings.flair import FlairEmbeddings
+        from .flair import FlairEmbeddings
 
         # flair uses torch and as a consequence CUDA
         # CUDA does not work with the standard multiprocessing fork method, therefore we have to switch to spawn.
         mp.set_start_method('spawn')
 
         embeddings = (FlairEmbeddings, {'forward': 'de-forward', 'backward': 'de-backward', 'use_tokenizer': False})
-        dims = FlairEmbeddings.dims()
+    elif embedding_type == 'bert':
+
+        from .bert import BertEmbeddings
+
+        # bert uses torch and as a consequence CUDA
+        # CUDA does not work with the standard multiprocessing fork method, therefore we have to switch to spawn.
+        mp.set_start_method('spawn')
+
+        embeddings = (BertEmbeddings, kwargs)
+
     else:
         raise RuntimeError('Unknown embedding type: {}'.format(embedding_type))
 
     print('done')
 
-    return embeddings, dims
+    return embeddings
 
 
 class EmbedTask:

@@ -14,9 +14,15 @@ class LookUpBySurface:
 
     index = None
     embeddings = None
+    embedding_conf = None
     mapping = None
+    n_trees = None
+    distance_measure = None
+    output_path = None
     search_k = None
     max_dist = None
+
+    init_sem = None
 
     def __init__(self, page_title, entity_surface_parts, entity_title, entity_type, split_parts, max_candidates=None):
 
@@ -31,11 +37,16 @@ class LookUpBySurface:
 
         surface_text = " ".join(self._entity_surface_parts)
 
+        def get_index_and_mapping(dims):
+
+            LookUpBySurface.init_indices(dims)
+
+            return LookUpBySurface.index[self._entity_type], LookUpBySurface.mapping[self._entity_type]
+
         text_embeddings = get_embedding_vectors(LookUpBySurface.embeddings[self._entity_type], surface_text,
                                                 self._split_parts)
 
-        ranking, hits = best_matches(text_embeddings, LookUpBySurface.index[self._entity_type],
-                                     LookUpBySurface.mapping[self._entity_type],
+        ranking, hits = best_matches(text_embeddings, get_index_and_mapping,
                                      LookUpBySurface.search_k, LookUpBySurface.max_dist)
 
         ranking['on_page'] = self._page_title
@@ -104,11 +115,34 @@ class LookUpBySurface:
                     initargs=(embeddings, n_trees, distance_measure, output_path, search_k, max_dist))
 
     @staticmethod
+    def init_indices(dims):
+
+        if LookUpBySurface.index is not None:
+            return
+
+        LookUpBySurface.init_sem.acquire()
+
+        if LookUpBySurface.index is not None:
+            return
+
+        LookUpBySurface.index = dict()
+        LookUpBySurface.mapping = dict()
+
+        for ent_type, emb in LookUpBySurface.embeddings.items():
+
+            config = emb.config()
+            config['dims'] = dims
+
+            LookUpBySurface.index[ent_type], LookUpBySurface.mapping[ent_type] = \
+                load(config, ent_type, LookUpBySurface.n_trees, LookUpBySurface.distance_measure,
+                     LookUpBySurface.output_path)
+
+        LookUpBySurface.init_sem.release()
+
+    @staticmethod
     def initialize(embeddings, n_trees, distance_measure, output_path, search_k, max_dist):
 
         LookUpBySurface.embeddings = dict()
-        LookUpBySurface.index = dict()
-        LookUpBySurface.mapping = dict()
 
         for ent_type, emb in embeddings.items():
 
@@ -117,18 +151,23 @@ class LookUpBySurface:
             else:
                 LookUpBySurface.embeddings[ent_type] = emb
 
-            LookUpBySurface.index[ent_type], LookUpBySurface.mapping[ent_type] = \
-                load(LookUpBySurface.embeddings[ent_type].config(), ent_type, n_trees, distance_measure, output_path)
-
+        LookUpBySurface.n_trees = n_trees
+        LookUpBySurface.distance_measure = distance_measure
+        LookUpBySurface.output_path = output_path
         LookUpBySurface.search_k = search_k
         LookUpBySurface.max_dist = max_dist
+
+        LookUpBySurface.init_sem = Semaphore(1)
 
 
 class LookUpBySurfaceAndContext:
 
     index = None
+    index_file = None
     mapping = None
     search_k = None
+    distance_measure = None
+    init_sem = None
 
     def __init__(self, link_result):
 
@@ -138,6 +177,8 @@ class LookUpBySurfaceAndContext:
 
         e = self._link_result.drop(['entity_title', 'count']).astype(np.float32).values
         e /= float(self._link_result['count'])
+
+        LookUpBySurfaceAndContext.init_index(len(e))
 
         ann_indices, dist = LookUpBySurfaceAndContext.index.get_nns_by_vector(e, LookUpBySurfaceAndContext.search_k,
                                                                               include_distances=True)
@@ -156,13 +197,32 @@ class LookUpBySurfaceAndContext:
             return self._link_result.entity_title, ranking.iloc[[0]]
 
     @staticmethod
-    def initialize(index_file, mapping_file, dims, distance_measure, search_k):
+    def init_index(dims):
+
+        if LookUpBySurfaceAndContext.index is not None:
+            return
+
+        LookUpBySurfaceAndContext.init_sem.aqcuire()
+
+        if LookUpBySurfaceAndContext.index is not None:
+            return
+
+        LookUpBySurfaceAndContext.index = AnnoyIndex(dims, LookUpBySurfaceAndContext.distance_measure)
+
+        LookUpBySurfaceAndContext.index.load(LookUpBySurfaceAndContext.index_file)
+
+        LookUpBySurfaceAndContext.init_sem.release()
+
+        return
+
+    @staticmethod
+    def initialize(index_file, mapping_file, distance_measure, search_k):
 
         LookUpBySurfaceAndContext.search_k = search_k
+        LookUpBySurfaceAndContext.index_file = index_file
+        LookUpBySurfaceAndContext.distance_measure = distance_measure
 
-        LookUpBySurfaceAndContext.index = AnnoyIndex(dims, distance_measure)
-
-        LookUpBySurfaceAndContext.index.load(index_file)
+        LookUpBySurfaceAndContext.init_sem = Semaphore(1)
 
         LookUpBySurfaceAndContext.mapping = pd.read_pickle(mapping_file)
 
@@ -193,14 +253,14 @@ class LookUpBySurfaceAndContext:
                 embed_semaphore.release()
 
     @staticmethod
-    def run(index_file, mapping_file, dims, distance_measure, search_k,
+    def run(index_file, mapping_file, distance_measure, search_k,
             embeddings, data_sequence, start_iteration, ent_type, w_size, batch_size, processes, sem=None):
 
         return prun(
             LookUpBySurfaceAndContext._get_all(embeddings, data_sequence, start_iteration, ent_type, w_size, batch_size,
                                                processes, sem), processes=3*processes,
             initializer=LookUpBySurfaceAndContext.initialize,
-            initargs=(index_file, mapping_file, dims, distance_measure, search_k))
+            initargs=(index_file, mapping_file, distance_measure, search_k))
 
 
 def index_file_name(embedding_description, ent_type, n_trees, distance_measure):
@@ -213,14 +273,14 @@ def mapping_file_name(embedding_description, ent_type, n_trees, distance_measure
                                                                    embedding_description, ent_type)
 
 
-def build(all_entities, embeddings, dims, ent_type, n_trees, processes=10, distance_measure='angular', split_parts=True,
+def build(all_entities, embeddings, ent_type, n_trees, processes=10, distance_measure='angular', split_parts=True,
           path='.'):
 
     all_entities = all_entities.loc[all_entities.TYPE == ent_type]
 
     # wiki_index is an approximate nearest neighbour index that permits fast lookup of an ann_index for some
     # given embedding vector. The ann_index than points to a number of entities according to a mapping (see below).
-    index = AnnoyIndex(dims, distance_measure)
+    index = None  # lazy creation
 
     # mapping provides a map from ann_index (approximate nearest neighbour index) -> entity (title)
     # That mapping is not unique, i.e., a particular ann_index might point to many different entities.
@@ -237,6 +297,9 @@ def build(all_entities, embeddings, dims, ent_type, n_trees, processes=10, dista
             if part in part_dict:
                 mapping.append((part_dict[part], title))
             else:
+                if index is None:
+                    index = AnnoyIndex(len(part_embedding), distance_measure)
+
                 part_dict[part] = ann_index
 
                 index.add_item(ann_index, part_embedding)
@@ -286,10 +349,12 @@ def build_from_matrix(context_matrix_file, distance_measure, n_trees):
 
 def load(embedding_config, ent_type, n_trees, distance_measure='angular', path='.', max_occurences=1000):
 
+    filename = "{}/{}".format(path, index_file_name(embedding_config['description'],
+                                                    n_trees, distance_measure, ent_type))
+
     index = AnnoyIndex(embedding_config['dims'], distance_measure)
 
-    index.load("{}/{}".format(path, index_file_name(embedding_config['description'],
-                                                    n_trees, distance_measure, ent_type)))
+    index.load(filename)
 
     mapping = pd.read_pickle("{}/{}".format(path, mapping_file_name(embedding_config['description'],
                                                                     n_trees, distance_measure, ent_type)))
@@ -303,11 +368,13 @@ def load(embedding_config, ent_type, n_trees, distance_measure='angular', path='
     return index, mapping
 
 
-def best_matches(text_embeddings, index, mapping, search_k=10, max_dist=0.25, summarizer='max'):
+def best_matches(text_embeddings, get_index_and_mapping, search_k=10, max_dist=0.25, summarizer='max'):
 
     hits = []
 
     for part, e in text_embeddings.iterrows():
+
+        index, mapping = get_index_and_mapping(len(e))
 
         ann_indices, dist = index.get_nns_by_vector(e, search_k, include_distances=True)
 
