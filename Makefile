@@ -29,7 +29,11 @@ fasttext:	fasttext-ORG fasttext-LOC fasttext-PER
 
 
 bert-ORG:
-	build-index $(ENTITIES_FILE) bert ORG $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/BERT/NED/ned-model-1
+	build-index $(ENTITIES_FILE) bert ORG $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/BERT/NED/ned-model-1 --scalar-mix
+bert-LOC:
+	build-index $(ENTITIES_FILE) bert LOC $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/BERT/NED/ned-model-1 --scalar-mix
+bert-PER:
+	build-index $(ENTITIES_FILE) bert PER $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/BERT/NED/ned-model-1 --scalar-mix
 
 flair-ORG:
 	build-index $(ENTITIES_FILE) flair ORG $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST)

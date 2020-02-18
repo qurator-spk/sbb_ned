@@ -2,6 +2,7 @@ from ..embeddings.base import Embeddings
 
 from flair.embeddings import Sentence
 
+
 class BertEmbeddings(Embeddings):
 
     def __init__(self, model_path,

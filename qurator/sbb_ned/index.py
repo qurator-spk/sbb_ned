@@ -274,7 +274,7 @@ def mapping_file_name(embedding_description, ent_type, n_trees, distance_measure
 
 
 def build(all_entities, embeddings, ent_type, n_trees, processes=10, distance_measure='angular', split_parts=True,
-          path='.'):
+          path='.', max_iter=None):
 
     all_entities = all_entities.loc[all_entities.TYPE == ent_type]
 
@@ -290,9 +290,12 @@ def build(all_entities, embeddings, ent_type, n_trees, processes=10, distance_me
     part_dict = dict()
 
     ann_index = 0
-    for title, embeddings in EmbedTask.run(embeddings, all_entities, split_parts, processes):
+    for idx, (title, embeded) in enumerate(EmbedTask.run(embeddings, all_entities, split_parts, processes)):
 
-        for part, part_embedding in embeddings.iterrows():
+        if max_iter is not None and idx > max_iter:
+            break
+
+        for part, part_embedding in embeded.iterrows():
 
             if part in part_dict:
                 mapping.append((part_dict[part], title))
@@ -310,13 +313,18 @@ def build(all_entities, embeddings, ent_type, n_trees, processes=10, distance_me
     mapping = pd.DataFrame(mapping, columns=['ann_index', 'page_title'])
     mapping['num_parts'] = mapping.loc[:, 'page_title'].str.split(" |-|_").str.len()
 
-    mapping.to_pickle("{}/{}".format(path, mapping_file_name(embeddings.description(), ent_type, n_trees,
-                                                             distance_measure)))
+    if type(embeddings) == tuple:
+        embeddings = embeddings[0](**embeddings[1])
+
+    mapping.to_pickle("{}/{}".format(path, mapping_file_name(embeddings.description(), ent_type=ent_type,
+                                                             n_trees=n_trees,
+                                                             distance_measure=distance_measure)))
     del mapping
 
     index.build(n_trees)
 
-    index.save("{}/{}".format(path, index_file_name(embeddings.description(), ent_type, n_trees, distance_measure)))
+    index.save("{}/{}".format(path, index_file_name(embeddings.description(), ent_type=ent_type,
+                                                    n_trees=n_trees, distance_measure=distance_measure)))
 
 
 def build_from_matrix(context_matrix_file, distance_measure, n_trees):
@@ -350,14 +358,16 @@ def build_from_matrix(context_matrix_file, distance_measure, n_trees):
 def load(embedding_config, ent_type, n_trees, distance_measure='angular', path='.', max_occurences=1000):
 
     filename = "{}/{}".format(path, index_file_name(embedding_config['description'],
-                                                    n_trees, distance_measure, ent_type))
+                                                    n_trees=n_trees, distance_measure=distance_measure,
+                                                    ent_type=ent_type))
 
     index = AnnoyIndex(embedding_config['dims'], distance_measure)
 
     index.load(filename)
 
     mapping = pd.read_pickle("{}/{}".format(path, mapping_file_name(embedding_config['description'],
-                                                                    n_trees, distance_measure, ent_type)))
+                                                                    n_trees=n_trees, distance_measure=distance_measure,
+                                                                    ent_type=ent_type)))
 
     # filter out those index entries that link to more than max_occurences different entities
     vc = mapping.ann_index.value_counts()

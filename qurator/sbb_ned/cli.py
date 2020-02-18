@@ -48,8 +48,10 @@ logger = logging.getLogger(__name__)
 @click.option('--pooling', type=str, default="first", help="How to pool the output for different tokens/words. "
                                                            "default: first.")
 @click.option('--scalar-mix', type=bool, is_flag=True, help="Use scalar mix of layers.")
+@click.option('--max-iter', type=int, default=None, help='Perform only max-iter iterations (for testing purposes). '
+                                                         'default: process everything.')
 def build(all_entities_file, embedding_type, entity_type, n_trees, output_path,
-          n_processes, distance_measure, split_parts, model_path, layers, pooling, scalar_mix):
+          n_processes, distance_measure, split_parts, model_path, layers, pooling, scalar_mix=False, max_iter=None):
     """
     ALL_ENTITIES_FILE: Pandas DataFrame pickle containing all entites.
 
@@ -68,7 +70,7 @@ def build(all_entities_file, embedding_type, entity_type, n_trees, output_path,
                                  use_scalar_mix=scalar_mix)
 
     build_index(all_entities, embeddings, entity_type, n_trees, n_processes, distance_measure, split_parts,
-                output_path)
+                output_path, max_iter)
 
 
 @click.command()
