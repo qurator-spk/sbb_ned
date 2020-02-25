@@ -45,7 +45,7 @@ class BertEmbeddings(Embeddings):
     def description(self):
 
         layer_str = self._layers
-        layer_str.strip()
+        layer_str = layer_str.replace(' ', '')
         layer_str = layer_str.replace(',', '_')
 
         return "bert-layers_{}-pooling_{}-scalarmix_{}".format(layer_str, self._pooling_operation, self._use_scalar_mix)

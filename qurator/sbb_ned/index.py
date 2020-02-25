@@ -421,7 +421,7 @@ def best_matches(text_embeddings, get_index_and_mapping, search_k=10, max_dist=0
 
             summarized_dist_over_all_parts = matched.dist.apply(summarizer)
 
-            ranking.append((page_title, summarized_dist_over_all_parts, weighted))
+            ranking.append((page_title, summarized_dist_over_all_parts, weighted*num_matched_parts))
 
         ranking = pd.DataFrame(ranking, columns=['guessed_title', 'dist', 'len_pa'])
 

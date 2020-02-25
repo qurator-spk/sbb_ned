@@ -241,7 +241,7 @@ class NEDLookup:
                  ned_sql_file, embeddings, n_trees, distance_measure,
                  entity_index_path, search_k, max_dist,
                  lookup_processes=0, pairing_processes=0, feature_processes=0, max_candidates=20,
-                 max_pairs=1000):
+                 max_pairs=1000, split_parts=True):
 
         self._max_seq_length = max_seq_length
         self._tokenizer = tokenizer
@@ -268,6 +268,7 @@ class NEDLookup:
 
         self._max_candidates = max_candidates
         self._max_pairs = max_pairs
+        self._split_parts = split_parts
 
     def get_entity(self):
 
@@ -292,7 +293,7 @@ class NEDLookup:
         for entity_id, sentences, page_title, ent_type in self.get_entity():
 
             yield LookUpBySurfaceWrapper(entity_id, sentences, page_title=page_title, entity_surface_parts=[page_title],
-                                         entity_title=page_title, entity_type=ent_type, split_parts=True,
+                                         entity_title=page_title, entity_type=ent_type, split_parts=self._split_parts,
                                          max_candidates=self._max_candidates)
 
     def get_sentence_lookup(self):

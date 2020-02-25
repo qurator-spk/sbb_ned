@@ -103,7 +103,11 @@ function NED() {
                 //if (Number(candidate[1]) < 0.1) return;
 
                 entities_html += '<a href="https://de.wikipedia.org/wiki/' + candidate[0] + '">'
-                                        + candidate[0] + '(' + Number(candidate[1]).toFixed(2) + ')' + '</a> <br/>';
+                                        + candidate[0] + '</a> '
+                                        + '(' + Number(candidate[1]['sentence_score']).toFixed(2)
+                                        + ', <a href="https://www.wikidata.org/wiki/' + candidate[1]['wikidata'] + '">'
+                                        + candidate[1]['wikidata'] + '</a>'
+                                        + ')' +' <br/>';
             }
         );
 

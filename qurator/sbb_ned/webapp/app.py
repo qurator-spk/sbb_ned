@@ -1,4 +1,5 @@
 import os
+import threading
 import logging
 from flask import Flask, send_from_directory, redirect, jsonify, request
 from pprint import pprint
@@ -6,6 +7,7 @@ from pprint import pprint
 import json
 import numpy as np
 import pandas as pd
+import sqlite3
 
 # import torch
 
@@ -29,7 +31,7 @@ app.config.from_json('config.json' if not os.environ.get('CONFIG') else os.envir
 logger = logging.getLogger(__name__)
 
 
-class NEDLookupStore:
+class ThreadStore:
 
     ned_lookup = None
 
@@ -39,6 +41,8 @@ class NEDLookupStore:
 
     tokenizer = None
 
+    connection_map = None
+
     def __init__(self):
         pass
 
@@ -47,26 +51,26 @@ class NEDLookupStore:
 
     def get_tokenizer(self):
 
-        if NEDLookupStore.tokenizer is not None:
+        if ThreadStore.tokenizer is not None:
 
-            return NEDLookupStore.tokenizer
+            return ThreadStore.tokenizer
 
         model_config = json.load(open(os.path.join(app.config['MODEL_DIR'], "model_config.json"), "r"))
 
-        NEDLookupStore.tokenizer = \
+        ThreadStore.tokenizer = \
             BertTokenizer.from_pretrained(app.config['MODEL_DIR'], do_lower_case=model_config['do_lower'])
 
-        return NEDLookupStore.tokenizer
+        return ThreadStore.tokenizer
 
     @staticmethod
     def get_model():
 
-        if NEDLookupStore.model is not None:
-            return NEDLookupStore.model, NEDLookupStore.device
+        if ThreadStore.model is not None:
+            return ThreadStore.model, ThreadStore.device
 
         no_cuda = False if not os.environ.get('USE_CUDA') else os.environ.get('USE_CUDA').lower() == 'false'
 
-        NEDLookupStore.device, n_gpu = get_device(no_cuda=no_cuda)
+        ThreadStore.device, n_gpu = get_device(no_cuda=no_cuda)
 
         config_file = os.path.join(app.config['MODEL_DIR'], CONFIG_NAME)
         #
@@ -74,29 +78,28 @@ class NEDLookupStore:
 
         config = BertConfig(config_file)
 
-        NEDLookupStore.model = BertForSequenceClassification(config, num_labels=2)
+        ThreadStore.model = BertForSequenceClassification(config, num_labels=2)
         # noinspection PyUnresolvedReferences
-        NEDLookupStore.model.load_state_dict(torch.load(model_file,
-                                                        map_location=lambda storage,
-                                                        loc: storage if no_cuda else None))
+        ThreadStore.model.load_state_dict(torch.load(model_file,
+                                                     map_location=lambda storage, loc: storage if no_cuda else None))
         # noinspection PyUnresolvedReferences
-        NEDLookupStore.model.to(NEDLookupStore.device)
+        ThreadStore.model.to(ThreadStore.device)
         # noinspection PyUnresolvedReferences
-        NEDLookupStore.model.eval()
+        ThreadStore.model.eval()
 
-        return NEDLookupStore.model, NEDLookupStore.device
+        return ThreadStore.model, ThreadStore.device
 
     def get_lookup(self):
 
-        if NEDLookupStore.ned_lookup is not None:
+        if ThreadStore.ned_lookup is not None:
 
-            return NEDLookupStore.ned_lookup
+            return ThreadStore.ned_lookup
 
         embs = load_embeddings(app.config['EMBEDDING_TYPE'], model_path=app.config["EMBEDDING_MODEL_PATH"])
 
         embeddings = {'PER': embs, 'LOC': embs, 'ORG': embs}
 
-        NEDLookupStore.ned_lookup =\
+        ThreadStore.ned_lookup =\
             NEDLookup(max_seq_length=app.config['MAX_SEQ_LENGTH'],
                       tokenizer=self.get_tokenizer(),
                       ned_sql_file=app.config['NED_SQL_FILE'],
@@ -110,12 +113,32 @@ class NEDLookupStore:
                       pairing_processes=app.config['PAIRING_PROCESSES'],
                       feature_processes=app.config['FEATURE_PROCESSES'],
                       max_candidates=app.config['MAX_CANDIDATES'],
-                      max_pairs=app.config['MAX_PAIRS'])
+                      max_pairs=app.config['MAX_PAIRS'],
+                      split_parts=app.config['SPLIT_PARTS'])
 
-        return NEDLookupStore.ned_lookup
+        return ThreadStore.ned_lookup
+
+    @staticmethod
+    def get_wiki_db():
+
+        if ThreadStore.connection_map is None:
+            ThreadStore.connection_map = dict()
+
+        thid = threading.current_thread().ident
+
+        conn = ThreadStore.connection_map.get(thid)
+
+        if conn is None:
+            logger.info('Create database connection: {}'.format(app.config['WIKIPEDIA_SQL_FILE']))
+
+            conn = sqlite3.connect(app.config['WIKIPEDIA_SQL_FILE'])
+
+            ThreadStore.connection_map[thid] = conn
+
+        return conn
 
 
-ned_lookup_store = NEDLookupStore()
+thread_store = ThreadStore()
 
 
 @app.route('/')
@@ -198,15 +221,13 @@ def ned():
 
     parsed = request.json
 
-    model, device = ned_lookup_store.get_model()
+    model, device = thread_store.get_model()
 
     # parsed = parse_entities(ner)
 
     model_ranking = OrderedDict()
 
     def classify_with_bert(entity_id, features, candidates):
-
-        # del candidates
 
         all_input_ids = torch.tensor([f.input_ids for f in features], dtype=torch.long)
         all_input_mask = torch.tensor([f.input_mask for f in features], dtype=torch.long)
@@ -264,15 +285,28 @@ def ned():
             query('sentence_score > 0 or guessed_title=="{}"'.format(decision.target.unique()[0])).\
             set_index('guessed_title')
 
-        # import ipdb;ipdb.set_trace()
+        wikidata_ids = list()
+        for k, v in ranking.iterrows():
+            wk_id = pd.read_sql("select page_props.pp_value from page_props "
+                                "join page on page.page_id==page_props.pp_page "
+                                "where page.page_title==? and page.page_namespace==0 "
+                                "and page_props.pp_propname=='wikibase_item';", ThreadStore.get_wiki_db(), params=(k,))
+
+            if wk_id is None:
+                wikidata_ids.append(None)
+                continue
+
+            wikidata_ids.append(wk_id.iloc[0][0])
 
         if len(ranking) == 0:
             return
 
-        model_ranking[entity_id] = \
-            [i for i in ranking[['sentence_score']].T.to_dict(orient='records', into=OrderedDict)[0].items()]
+        ranking['wikidata'] = wikidata_ids
 
-    ned_lookup_store.get_lookup().run_on_features(parsed, classify_with_bert)
+        model_ranking[entity_id] = \
+            [i for i in ranking[['sentence_score', 'wikidata']].T.to_dict(into=OrderedDict).items()]
+
+    thread_store.get_lookup().run_on_features(parsed, classify_with_bert)
 
     # import ipdb;ipdb.set_trace()
 
