@@ -28,6 +28,7 @@ import sqlite3
 
 from sklearn.utils import shuffle
 from qurator.sbb_ner.models.tokenization import BertTokenizer
+from multiprocessing import Semaphore
 
 logger = logging.getLogger(__name__)
 
@@ -593,7 +594,7 @@ class NEDDataTask:
             return None, None
 
     @staticmethod
-    def get_all(tagged_sqlite_file):
+    def get_all(tagged_sqlite_file, sem=None):
 
         with sqlite3.connect(tagged_sqlite_file) as read_conn:
             read_conn.execute('pragma journal_mode=wal')
@@ -604,6 +605,10 @@ class NEDDataTask:
 
             for page_id, text, tags, link_titles, page_title in tqdm(pos, total=total):
 
+                if sem is not None:
+                    while not sem.acquire(timeout=100):
+                        pass
+
                 yield NEDDataTask(page_id, text, tags, link_titles, page_title)
 
 
@@ -611,18 +616,25 @@ class NEDDataTask:
 @click.argument('tagged-sqlite-file', type=click.Path(exists=True), required=True, nargs=1)
 @click.argument('ned-sqlite-file', type=click.Path(exists=False), required=True, nargs=1)
 @click.option('--processes', type=int, default=6)
-def ned_sentence_data(tagged_sqlite_file, ned_sqlite_file, processes):
+@click.option('--chunksize', type=int, default=1000)
+def ned_sentence_data(tagged_sqlite_file, ned_sqlite_file, processes, chunksize):
+
+    first_write = True
+
+    sentence_counter = 0
+    link_counter = 0
+
+    # prevent infinite growth of multiprocessing queue
+    sem = Semaphore(2*chunksize)
 
     with sqlite3.connect(ned_sqlite_file) as write_conn:
 
         write_conn.execute('pragma journal_mode=wal')
 
-        sentence_counter = 0
-        link_counter = 0
-
-        for df_sentence, df_linking in prun(NEDDataTask.get_all(tagged_sqlite_file), processes=processes):
+        for df_sentence, df_linking in prun(NEDDataTask.get_all(tagged_sqlite_file, sem=sem), processes=processes):
 
             if df_sentence is None:
+                sem.release()
                 continue
 
             df_sentence['id'] += sentence_counter
@@ -635,10 +647,15 @@ def ned_sentence_data(tagged_sqlite_file, ned_sqlite_file, processes):
             df_sentence.set_index('id').to_sql('sentences', con=write_conn, if_exists='append', index_label='id')
             df_linking.set_index('id').to_sql('links', con=write_conn, if_exists='append', index_label='id')
 
-        write_conn.execute('create index idx_target on links(target);')
-        write_conn.execute('create index idx_sentence on links(sentence);')
-        write_conn.execute('create index idx_page_id on sentences(page_id);')
-        write_conn.execute('create index idx_page_title on sentences(page_title);')
+            if first_write:
+                write_conn.execute('create index idx_target on links(target);')
+                write_conn.execute('create index idx_sentence on links(sentence);')
+                write_conn.execute('create index idx_page_id on sentences(page_id);')
+                write_conn.execute('create index idx_page_title on sentences(page_title);')
+
+                first_write = False
+
+            sem.release()
 
 
 @click.command()

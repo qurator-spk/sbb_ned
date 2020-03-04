@@ -1,5 +1,6 @@
 
 DATA_PATH ?=data
+WIKI_DATA_PATH ?=data/wikipedia
 PROCESSES?=6
 DIST ?=angular
 N_TREES ?=100
@@ -29,11 +30,11 @@ fasttext:	fasttext-ORG fasttext-LOC fasttext-PER
 
 
 bert-ORG:
-	build-index $(ENTITIES_FILE) bert ORG $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/BERT/NED/ned-model-1 --scalar-mix
+	build-index $(ENTITIES_FILE) bert ORG $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/BERT/NED/ned-model-1 --scalar-mix --split-parts --pooling=mean
 bert-LOC:
-	build-index $(ENTITIES_FILE) bert LOC $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/BERT/NED/ned-model-1 --scalar-mix
+	build-index $(ENTITIES_FILE) bert LOC $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/BERT/NED/ned-model-1 --scalar-mix --split-parts --pooling=mean
 bert-PER:
-	build-index $(ENTITIES_FILE) bert PER $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/BERT/NED/ned-model-1 --scalar-mix
+	build-index $(ENTITIES_FILE) bert PER $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/BERT/NED/ned-model-1 --scalar-mix --split-parts --pooling=mean
 
 flair-ORG:
 	build-index $(ENTITIES_FILE) flair ORG $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST)
@@ -89,6 +90,15 @@ flair-eval-combined:	flair-eval-combined-ORG flair-eval-combined-LOC flair-eval-
 
 $(NED_FILE):
 	ned-sentence-data --processes=20 data/wikipedia/wikipedia-tagged.sqlite $(NED_FILE)
+$(WIKI_DATA_PATH)/de-ned.sqlite:
+	ned-sentence-data --processes=$(PROCESSES) $(WIKI_DATA_PATH)/de-wikipedia-tagged.sqlite $@
+$(WIKI_DATA_PATH)/fr-ned.sqlite:
+	ned-sentence-data --processes=$(PROCESSES) $(WIKI_DATA_PATH)/fr-wikipedia-tagged.sqlite $@
+$(WIKI_DATA_PATH)/en-ned.sqlite:
+	ned-sentence-data --processes=$(PROCESSES) $(WIKI_DATA_PATH)/en-wikipedia-tagged.sqlite $@
+
+ned-database:	$(WIKI_DATA_PATH)/de-ned.sqlite $(WIKI_DATA_PATH)/fr-ned.sqlite $(WIKI_DATA_PATH)/en-ned.sqlite
+
 ned-train-test-split:
 	ned-train-test-split --fraction-train=0.5 $(NED_FILE) ned-train-subset.pkl ned-test-subset.pkl
 
