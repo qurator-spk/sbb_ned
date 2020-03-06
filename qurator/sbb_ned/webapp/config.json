@@ -8,17 +8,18 @@
   "WIKIPEDIA_SQL_FILE": "data/wikipedia/wikipedia.sqlite3",
   "ENTITIES_FILE": "data/wikipedia/wikipedia-ner-entities-no-redirects.pkl",
   "EMBEDDING_TYPE": "bert",
+  "POOLING": "mean",
   "EMBEDDING_MODEL_PATH": "data/BERT/NED/de-model-1",
   "SPLIT_PARTS": true,
   "N_TREES": 100,
   "DISTANCE_MEASURE": "angular",
   "ENTITY_INDEX_PATH": "data/entity_index",
   "SEARCH_K": 1000,
-  "MAX_DIST":0.5,
+  "MAX_DIST":0.1,
   "LOOKUP_PROCESSES": 1,
   "PAIRING_PROCESSES": 20,
   "FEATURE_PROCESSES": 20,
   "MAX_CANDIDATES": 250,
   "MAX_PAIRS": 50,
-  "DECISION_THRESHOLD": 1.5
+  "DECISION_THRESHOLD": 2.0
 }

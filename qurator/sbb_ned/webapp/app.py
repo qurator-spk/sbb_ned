@@ -95,7 +95,8 @@ class ThreadStore:
 
             return ThreadStore.ned_lookup
 
-        embs = load_embeddings(app.config['EMBEDDING_TYPE'], model_path=app.config["EMBEDDING_MODEL_PATH"])
+        embs = load_embeddings(app.config['EMBEDDING_TYPE'], model_path=app.config["EMBEDDING_MODEL_PATH"],
+                               pooling_operation = app.config['POOLING'])
 
         embeddings = {'PER': embs, 'LOC': embs, 'ORG': embs}
 
@@ -293,7 +294,7 @@ def ned():
                                 "where page.page_title==? and page.page_namespace==0 "
                                 "and page_props.pp_propname=='wikibase_item';", ThreadStore.get_wiki_db(), params=(k,))
 
-            if wk_id is None:
+            if wk_id is None or len(wk_id) == 0:
                 wikidata_ids.append(None)
                 continue
 
