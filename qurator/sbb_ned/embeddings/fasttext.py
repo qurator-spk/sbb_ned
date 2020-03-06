@@ -5,6 +5,8 @@ from ..embeddings.base import Embeddings
 
 from gensim.models.fasttext import load_facebook_vectors
 
+import os
+
 
 class FastTextEmbeddings(Embeddings):
 
@@ -28,7 +30,9 @@ class FastTextEmbeddings(Embeddings):
 
     def description(self):
 
-        return "fasttext-cc.de.300"
+        name = ".".join(os.path.basename(self._path).split('.')[:-1])
+
+        return "fasttext-{}".format(name)
 
     def _emb(self):
 

@@ -238,7 +238,7 @@ class NEDLookup:
     quit = False
 
     def __init__(self, max_seq_length, tokenizer,
-                 ned_sql_file, embeddings, n_trees, distance_measure,
+                 ned_sql_file, entities_file, embeddings, n_trees, distance_measure,
                  entity_index_path, search_k, max_dist,
                  lookup_processes=0, pairing_processes=0, feature_processes=0, max_candidates=20,
                  max_pairs=1000, split_parts=True):
@@ -249,6 +249,7 @@ class NEDLookup:
 
         self._process_queue = []
 
+        self._entities_file = entities_file
         self._embeddings = embeddings
         self._n_trees = n_trees
         self._distance_measure = distance_measure
@@ -300,7 +301,7 @@ class NEDLookup:
 
         for entity_id, sentences, (entity_title, candidates) in \
                 prun(self.get_lookup(), initializer=LookUpBySurface.initialize,
-                     initargs=(self._embeddings, self._n_trees, self._distance_measure,
+                     initargs=(self._entities_file, self._embeddings, self._n_trees, self._distance_measure,
                                self._entity_index_path, self._search_k, self._max_dist),
                      processes=self._lookup_processes):
 

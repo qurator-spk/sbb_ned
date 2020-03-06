@@ -16,8 +16,6 @@ from tqdm import tqdm as tqdm
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from multiprocessing import Semaphore
-
 from pathlib import Path
 from qurator.utils.parallel import run as prun
 from numpy.linalg import norm
@@ -65,18 +63,17 @@ def build(all_entities_file, embedding_type, entity_type, n_trees, output_path,
     OUTPUT_PATH: Where to write the result files.
     """
 
-    all_entities = pd.read_pickle(all_entities_file)
-
     embeddings = load_embeddings(embedding_type, model_path=model_path, layers=layers, pooling_operation=pooling,
                                  use_scalar_mix=scalar_mix)
 
-    build_index(all_entities, embeddings, entity_type, n_trees, n_processes, distance_measure, split_parts,
+    build_index(all_entities_file, embeddings, entity_type, n_trees, n_processes, distance_measure, split_parts,
                 output_path, max_iter)
 
 
 @click.command()
 @click.argument('tagged-parquet', type=click.Path(exists=True), required=True, nargs=1)
 @click.argument('embedding-type', type=click.Choice(['fasttext', 'bert']), required=True, nargs=1)
+@click.argument('entities_file', type=str, required=True, nargs=1)
 @click.argument('ent-type', type=str, required=True, nargs=1)
 @click.argument('n-trees', type=int, required=True, nargs=1)
 @click.argument('distance-measure', type=click.Choice(['angular', 'euclidean']), required=True, nargs=1)
@@ -90,7 +87,7 @@ def build(all_entities_file, embedding_type, entity_type, n_trees, output_path,
                                                              "default: evaluate everything.")
 @click.option('--model-path', type=click.Path(exists=True),
               default=None, help="from where to load the embedding model.")
-def evaluate(tagged_parquet, embedding_type, ent_type, n_trees,
+def evaluate(tagged_parquet, embedding_type, entities_file, ent_type, n_trees,
              distance_measure, output_path, search_k, max_dist, processes, save_interval,
              split_parts, max_iter, model_path):
 
@@ -128,8 +125,8 @@ def evaluate(tagged_parquet, embedding_type, ent_type, n_trees,
         results = []
 
     for total_processed, (entity_title, ranking) in \
-            enumerate(LookUpBySurface.run({ent_type: embeddings}, data_sequence, split_parts, processes, n_trees,
-                                          distance_measure, output_path, search_k, max_dist)):
+            enumerate(LookUpBySurface.run(entities_file, {ent_type: embeddings}, data_sequence, split_parts, processes,
+                                          n_trees, distance_measure, output_path, search_k, max_dist)):
 
         # noinspection PyBroadException
         try:
@@ -386,29 +383,30 @@ class RefineLookup:
         return self._entity_title, self._ranking
 
     @staticmethod
-    def _get_all(data_sequence_1, data_sequence_2, embeddings_1, ent_type_1, split_parts, n_trees, distance_measure_1,
+    def _get_all(entities_file, data_sequence_1, data_sequence_2, embeddings_1, ent_type_1, split_parts, n_trees, distance_measure_1,
                  output_path,
                  search_k_1, max_dist, lookup_semaphore,
                  embeddings_2, ent_type_2, w_size, batch_size, embed_semaphore, processes):
 
         for total_processed, ((entity_title, ranking), link_embedding) in \
                 enumerate(zip(
-                    LookUpBySurface.run({ent_type_1: embeddings_1}, data_sequence_1, split_parts, processes, n_trees,
-                                        distance_measure_1, output_path, search_k_1, max_dist, sem=lookup_semaphore),
+                    LookUpBySurface.run(entities_file, {ent_type_1: embeddings_1}, data_sequence_1, split_parts,
+                                        processes, n_trees, distance_measure_1, output_path, search_k_1, max_dist,
+                                        sem=lookup_semaphore),
                     EmbedWithContext.run(embeddings_2, data_sequence_2, ent_type_2, w_size, batch_size,
                                          processes, sem=embed_semaphore))):
 
             yield RefineLookup(entity_title, ranking, link_embedding)
 
     @staticmethod
-    def run(context_matrix_file, data_sequence_1, data_sequence_2, embeddings_1, ent_type_1, split_parts, n_trees,
-            distance_measure_1, output_path, search_k_1, max_dist, lookup_semaphore,
+    def run(entities_file, context_matrix_file, data_sequence_1, data_sequence_2, embeddings_1, ent_type_1, split_parts,
+            n_trees, distance_measure_1, output_path, search_k_1, max_dist, lookup_semaphore,
             embeddings_2, ent_type_2, w_size, batch_size, embed_semaphore, processes,
             refine_processes=0):
 
         return \
-            prun(RefineLookup._get_all(data_sequence_1, data_sequence_2, embeddings_1, ent_type_1, split_parts,
-                                       n_trees, distance_measure_1, output_path, search_k_1, max_dist,
+            prun(RefineLookup._get_all(entities_file, data_sequence_1, data_sequence_2, embeddings_1, ent_type_1,
+                                       split_parts, n_trees, distance_measure_1, output_path, search_k_1, max_dist,
                                        lookup_semaphore,
                                        embeddings_2, ent_type_2, w_size, batch_size, embed_semaphore, processes),
                  initializer=RefineLookup.initialize, initargs=(context_matrix_file,), processes=refine_processes)
@@ -430,6 +428,7 @@ class RefineLookup:
 
 
 @click.command()
+@click.argument('entities-file', type=click.Path(exists=True), required=True, nargs=1)
 @click.argument('tagged-parquet', type=click.Path(exists=True), required=True, nargs=1)
 @click.argument('ent-type', type=str, required=True, nargs=1)
 @click.argument('embedding-type-1', type=click.Choice(['fasttext']), required=True, nargs=1)
@@ -444,7 +443,7 @@ class RefineLookup:
 @click.option('--processes', type=int, default=6)
 @click.option('--save-interval', type=int, default=10000)
 @click.option('--max-iter', type=float, default=np.inf)
-def evaluate_combined(tagged_parquet, ent_type,
+def evaluate_combined(entities_file, tagged_parquet, ent_type,
                       embedding_type_1, n_trees, distance_measure_1,
                       embedding_type_2, w_size, batch_size,
                       output_path,
@@ -497,9 +496,9 @@ def evaluate_combined(tagged_parquet, ent_type,
     embed_semaphore = Semaphore(batch_size*2)
 
     for total_processed, (entity_title, ranking) in \
-        enumerate(RefineLookup.run(context_matrix_file, data_sequence_1, data_sequence_2, embeddings_1, ent_type,
-                                   split_parts, n_trees, distance_measure_1, output_path, search_k_1, max_dist,
-                                   lookup_semaphore, embeddings_2, ent_type, w_size, batch_size, embed_semaphore,
+        enumerate(RefineLookup.run(entities_file, context_matrix_file, data_sequence_1, data_sequence_2, embeddings_1,
+                                   ent_type, split_parts, n_trees, distance_measure_1, output_path, search_k_1,
+                                   max_dist, lookup_semaphore, embeddings_2, ent_type, w_size, batch_size, embed_semaphore,
                                    processes)):
 
         # noinspection PyBroadException
@@ -615,9 +614,20 @@ class NEDDataTask:
 @click.command()
 @click.argument('tagged-sqlite-file', type=click.Path(exists=True), required=True, nargs=1)
 @click.argument('ned-sqlite-file', type=click.Path(exists=False), required=True, nargs=1)
-@click.option('--processes', type=int, default=6)
-@click.option('--chunksize', type=int, default=1000)
-def ned_sentence_data(tagged_sqlite_file, ned_sqlite_file, processes, chunksize):
+@click.option('--processes', type=int, default=6, help="number of parallel processes. default: 6")
+@click.option('--writequeue', type=int, default=1000, help="size of database write queue. default: 1000.")
+def ned_sentence_data(tagged_sqlite_file, ned_sqlite_file, processes, writequeue):
+    """
+
+    TAGGED_SQLITE_FILE: A sqlite database file that contains all wikipedia articles where the relevant
+    entities have been tagged. This is a database that gives per article access to the tagged sentences,
+    it can be created using 'tag-wiki-entities2sqlite'.
+
+
+    NED_SQLITE_FILE: Output database. This database gives fast per entity and per sentence access, i.e., it
+    provides a fast answer to the question: "Give me all sentences where entity X is discussed."
+
+    """
 
     first_write = True
 
@@ -625,7 +635,7 @@ def ned_sentence_data(tagged_sqlite_file, ned_sqlite_file, processes, chunksize)
     link_counter = 0
 
     # prevent infinite growth of multiprocessing queue
-    sem = Semaphore(2*chunksize)
+    sem = Semaphore(writequeue)
 
     with sqlite3.connect(ned_sqlite_file) as write_conn:
 

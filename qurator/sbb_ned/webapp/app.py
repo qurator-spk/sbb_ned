@@ -103,6 +103,7 @@ class ThreadStore:
             NEDLookup(max_seq_length=app.config['MAX_SEQ_LENGTH'],
                       tokenizer=self.get_tokenizer(),
                       ned_sql_file=app.config['NED_SQL_FILE'],
+                      entities_file=app.config['ENTITIES_FILE'],
                       embeddings=embeddings,
                       n_trees=app.config['N_TREES'],
                       distance_measure=app.config['DISTANCE_MEASURE'],

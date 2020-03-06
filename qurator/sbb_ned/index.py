@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import os
 from multiprocessing import Semaphore
 
 from tqdm import tqdm as tqdm
@@ -13,6 +14,7 @@ from qurator.utils.parallel import run as prun
 class LookUpBySurface:
 
     index = None
+    entities_file = None
     embeddings = None
     embedding_conf = None
     mapping = None
@@ -106,13 +108,13 @@ class LookUpBySurface:
                                           split_parts)
 
     @staticmethod
-    def run(embeddings, data_sequence, split_parts, processes, n_trees, distance_measure, output_path,
+    def run(entities_file, embeddings, data_sequence, split_parts, processes, n_trees, distance_measure, output_path,
             search_k, max_dist, sem=None):
 
         return prun(LookUpBySurface._get_all(data_sequence, set(embeddings.keys()), split_parts, sem=sem),
                     processes=processes,
                     initializer=LookUpBySurface.initialize,
-                    initargs=(embeddings, n_trees, distance_measure, output_path, search_k, max_dist))
+                    initargs=(entities_file, embeddings, n_trees, distance_measure, output_path, search_k, max_dist))
 
     @staticmethod
     def init_indices(dims):
@@ -134,14 +136,15 @@ class LookUpBySurface:
             config['dims'] = dims
 
             LookUpBySurface.index[ent_type], LookUpBySurface.mapping[ent_type] = \
-                load(config, ent_type, LookUpBySurface.n_trees, LookUpBySurface.distance_measure,
-                     LookUpBySurface.output_path)
+                load(LookUpBySurface.entities_file, config, ent_type, LookUpBySurface.n_trees,
+                     LookUpBySurface.distance_measure, LookUpBySurface.output_path)
 
         LookUpBySurface.init_sem.release()
 
     @staticmethod
-    def initialize(embeddings, n_trees, distance_measure, output_path, search_k, max_dist):
+    def initialize(entities_file, embeddings, n_trees, distance_measure, output_path, search_k, max_dist):
 
+        LookUpBySurface.entities_file = entities_file
         LookUpBySurface.embeddings = dict()
 
         for ent_type, emb in embeddings.items():
@@ -264,19 +267,21 @@ class LookUpBySurfaceAndContext:
 
 
 def index_file_name(embedding_description, ent_type, n_trees, distance_measure):
-    return 'title-index-n_trees_{}-dist_{}-emb_{}-{}.ann'.format(n_trees, distance_measure,
-                                                                 embedding_description, ent_type)
+    return 'index-n_trees_{}-dist_{}-emb_{}-{}.ann'.format(n_trees, distance_measure, embedding_description, ent_type)
 
 
 def mapping_file_name(embedding_description, ent_type, n_trees, distance_measure):
-    return 'title-mapping-n_trees_{}-dist_{}-emb_{}-{}.pkl'.format(n_trees, distance_measure,
-                                                                   embedding_description, ent_type)
+    return 'mapping-n_trees_{}-dist_{}-emb_{}-{}.pkl'.format(n_trees, distance_measure, embedding_description, ent_type)
 
 
-def build(all_entities, embeddings, ent_type, n_trees, processes=10, distance_measure='angular', split_parts=True,
+def build(all_entities_file, embeddings, ent_type, n_trees, processes=10, distance_measure='angular', split_parts=True,
           path='.', max_iter=None):
 
+    all_entities = pd.read_pickle(all_entities_file)
+
     all_entities = all_entities.loc[all_entities.TYPE == ent_type]
+
+    prefix = ".".join(os.path.basename(all_entities_file).split('.')[:-1])
 
     # wiki_index is an approximate nearest neighbour index that permits fast lookup of an ann_index for some
     # given embedding vector. The ann_index than points to a number of entities according to a mapping (see below).
@@ -316,15 +321,15 @@ def build(all_entities, embeddings, ent_type, n_trees, processes=10, distance_me
     if type(embeddings) == tuple:
         embeddings = embeddings[0](**embeddings[1])
 
-    mapping.to_pickle("{}/{}".format(path, mapping_file_name(embeddings.description(), ent_type=ent_type,
-                                                             n_trees=n_trees,
-                                                             distance_measure=distance_measure)))
+    mapping.to_pickle("{}/{}-{}".format(path, prefix,
+                                        mapping_file_name(embeddings.description(), ent_type=ent_type, n_trees=n_trees,
+                                                       distance_measure=distance_measure)))
     del mapping
 
     index.build(n_trees)
 
-    index.save("{}/{}".format(path, index_file_name(embeddings.description(), ent_type=ent_type,
-                                                    n_trees=n_trees, distance_measure=distance_measure)))
+    index.save("{}/{}-{}".format(path, prefix, index_file_name(embeddings.description(), ent_type=ent_type,
+                                                               n_trees=n_trees, distance_measure=distance_measure)))
 
 
 def build_from_matrix(context_matrix_file, distance_measure, n_trees):
@@ -355,19 +360,21 @@ def build_from_matrix(context_matrix_file, distance_measure, n_trees):
     index.save(result_file)
 
 
-def load(embedding_config, ent_type, n_trees, distance_measure='angular', path='.', max_occurences=1000):
+def load(entities_file, embedding_config, ent_type, n_trees, distance_measure='angular', path='.', max_occurences=1000):
 
-    filename = "{}/{}".format(path, index_file_name(embedding_config['description'],
-                                                    n_trees=n_trees, distance_measure=distance_measure,
-                                                    ent_type=ent_type))
+    prefix = ".".join(os.path.basename(entities_file).split('.')[:-1])
+
+    filename = "{}/{}-{}".format(path, prefix,
+                                 index_file_name(embedding_config['description'], n_trees=n_trees,
+                                                 distance_measure=distance_measure, ent_type=ent_type))
 
     index = AnnoyIndex(embedding_config['dims'], distance_measure)
 
     index.load(filename)
 
-    mapping = pd.read_pickle("{}/{}".format(path, mapping_file_name(embedding_config['description'],
-                                                                    n_trees=n_trees, distance_measure=distance_measure,
-                                                                    ent_type=ent_type)))
+    mapping = pd.read_pickle("{}/{}-{}".format(path, prefix,
+                                               mapping_file_name(embedding_config['description'], n_trees=n_trees,
+                                                                 distance_measure=distance_measure, ent_type=ent_type)))
 
     # filter out those index entries that link to more than max_occurences different entities
     vc = mapping.ann_index.value_counts()

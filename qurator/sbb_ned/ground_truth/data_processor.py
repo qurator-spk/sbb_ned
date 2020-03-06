@@ -225,14 +225,15 @@ class WikipediaDataset(Dataset):
     quit = False
 
     def __init__(self, size, max_seq_length, tokenizer,
-                 ned_sql_file, entities, embeddings, n_trees, distance_measure, entity_index_path, search_k, max_dist,
+                 ned_sql_file, entities_file, embeddings, n_trees, distance_measure, entity_index_path, search_k, max_dist,
                  sentence_subset=None, bad_count=10, lookup_processes=0, pairing_processes=0):
 
         self._size = size
         self._max_seq_length = max_seq_length
         self._tokenizer = tokenizer
         self._ned_sql_file = ned_sql_file
-        self._entities = entities
+        self._entities_file = entities_file
+        self._entities = pd.read_pickle(entities_file)
         self._embeddings = embeddings
         self._n_trees = n_trees
         self._distance_measure = distance_measure
@@ -282,7 +283,7 @@ class WikipediaDataset(Dataset):
 
         for entity_title, ranking in \
                 prun_unordered(self.get_random_lookup(), initializer=LookUpBySurface.initialize,
-                               initargs=(self._embeddings, self._n_trees, self._distance_measure,
+                               initargs=(self._entities_file, self._embeddings, self._n_trees, self._distance_measure,
                                          self._entity_index_path, self._search_k, self._max_dist),
                                processes=self._lookup_processes):
 

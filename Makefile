@@ -1,6 +1,7 @@
 
 DATA_PATH ?=data
 WIKI_DATA_PATH ?=data/wikipedia
+FASTTEXT_PATH ?= data/fasttext
 PROCESSES?=6
 DIST ?=angular
 N_TREES ?=100
@@ -20,13 +21,41 @@ NED_TEST_SUBSET_FILE ?=$(DATA_PATH)/wikipedia/ned-test-subset.pkl
 $(OUTPUT_PATH):
 	mkdir -p $(OUTPUT_PATH)
 
-fasttext-ORG:
-	build-index $(ENTITIES_FILE) fasttext ORG $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/fasttext/cc.de.300.bin --split-parts
-fasttext-LOC:
-	build-index $(ENTITIES_FILE) fasttext LOC $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/fasttext/cc.de.300.bin --split-parts
-fasttext-PER:
-	build-index $(ENTITIES_FILE) fasttext PER $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/fasttext/cc.de.300.bin --split-parts
-fasttext:	fasttext-ORG fasttext-LOC fasttext-PER
+de-fasttext-files:
+	wget -nc --directory-prefix=$(FASTTEXT_PATH) https://dl.fbaipublicfiles.com/fasttext/vectors-crawl/cc.de.300.bin.gz
+	gunzip $(FASTTEXT_PATH)/cc.de.300.bin.gz
+fr-fasttexti-files:
+	wget -nc --directory-prefix=$(FASTTEXT_PATH) https://dl.fbaipublicfiles.com/fasttext/vectors-crawl/cc.fr.300.bin.gz
+	gunzip $(FASTTEXT_PATH)/cc.fr.300.bin.gz
+en-fasttexti-files:
+	wget -nc --directory-prefix=$(FASTTEXT_PATH) https://dl.fbaipublicfiles.com/fasttext/vectors-crawl/cc.en.300.bin.gz
+	gunzip $(FASTTEXT_PATH)/cc.en.300.bin.gz
+
+de-fasttext-ORG:
+	build-index $(WIKI_DATA_PATH)/de-wikipedia-ner-entities-no-redirects.pkl fasttext ORG $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/fasttext/cc.de.300.bin --split-parts 
+de-fasttext-LOC:
+	build-index $(WIKI_DATA_PATH)/de-wikipedia-ner-entities-no-redirects.pkl fasttext LOC $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/fasttext/cc.de.300.bin --split-parts
+de-fasttext-PER:
+	build-index $(WIKI_DATA_PATH)/de-wikipedia-ner-entities-no-redirects.pkl fasttext PER $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/fasttext/cc.de.300.bin --split-parts
+de-fasttext:	de-fasttext-ORG de-fasttext-LOC de-fasttext-PER
+
+fr-fasttext-ORG:
+	build-index $(WIKI_DATA_PATH)/fr-wikipedia-ner-entities-no-redirects.pkl fasttext ORG $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/fasttext/cc.fr.300.bin --split-parts 
+fr-fasttext-LOC:
+	build-index $(WIKI_DATA_PATH)/fr-wikipedia-ner-entities-no-redirects.pkl fasttext LOC $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/fasttext/cc.fr.300.bin --split-parts
+fr-fasttext-PER:
+	build-index $(WIKI_DATA_PATH)/fr-wikipedia-ner-entities-no-redirects.pkl fasttext PER $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/fasttext/cc.fr.300.bin --split-parts
+fr-fasttext:	fr-fasttext-ORG fr-fasttext-LOC fr-fasttext-PER
+
+en-fasttext-ORG:
+	build-index $(WIKI_DATA_PATH)/en-wikipedia-ner-entities-no-redirects.pkl fasttext ORG $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/fasttext/cc.en.300.bin --split-parts 
+en-fasttext-LOC:
+	build-index $(WIKI_DATA_PATH)/en-wikipedia-ner-entities-no-redirects.pkl fasttext LOC $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/fasttext/cc.en.300.bin --split-parts
+en-fasttext-PER:
+	build-index $(WIKI_DATA_PATH)/en-wikipedia-ner-entities-no-redirects.pkl fasttext PER $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/fasttext/cc.en.300.bin --split-parts
+en-fasttext:	en-fasttext-ORG en-fasttext-LOC en-fasttext-PER
+
+fasttext:	de-fasttext fr-fasttext en-fasttext
 
 
 bert-ORG:
@@ -86,10 +115,10 @@ flair-eval-combined-PER:
 
 flair-eval-combined:	flair-eval-combined-ORG flair-eval-combined-LOC flair-eval-combined-PER
 
-############################################################################################################################################
+# =============================================================================================================================================================
 
-$(NED_FILE):
-	ned-sentence-data --processes=20 data/wikipedia/wikipedia-tagged.sqlite $(NED_FILE)
+$(WIKI_DATA_PATH)/ned.sqlite:
+	ned-sentence-data --processes=$(PROCESSES) $(WIKI_DATA_PATH)/wikipedia-tagged.sqlite $@
 $(WIKI_DATA_PATH)/de-ned.sqlite:
 	ned-sentence-data --processes=$(PROCESSES) $(WIKI_DATA_PATH)/de-wikipedia-tagged.sqlite $@
 $(WIKI_DATA_PATH)/fr-ned.sqlite:
@@ -99,8 +128,21 @@ $(WIKI_DATA_PATH)/en-ned.sqlite:
 
 ned-database:	$(WIKI_DATA_PATH)/de-ned.sqlite $(WIKI_DATA_PATH)/fr-ned.sqlite $(WIKI_DATA_PATH)/en-ned.sqlite
 
-ned-train-test-split:
-	ned-train-test-split --fraction-train=0.5 $(NED_FILE) ned-train-subset.pkl ned-test-subset.pkl
+$(WIKI_DATA_PATH)/ned-train-subset.pkl $(WIKI_DATA_PATH)/ned-test-subset.pkl:	$(WIKI_DATA_PATH)/ned.sqlite
+	ned-train-test-split --fraction-train=0.5 $^ $(WIKI_DATA_PATH)/ned-train-subset.pkl $(WIKI_DATA_PATH)/ned-test-subset.pkl
+
+$(WIKI_DATA_PATH)/de-ned-train-subset.pkl $(WIKI_DATA_PATH)/de-ned-test-subset.pkl:	$(WIKI_DATA_PATH)/de-ned.sqlite
+	ned-train-test-split --fraction-train=0.5 $^ $(WIKI_DATA_PATH)/de-ned-train-subset.pkl $(WIKI_DATA_PATH)/de-ned-test-subset.pkl
+
+$(WIKI_DATA_PATH)/fr-ned-train-subset.pkl $(WIKI_DATA_PATH)/fr-ned-test-subset.pkl:	$(WIKI_DATA_PATH)/fr-ned.sqlite
+	ned-train-test-split --fraction-train=0.5 $^ $(WIKI_DATA_PATH)/fr-ned-train-subset.pkl $(WIKI_DATA_PATH)/fr-ned-test-subset.pkl
+
+$(WIKI_DATA_PATH)/en-ned-train-subset.pkl $(WIKI_DATA_PATH)/en-ned-test-subset.pkl:	$(WIKI_DATA_PATH)/en-ned.sqlite
+	ned-train-test-split --fraction-train=0.5 $^ $(WIKI_DATA_PATH)/en-ned-train-subset.pkl $(WIKI_DATA_PATH)/en-ned-test-subset.pkl
+
+ned-train-test-split:	$(WIKI_DATA_PATH)/de-ned-train-subset.pkl $(WIKI_DATA_PATH)/fr-ned-train-subset.pkl $(WIKI_DATA_PATH)/en-ned-train-subset.pkl
+
+# ==============================================================================================================================================================
 
 ned-pairing-train:
 	ned-pairing --subset-file ned-train-subset.pkl --nsamples=3000000 ned-train.sqlite $(NED_FILE) $(ENTITIES_FILE) fasttext $(N_TREES) $(DIST) $(ENTITY_INDEX_PATH)
@@ -112,11 +154,11 @@ ned-train-test:
 	ned-bert --learning-rate=3e-5 --seed=42 --train-batch-size=128 --train-size=100000 --num-train-epochs=1 --ned-sql-file $(NED_FILE) --train-set-file $(NED_TRAIN_SUBSET_FILE) --dev-set-file $(NED_TEST_SUBSET_FILE) --test-set-file $(NED_TEST_SUBSET_FILE) data/digisam/BERT_de_finetuned ./ned-model-test --model-file pytorch_model.bin --entity-index-path $(ENTITY_INDEX_PATH) --entities-file $(ENTITIES_FILE)
 
 
-ned-train-0:
-	ned-bert --learning-rate=3e-5 --seed=42 --train-batch-size=128 --train-size=100000 --num-train-epochs=400 --ned-sql-file $(NED_FILE) --train-set-file $(NED_TRAIN_SUBSET_FILE) --dev-set-file $(NED_TEST_SUBSET_FILE) --test-set-file $(NED_TEST_SUBSET_FILE) data/digisam/BERT_de_finetuned ./ned-model-0 --model-file pytorch_model.bin --entity-index-path $(ENTITY_INDEX_PATH) --entities-file $(ENTITIES_FILE)
+de-ned-train-0:
+	ned-bert --learning-rate=3e-5 --seed=42 --train-batch-size=128 --train-size=100000 --num-train-epochs=400 --ned-sql-file $(NED_FILE) --train-set-file $(NED_TRAIN_SUBSET_FILE) --dev-set-file $(NED_TEST_SUBSET_FILE) --test-set-file $(NED_TEST_SUBSET_FILE) data/digisam/BERT_de_finetuned ./ned-model-0 --model-file pytorch_model.bin --entity-index-path $(ENTITY_INDEX_PATH) --entities-file $(WIKI_DATA_PATH)/de-wikipedia-ner-entities-no-redirects.pkl
 
-ned-train-1:
-	ned-bert --learning-rate=5e-6 --seed=23 --train-batch-size=128 --train-size=100000 --num-train-epochs=1000 --ned-sql-file $(NED_FILE) --train-set-file $(NED_TRAIN_SUBSET_FILE) --dev-set-file $(NED_TEST_SUBSET_FILE) --test-set-file $(NED_TEST_SUBSET_FILE) data/BERT/NED/model-0 ./ned-model-1 --model-file pytorch_model.bin --entity-index-path $(ENTITY_INDEX_PATH) --entities-file $(ENTITIES_FILE) 
+de-ned-train-1:
+	ned-bert --learning-rate=5e-6 --seed=23 --train-batch-size=128 --train-size=100000 --num-train-epochs=1000 --ned-sql-file $(NED_FILE) --train-set-file $(NED_TRAIN_SUBSET_FILE) --dev-set-file $(NED_TEST_SUBSET_FILE) --test-set-file $(NED_TEST_SUBSET_FILE) data/BERT/NED/de-model-0 data/BERT/NED/de-model-1 --model-file pytorch_model.bin --entity-index-path $(ENTITY_INDEX_PATH) --entities-file $(WIKI_DATA_PATH)/de-wikipedia-ner-entities-no-redirects.pkl
 
 ned-test:
 	ned-bert --seed=29 --eval-batch-size=128 --dev-size=100000 --num-train-epochs=10 --ned-sql-file $(NED_FILE) --train-set-file $(NED_TRAIN_SUBSET_FILE) --dev-set-file $(NED_TEST_SUBSET_FILE) --test-set-file $(NED_TEST_SUBSET_FILE) data/BERT/NED/model-0 data/BERT/NED/model-0 --model-file pytorch_model.bin --entity-index-path $(ENTITY_INDEX_PATH) --entities-file $(ENTITIES_FILE) 

@@ -431,8 +431,6 @@ def main(bert_model, output_dir,
         dev_subset = pd.read_pickle(dev_set_file)
         test_subset = pd.read_pickle(test_set_file)
 
-        all_entities = pd.read_pickle(entities_file)
-
         processor_args = {'train_subset': train_subset,
                           'dev_subset': dev_subset,
                           'test_subset': test_subset,
@@ -441,7 +439,7 @@ def main(bert_model, output_dir,
                           'test_size': test_size,
                           'ned_sql_file': ned_sql_file,
                           'max_seq_length': max_seq_length,
-                          'entities': all_entities,
+                          'entities_file': entities_file,
                           'embeddings': embeddings,
                           'n_trees': n_trees,
                           'distance_measure': distance_measure,
