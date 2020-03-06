@@ -1,6 +1,6 @@
 {
   "MAX_SEQ_LENGTH": 128,
-  "MODEL_DIR": "data/BERT/NED/ned-model-1",
+  "MODEL_DIR": "data/BERT/NED/de-model-1",
   "MODEL_FILE": "pytorch_model.bin",
   "BATCH_SIZE": 512,
   "EPOCH": "",
