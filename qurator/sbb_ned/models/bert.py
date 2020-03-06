@@ -367,7 +367,7 @@ def get_device(local_rank=-1, no_cuda=False):
 @click.option("--local-rank", type=int, default=-1, help="local_rank for distributed training on gpus")
 @click.option('--seed', type=int, default=42, help="random seed for initialization")
 @click.option('--gradient-accumulation-steps', type=int, default=1,
-              help="Number of updates steps to accumulate before performing a backward/update pass.")
+              help="Number of updates steps to accumulate before performing a backward/update pass. default: 1")
 @click.option('--fp16', is_flag=True, default=False, help="Whether to use 16-bit float precision instead of 32-bit")
 @click.option('--loss-scale', type=float, default=0.0,
               help="Loss scaling to improve fp16 numeric stability. Only used when fp16 set to True.\n "
@@ -375,6 +375,7 @@ def get_device(local_rank=-1, no_cuda=False):
                    "Positive power of 2: static loss scaling value.\n")
 @click.option("--ned-sql-file", type=click.Path(exists=True), default=None, required=False)
 @click.option('--embedding-type', type=click.Choice(['fasttext']), default='fasttext')
+@click.option('--embedding-model', type=click.Path(exists=True), default=None)
 @click.option('--n-trees', type=int, default=100)
 @click.option('--distance-measure', type=click.Choice(['angular', 'euclidean']), default='angular')
 @click.option('--entity-index-path', type=click.Path(exists=True), default=None)
@@ -385,7 +386,7 @@ def main(bert_model, output_dir,
          do_lower_case=False, train_batch_size=32, eval_batch_size=8, learning_rate=3e-5,
          weight_decay=0.01, num_train_epochs=3, warmup_proportion=0.1, no_cuda=False, dry_run=False, local_rank=-1,
          seed=42, gradient_accumulation_steps=1, fp16=False, loss_scale=0.0,
-         ned_sql_file=None, search_k=50, max_dist=0.25, embedding_type='fasttext', n_trees=100,
+         ned_sql_file=None, search_k=50, max_dist=0.25, embedding_type='fasttext', embedding_model=None, n_trees=100,
          distance_measure='angular', entity_index_path=None, entities_file=None, model_file=None):
     """
     ned_sql_file: \n
@@ -423,7 +424,7 @@ def main(bert_model, output_dir,
         if entities_file is None:
             raise RuntimeError("entities-file required!")
 
-        embs, dims = load_embeddings(embedding_type)
+        embs = load_embeddings(embedding_type, model_path=embedding_model)
 
         embeddings = {'PER': embs, 'LOC': embs, 'ORG': embs}
 
