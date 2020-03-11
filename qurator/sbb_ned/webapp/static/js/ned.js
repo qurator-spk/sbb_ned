@@ -186,9 +186,17 @@ function NED() {
 
                          if ((entity_text != "") && ((token.prediction == 'O') || (token.prediction.startsWith('B-')))) {
 
+                            var selector = entity_text + ' ' + entity_type.slice(entity_type.length-3);
+
+                            selector = selector.replace(/[^\w\s]|_/g, "").replace(/\s+/g, "-");
+
+                            console.log('HTML:', entity_text, entity_type, selector);
+
                             text_html += ' <font color="' + getColor(entity_type) + '">'
-                                                + '<a id="ent-sel-'+ entities.length +'"> '+ entity_text + '</a>' +
+                                                + '<a id="ent-sel-'+ entities.length +'" class="' +
+                                                selector +'"> '+ entity_text + '</a>' +
                                            '</font> ';
+
                             entities.push(entity_text);
                             entity_types.push(entity_type.slice(entity_type.length-3));
                             entity_text = "";
@@ -209,10 +217,22 @@ function NED() {
                          }
                     });
 
-                 if (entity_text != "")
-                    text_html += ' <font color="' + getColor(entity_type) + '">' + entity_text + '</font> ';
+                 if ((entity_text != "") && (entity_text != null)) {
+
+                    var selector = entity_text + ' ' + entity_type.slice(entity_type.length-3);
+
+                    console.log('HTML:', entity_text, entity_type, selector);
+
+                    selector = selector.replace(/[^\w\s]|_/g, "").replace(/\s+/g, "-");
+
+                    text_html += ' <font color="' + getColor(entity_type) + '">'
+                                                + '<a id="ent-sel-'+ entities.length +'"class="' +
+                                                        selector +'"> '+ entity_text + '</a>' +
+                                           '</font> ';
+
                     entities.push(entity_text);
                     entity_types.push(entity_type.slice(entity_type.length-3));
+                 }
 
                  text_html += '<br/>';
             }
@@ -222,13 +242,19 @@ function NED() {
 
         entities.forEach(
             function(entity, idx) {
+                var selector = entity + ' ' + entity_types[idx];
+
+                selector = '.' + selector.replace(/[^\w\s]|_/g, "").replace(/\s+/g, "-");
+
+                console.log('Function:' , selector);
+
                 $("#ent-sel-" + idx).click(
                     function() {
                         $(".selected").removeClass('selected');
 
                         selectEntity(entity + "-" + entity_types[idx],
                             function() {
-                                $("#ent-sel-" + idx).addClass('selected');
+                                $(selector).addClass('selected');
                             }
                         );
                     }
