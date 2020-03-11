@@ -190,8 +190,6 @@ function NED() {
 
                             selector = selector.replace(/[^\w\s]|_/g, "").replace(/\s+/g, "-");
 
-                            console.log('HTML:', entity_text, entity_type, selector);
-
                             text_html += ' <font color="' + getColor(entity_type) + '">'
                                                 + '<a id="ent-sel-'+ entities.length +'" class="' +
                                                 selector +'"> '+ entity_text + '</a>' +
@@ -221,8 +219,6 @@ function NED() {
 
                     var selector = entity_text + ' ' + entity_type.slice(entity_type.length-3);
 
-                    console.log('HTML:', entity_text, entity_type, selector);
-
                     selector = selector.replace(/[^\w\s]|_/g, "").replace(/\s+/g, "-");
 
                     text_html += ' <font color="' + getColor(entity_type) + '">'
@@ -245,8 +241,6 @@ function NED() {
                 var selector = entity + ' ' + entity_types[idx];
 
                 selector = '.' + selector.replace(/[^\w\s]|_/g, "").replace(/\s+/g, "-");
-
-                console.log('Function:' , selector);
 
                 $("#ent-sel-" + idx).click(
                     function() {
