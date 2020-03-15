@@ -20,7 +20,7 @@ class BertEmbeddings(Embeddings):
 
         if self._embeddings is None:
 
-            from flair.embeddings import BertEmbeddings
+            from .flair_bert import BertEmbeddings
 
             self._embeddings = BertEmbeddings(bert_model_or_path=self._path,
                                               layers=self._layers,
@@ -36,7 +36,14 @@ class BertEmbeddings(Embeddings):
 
             for t_idx, token in enumerate(sentence):
 
-                yield token, token.embedding.cpu().numpy()
+                emb = token.embedding.cpu().numpy()
+                tok = str(token)
+
+                yield tok, emb
+
+                del token
+
+            del sentence
 
     def config(self):
 

@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import os
+import torch
 from multiprocessing import Semaphore
 
 from tqdm import tqdm as tqdm
@@ -299,6 +300,9 @@ def build(all_entities_file, embeddings, ent_type, n_trees, processes=10, distan
 
         if max_iter is not None and idx > max_iter:
             break
+
+        if idx % 1000 == 0:
+            torch.cuda.empty_cache()
 
         for part, part_embedding in embeded.iterrows():
 

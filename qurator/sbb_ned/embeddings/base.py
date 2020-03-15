@@ -4,6 +4,7 @@ import re
 import multiprocessing as mp
 import json
 from tqdm import tqdm as tqdm
+import torch
 
 from qurator.utils.parallel import run as prun
 
@@ -98,6 +99,10 @@ class EmbedTask:
     @staticmethod
     def _get_all(all_entities, split_parts):
         for i, (title, v) in tqdm(enumerate(all_entities.iterrows()), total=len(all_entities)):
+
+            if i % 1000 == 0:
+                torch.cuda.empty_cache()
+
             yield EmbedTask(i, title, split_parts)
 
     @staticmethod
