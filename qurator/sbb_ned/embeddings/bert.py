@@ -6,7 +6,7 @@ from flair.embeddings import Sentence
 class BertEmbeddings(Embeddings):
 
     def __init__(self, model_path,
-                 layers="-1, -2, -3, -4", pooling_operation='first', use_scalar_mix=True, *args, **kwargs):
+                 layers="-1, -2, -3, -4", pooling_operation='first', use_scalar_mix=True, no_cuda=False, *args, **kwargs):
 
         super(BertEmbeddings, self).__init__(*args, **kwargs)
 
@@ -15,10 +15,16 @@ class BertEmbeddings(Embeddings):
         self._layers = layers
         self._pooling_operation = pooling_operation
         self._use_scalar_mix = use_scalar_mix
+        self._no_cuda = no_cuda
 
     def get(self, keys):
 
         if self._embeddings is None:
+
+            if self._no_cuda:
+                import flair
+                import torch
+                flair.device = torch.device('cpu')
 
             from .flair_bert import BertEmbeddings
 

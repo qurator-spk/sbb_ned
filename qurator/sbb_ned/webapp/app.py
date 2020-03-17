@@ -91,12 +91,14 @@ class ThreadStore:
 
     def get_lookup(self):
 
+        no_cuda = False if not os.environ.get('USE_CUDA') else os.environ.get('USE_CUDA').lower() == 'false'
+
         if ThreadStore.ned_lookup is not None:
 
             return ThreadStore.ned_lookup
 
         embs = load_embeddings(app.config['EMBEDDING_TYPE'], model_path=app.config["EMBEDDING_MODEL_PATH"],
-                               pooling_operation = app.config['POOLING'])
+                               pooling_operation=app.config['POOLING'], no_cuda=no_cuda)
 
         embeddings = {'PER': embs, 'LOC': embs, 'ORG': embs}
 
