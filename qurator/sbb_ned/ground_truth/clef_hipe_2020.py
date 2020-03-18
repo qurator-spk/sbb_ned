@@ -25,9 +25,12 @@ def clef2tsv(clef_file, tsv_file):
             if not line.startswith('#'):
                 part.append(line)
 
-            if re.match(r'#\s+document_id\s+=.*', line) and len(part) > 0:
+            if re.match(r'#\s+document_id\s+=.*', line):
 
                 urls.append(line)
+
+                if len(part) == 0:
+                    continue
 
                 df = pd.read_csv(StringIO(header + "".join(part)), sep='\t', comment='#')
 
@@ -38,6 +41,16 @@ def clef2tsv(clef_file, tsv_file):
                 parts.append(df)
 
                 part = []
+
+        if len(part) > 0:
+
+            df = pd.read_csv(StringIO(header + "".join(part)), sep='\t', comment='#')
+
+            df = df.reset_index().rename(columns={'index': 'TOKEN_ID'})
+
+            df['url_id'] = len(parts)
+
+            parts.append(df)
 
     df = pd.concat(parts).reset_index(drop=True)
 
