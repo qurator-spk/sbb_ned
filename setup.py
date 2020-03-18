@@ -30,7 +30,8 @@ setup(
         "build-from-context-matrix=qurator.sbb_ned.cli:build_from_context_matrix",
         "evaluate-index=qurator.sbb_ned.cli:evaluate",
         "evaluate-with-context=qurator.sbb_ned.cli:evaluate_with_context",
-        "evaluate-combined=qurator.sbb_ned.cli:evaluate_combined"
+        "evaluate-combined=qurator.sbb_ned.cli:evaluate_combined",
+        "clef2tsv=qurator.sbb_ned.ground_truth.clef_hipe_2020:clef2tsv"
       ]
     },
     python_requires='>=3.6.0',
