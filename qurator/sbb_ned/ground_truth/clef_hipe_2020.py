@@ -2,7 +2,8 @@ import click
 import re
 from io import StringIO
 import pandas as pd
-
+import unicodedata
+from tqdm import tqdm
 
 def read_clef(clef_file):
 
@@ -67,11 +68,20 @@ def clef2tsv(clef_file, tsv_file):
 
     df['left'] = df['right'] = df['top'] = df['bottom'] = 0
 
+    # rename columns such that they match the neat columns.
     df = df.rename(columns={'TOKEN_ID': 'No.', 'TOKEN': 'TOKEN', 'NE-COARSE-LIT': 'NE-TAG', 'NE-NESTED': 'NE-EMB',
                             'NEL-LIT': 'ID', })
 
     df.loc[~df['NE-TAG'].str[2:5].isin(entity_types), 'NE-TAG'] = 'O'
     df.loc[~df['NE-EMB'].str[2:5].isin(entity_types), 'NE-EMB'] = 'O'
+
+    # make sure that there aren't any control characters in the TOKEN column.
+    # Hence that would lead to problems later on.
+    for idx, row in tqdm(df.iterrows(), total=len(df)):
+        df.loc[idx, 'TOKEN'] = "".join([c if unicodedata.category(c) != 'Cc' else '' for c in row.TOKEN])
+
+    # remove rows that have an empty TOKEN.
+    df = df.loc[df.TOKEN.str.len() > 0]
 
     df = df[out_columns]
 
