@@ -76,7 +76,7 @@ def clef2tsv(clef_file, tsv_file):
     df.loc[~df['NE-EMB'].str[2:5].isin(entity_types), 'NE-EMB'] = 'O'
 
     # make sure that there aren't any control characters in the TOKEN column.
-    # Hence that would lead to problems later on.
+    # Since that would lead to problems later on.
     for idx, row in tqdm(df.iterrows(), total=len(df)):
         df.loc[idx, 'TOKEN'] = "".join([c if unicodedata.category(c) != 'Cc' else '' for c in row.TOKEN])
 
