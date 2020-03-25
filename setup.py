@@ -31,7 +31,8 @@ setup(
         "evaluate-index=qurator.sbb_ned.cli:evaluate",
         "evaluate-with-context=qurator.sbb_ned.cli:evaluate_with_context",
         "evaluate-combined=qurator.sbb_ned.cli:evaluate_combined",
-        "clef2tsv=qurator.sbb_ned.ground_truth.clef_hipe_2020:clef2tsv"
+        "clef2tsv=qurator.sbb_ned.ground_truth.clef_hipe_2020:clef2tsv",
+        "tsv2clef=qurator.sbb_ned.ground_truth.clef_hipe_2020:tsv2clef"
       ]
     },
     python_requires='>=3.6.0',

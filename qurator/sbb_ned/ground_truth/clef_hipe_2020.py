@@ -5,6 +5,7 @@ import pandas as pd
 import unicodedata
 from tqdm import tqdm
 
+
 def read_clef(clef_file):
 
     with open(clef_file, 'r') as f:
@@ -93,3 +94,79 @@ def clef2tsv(clef_file, tsv_file):
             f.write(url)
 
         part.to_csv(tsv_file, sep="\t", quoting=3, index=False, mode="a", header=False)
+
+
+@click.command()
+@click.argument('tsv-file', type=click.Path(exists=True), required=True, nargs=1)
+@click.argument('clef-gs-file', type=click.Path(), required=True, nargs=1)
+@click.argument('out-clef-file', type=click.Path(), required=True, nargs=1)
+def tsv2clef(tsv_file, clef_gs_file, out_clef_file):
+
+    tsv = pd.read_csv(tsv_file, sep='\t', comment='#', quoting=3)
+
+    tsv_gs = pd.read_csv(clef_gs_file, sep='\t', comment='#')
+
+    tsv.loc[tsv.TOKEN.isnull(), 'TOKEN'] = ""
+
+    seq_out = tsv.iterrows()
+
+    _, row_out = next(seq_out, (None, None))
+    tsv_out = list()
+    for _, row_gs in tsv_gs.iterrows():
+
+        cur_token = ""
+        ne_tags = set()
+        nel_ids = set()
+
+        if row_out is None:
+            break
+
+        while row_gs.TOKEN != cur_token and row_out is not None:
+
+            if not row_gs.TOKEN.startswith(cur_token + row_out.TOKEN):
+                break
+
+            cur_token += str(row_out.TOKEN)
+            ne_tags.add(row_out['NE-TAG'])
+            nel_ids.add(row_out['ID'])
+            _, row_out = next(seq_out, (None, None))
+
+        if row_gs.TOKEN != cur_token:
+            tsv_out.append({'TOKEN': row_gs.TOKEN, 'NE-TAG': 'O', 'NE-EMB': 'O', 'ID': '-'})
+            continue
+
+        if len(ne_tags) == 1:
+            ne_tag = ne_tags.pop()
+        else:
+            ne_tag = 'O'
+
+        if len(nel_ids) == 1:
+            nel_id = nel_ids.pop()
+        else:
+            nel_id = '-'
+
+        tsv_out.append({'TOKEN': cur_token, 'NE-TAG': ne_tag, 'NE-EMB': 'O', 'ID': nel_id})
+
+    tsv_out = pd.DataFrame(tsv_out).rename(columns={'NE-TAG': 'NE-COARSE-LIT', 'NE-EMB': 'NE-NESTED', 'ID': 'NEL-LIT'})
+
+    tsv_out['NE-COARSE-LIT'] = tsv_out['NE-COARSE-LIT'].str.replace('-PER', '-pers')
+    tsv_out['NE-COARSE-LIT'] = tsv_out['NE-COARSE-LIT'].str.replace('-LOC', '-loc')
+    tsv_out['NE-COARSE-LIT'] = tsv_out['NE-COARSE-LIT'].str.replace('-ORG', '-org')
+
+    tsv_out['NE-NESTED'] = tsv_out['NE-NESTED'].str.replace('-PER', '-pers')
+    tsv_out['NE-NESTED'] = tsv_out['NE-NESTED'].str.replace('-LOC', '-loc')
+    tsv_out['NE-NESTED'] = tsv_out['NE-NESTED'].str.replace('-ORG', '-org')
+
+    tsv_out['NE-COARSE-METO'] = 'O'
+    tsv_out['NE-FINE-LIT'] = 'O'
+    tsv_out['NE-FINE-METO'] = 'O'
+    tsv_out['NE-FINE-COMP'] = 'O'
+    tsv_out['NEL-METO'] = '-'
+    tsv_out['MISC'] = '-'
+
+    out_columns = ['TOKEN', 'NE-COARSE-LIT', 'NE-COARSE-METO', 'NE-FINE-LIT', 'NE-FINE-METO', 'NE-FINE-COMP',
+                   'NE-NESTED', 'NEL-LIT', 'NEL-METO', 'MISC']
+
+    tsv_out = tsv_out[out_columns]
+
+    tsv_out.to_csv(out_clef_file, sep="\t", index=False)
