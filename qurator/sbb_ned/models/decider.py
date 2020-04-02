@@ -25,7 +25,12 @@ def features(dec, cand, quantiles, rank_intervalls, min_pairs, max_pairs, wikida
 
         # compute statistics for ALL OTHER sentence pairs that have been evaluated for ALL OTHER candidates
         dec_values = dec.loc[dec.wikidata != wikidata].select_dtypes(exclude=['object'])
+
         overall = pd.concat([dec_values.apply(stat_funcs), dec_values.quantile(q=quantiles)])
+
+        # rename columns such that they are more meaningful for interpretation
+        overall_renamed = pd.DataFrame(overall.values, index=overall.index,
+                                       columns=['overall_' + str(col) for col in overall.columns])
 
         # here we compute per single candidate statistics
 
@@ -60,8 +65,7 @@ def features(dec, cand, quantiles, rank_intervalls, min_pairs, max_pairs, wikida
 
             # rename columns such that they are more meaningful for interpretation
             case.columns = ['case_' + str(col) for col in case.columns]
-            overall_renamed = pd.DataFrame(overall.values, index=overall.index,
-                                           columns=['overall_' + str(col) for col in overall.columns])
+
             diff.columns = ['diff_' + str(col) for col in diff.columns]
 
             # join all the statistical information
