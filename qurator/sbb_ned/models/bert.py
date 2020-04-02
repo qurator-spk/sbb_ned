@@ -323,7 +323,7 @@ def model_predict_compare(dataloader, device, model, disable_output=False):
 
         decision_values.append(tmp)
 
-    return pd.concat(decision_values)
+    return pd.concat(decision_values).reset_index(drop=True)
 
 
 def get_device(local_rank=-1, no_cuda=False):

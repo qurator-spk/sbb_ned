@@ -74,7 +74,7 @@ function NED() {
         let post_data = input;
 
         $.ajax({
-                url:  "ned" ,
+                url:  "ned?return_full=true" ,
                 data: JSON.stringify(post_data),
                 type: 'POST',
                 contentType: "application/json",
@@ -121,9 +121,14 @@ function NED() {
         console.log(entity);
 
         if (entity in ned_result) {
-            makeResultList(ned_result[entity]);
-            onSuccess();
-            return;
+            if ('ranking' in ned_result[entity]) {
+                makeResultList(ned_result[entity]['ranking']);
+                onSuccess();
+                return;
+            }
+            else {
+                $("#result-entities").html("NOT FOUND");
+            }
         }
 
         if (!(entity in ner_parsed) ){
@@ -137,9 +142,14 @@ function NED() {
         runNED(input,
             function() {
                 if (entity in ned_result) {
-                    makeResultList(ned_result[entity]);
+                    if ('ranking' in ned_result[entity]) {}
+                        makeResultList(ned_result[entity]['ranking']);
 
-                    onSuccess();
+                        onSuccess();
+                    }
+                    else {
+                        $("#result-entities").html("NOT FOUND");
+                    }
                 }
                 else {
                     $("#result-entities").html("NOT FOUND");

@@ -222,14 +222,26 @@ def parse_entities():
 
 @app.route('/ned', methods=['GET', 'POST'])
 def ned():
+    return_full = request.args.get('return_full', default=False, type=bool)
 
     parsed = request.json
 
     model, device = thread_store.get_model()
 
-    # parsed = parse_entities(ner)
+    ned_result = OrderedDict()
 
-    model_ranking = OrderedDict()
+    def get_wk_id(db_conn, page_title):
+
+        _wk_id = pd.read_sql("select page_props.pp_value from page_props "
+                             "join page on page.page_id==page_props.pp_page "
+                             "where page.page_title==? and page.page_namespace==0 "
+                             "and page_props.pp_propname=='wikibase_item';", db_conn,
+                             params=(page_title,))
+
+        if _wk_id is None or len(_wk_id) == 0:
+            return None
+
+        return _wk_id.iloc[0][0]
 
     def classify_with_bert(entity_id, features, candidates):
 
@@ -289,32 +301,34 @@ def ned():
             query('sentence_score > 0 or guessed_title=="{}"'.format(decision.target.unique()[0])).\
             set_index('guessed_title')
 
-        wikidata_ids = list()
-        for k, v in ranking.iterrows():
-            wk_id = pd.read_sql("select page_props.pp_value from page_props "
-                                "join page on page.page_id==page_props.pp_page "
-                                "where page.page_title==? and page.page_namespace==0 "
-                                "and page_props.pp_propname=='wikibase_item';", ThreadStore.get_wiki_db(), params=(k,))
+        wiki_db_conn = ThreadStore.get_wiki_db()
 
-            if wk_id is None or len(wk_id) == 0:
-                wikidata_ids.append(None)
-                continue
+        result = dict()
 
-            wikidata_ids.append(wk_id.iloc[0][0])
+        if len(ranking) > 0:
 
-        if len(ranking) == 0:
-            return
+            ranking['wikidata'] = [get_wk_id(wiki_db_conn, k) for k, _ in ranking.iterrows()]
 
-        ranking['wikidata'] = wikidata_ids
+            result['ranking'] = [i for i in ranking[['sentence_score', 'wikidata']].T.to_dict(into=OrderedDict).items()]
 
-        model_ranking[entity_id] = \
-            [i for i in ranking[['sentence_score', 'wikidata']].T.to_dict(into=OrderedDict).items()]
+        if return_full:
+            candidates['wikidata'] = [get_wk_id(wiki_db_conn, v.guessed_title) for _, v in candidates.iterrows()]
+
+            decision = decision.merge(candidates[['guessed_title', 'wikidata']],
+                                      left_on='guessed_title', right_on='guessed_title')
+
+            result['decision'] = json.loads(decision.to_json(orient='split'))
+            result['candidates'] = json.loads(candidates.to_json(orient='split'))
+
+        ned_result[entity_id] = result
+
+        # import ipdb;ipdb.set_trace()
 
     thread_store.get_lookup().run_on_features(parsed, classify_with_bert)
 
     # import ipdb;ipdb.set_trace()
 
-    return jsonify(model_ranking)
+    return jsonify(ned_result)
 
 
 @app.route('/<path:path>')

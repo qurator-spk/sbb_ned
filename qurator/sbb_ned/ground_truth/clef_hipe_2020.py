@@ -1,9 +1,17 @@
 import click
 import re
 from io import StringIO
+import numpy as np
 import pandas as pd
 import unicodedata
 from tqdm import tqdm
+import json
+import logging
+# from CLEF2020.clef_evaluation import get_results
+from qurator.utils.parallel import run as prun
+from ..models.decider import features
+
+logger = logging.getLogger(__name__)
 
 
 def read_clef(clef_file):
@@ -79,7 +87,7 @@ def clef2tsv(clef_file, tsv_file):
     # make sure that there aren't any control characters in the TOKEN column.
     # Since that would lead to problems later on.
     for idx, row in tqdm(df.iterrows(), total=len(df)):
-        df.loc[idx, 'TOKEN'] = "".join([c if unicodedata.category(c) != 'Cc' else '' for c in row.TOKEN])
+        df.loc[idx, 'TOKEN'] = "".join([c if unicodedata.category(c) != 'Cc' else '' for c in str(row.TOKEN)])
 
     # remove rows that have an empty TOKEN.
     df = df.loc[df.TOKEN.str.len() > 0]
@@ -170,3 +178,138 @@ def tsv2clef(tsv_file, clef_gs_file, out_clef_file):
     tsv_out = tsv_out[out_columns]
 
     tsv_out.to_csv(out_clef_file, sep="\t", index=False)
+
+
+class SentenceStatTask:
+
+    def __init__(self, entity_result, quantiles, rank_intervalls, min_pairs, max_pairs):
+
+        self._entity_result = entity_result
+        self._quantiles = quantiles
+        self._rank_intervalls = rank_intervalls
+        self._min_pairs = min_pairs
+        self._max_pairs = max_pairs
+
+    def __call__(self, *args, **kwargs):
+        return features(dec=pd.read_json(json.dumps(self._entity_result['decision']), orient='split'),
+                        cand=pd.read_json(json.dumps(self._entity_result['candidates']), orient='split'),
+                        quantiles=self._quantiles, rank_intervalls=self._rank_intervalls,
+                        min_pairs=self._min_pairs, max_pairs=self._max_pairs,
+                        wikidata_gt=list(self._entity_result['gt'])[0])
+
+
+@click.command()
+@click.argument('tsv-file', type=click.Path(exists=True), required=True, nargs=1)
+@click.argument('json-file', type=click.Path(exists=True), required=True, nargs=1)
+@click.argument('clef-gs-file', type=click.Path(exists=True), required=True, nargs=1)
+@click.argument('data-set-file', type=click.Path(), required=True, nargs=1)
+@click.option('--min-pairs', type=int, default=10, help='default: 10.')
+@click.option('--max-pairs', type=int, default=50, help='default: 50.')
+@click.option('--processes', type=int, default=8, help='default: 8.')
+def sentence_stat(tsv_file, json_file, clef_gs_file, data_set_file, min_pairs, max_pairs, processes):
+
+    tsv = pd.read_csv(tsv_file, sep='\t', comment='#', quoting=3)
+    tsv.loc[tsv.TOKEN.isnull(), 'TOKEN'] = ""
+
+    tsv_gs = pd.read_csv(clef_gs_file, sep='\t', comment='#', quoting=3)
+    tsv_gs.loc[tsv_gs.TOKEN.isnull(), 'TOKEN'] = ""
+
+    with open(json_file, 'r') as fp_json:
+        ned_result = json.load(fp_json)
+
+    ned_result = add_ground_truth(ned_result, tsv, tsv_gs)
+
+    results_with_gt = sum(['gt' in entity_result for _, entity_result in ned_result.items()])
+
+    def get_tasks():
+
+        rank_intervalls = np.linspace(0.001, 0.1, 100)
+        quantiles = np.linspace(0.1, 1, 10)
+
+        for entity_id, entity_result in ned_result.items():
+
+            if 'gt' not in entity_result:
+                continue
+
+            yield SentenceStatTask(entity_result, quantiles, rank_intervalls, min_pairs, max_pairs)
+
+    progress = tqdm(prun(get_tasks(), processes=processes), total=results_with_gt)
+
+    data = list()
+
+    for data_part in progress:
+
+        data += data_part
+
+        progress.set_description("#data: {}".format(len(data)))
+        progress.refresh()
+
+    data = pd.concat(data, axis=1).T
+
+    data.columns = ["_".join([str(pa) for pa in col if len(str(pa)) > 0]) for col in data.columns]
+
+    data.to_pickle(data_set_file)
+
+
+def add_ground_truth(ned_result, tsv, tsv_gs):
+    ids = set()
+    entity = ""
+    entity_type = None
+
+    def check_entity(tag):
+        nonlocal entity, entity_type, ids
+
+        if (entity != "") and ((tag == 'O') or tag.startswith('B-') or (tag[2:] != entity_type)):
+
+            eid = entity + "-" + entity_type
+
+            if eid in ned_result and 0 < len(ids) <= 1:
+
+                if 'gt' in ned_result[eid]:
+                    ned_result[eid]['gt'].union(ids)
+                else:
+                    ned_result[eid]['gt'] = ids
+
+                try:
+                    assert len(ned_result[eid]['gt']) <= 1
+                except AssertionError:
+                    import ipdb;
+                    ipdb.set_trace()
+
+            ids = set()
+            entity = ""
+            entity_type = None
+
+    seq_gs = tsv_gs.iterrows()
+    _, row_gs = next(seq_gs, (None, None))
+    cur_token = ""
+
+    for rid, row in tsv.iterrows():
+
+        if not str(row_gs.TOKEN).startswith(cur_token + str(row.TOKEN)):
+            _, row_gs = next(seq_gs, (None, None))
+            cur_token = ""
+
+        assert row_gs is not None
+
+        cur_token += str(row.TOKEN)
+        # print("|{}||{}|".format(cur_token, row_gs.TOKEN))
+
+        check_entity(row['NE-TAG'])
+
+        if row['NE-TAG'] != 'O':
+            entity_type = row['NE-TAG'][2:]
+
+            entity += " " if entity != "" else ""
+
+            entity += row['TOKEN']
+
+            if row_gs.ID != 'NIL' and row_gs.ID != '_':
+                ids.add(row_gs.ID)
+
+    check_entity('O')
+
+    _, row_gs = next(seq_gs, (None, None))
+    assert row_gs is None
+
+    return ned_result
