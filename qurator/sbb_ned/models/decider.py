@@ -60,11 +60,12 @@ def features(dec, cand, quantiles, rank_intervalls, min_pairs, max_pairs, wikida
 
             # rename columns such that they are more meaningful for interpretation
             case.columns = ['case_' + str(col) for col in case.columns]
-            overall.columns = ['overall_' + str(col) for col in overall.columns]
+            overall_renamed = pd.DataFrame(overall.values, index=overall.index,
+                                           columns=['overall_' + str(col) for col in overall.columns])
             diff.columns = ['diff_' + str(col) for col in diff.columns]
 
             # join all the statistical information
-            statistics = pd.concat([case.unstack(), overall.unstack(), diff.unstack(), pos_stat.unstack()])
+            statistics = pd.concat([case.unstack(), overall_renamed.unstack(), diff.unstack(), pos_stat.unstack()])
 
             statistics['label'] = float(int(wikidata == wikidata_gt)) if wikidata_gt is not None else None
             statistics['wikidata_gt'] = wikidata_gt
