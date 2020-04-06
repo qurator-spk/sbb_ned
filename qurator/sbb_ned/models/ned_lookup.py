@@ -22,9 +22,9 @@ import threading
 
 from ..ground_truth.data_processor import ConvertSamples2Features, InputExample
 
-logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
-                    datefmt='%m/%d/%Y %H:%M:%S',
-                    level=logging.INFO)
+# logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
+#                     datefmt='%m/%d/%Y %H:%M:%S',
+#                     level=logging.INFO)
 
 logger = logging.getLogger(__name__)
 
@@ -397,13 +397,16 @@ class NEDLookup:
 
         self._process_queue_sem.release()
 
-        for _ in range(len(ner_info)):
+        def job_sequence():
 
-            entity_id, fe, cand = next(self._sequence)
+            for _ in range(len(ner_info)):
 
-            if len(cand) == 0:
-                continue
+                entity_id, fe, cand = next(self._sequence)
 
-            func(entity_id, fe, cand)
+                yield entity_id, fe, cand
+
+        ret = func(job_sequence())
 
         self._main_sem.release()
+
+        return ret
