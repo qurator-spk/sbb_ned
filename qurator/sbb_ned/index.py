@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import os
 import torch
+import logging
 from multiprocessing import Semaphore
 
 from tqdm import tqdm as tqdm
@@ -11,6 +12,7 @@ from .embeddings.base import EmbedTask, EmbedWithContext, get_embedding_vectors
 import json
 from qurator.utils.parallel import run as prun
 
+logger = logging.getLogger(__name__)
 
 class LookUpBySurface:
 
@@ -415,7 +417,11 @@ def best_matches(text_embeddings, get_index_and_mapping, search_k=10, max_dist=0
     else:
         hits = pd.concat(hits)
 
+        logger.debug("\nNumber of hits: {}\n".format(len(hits)))
+
         hits = hits.loc[hits.dist < max_dist]
+
+        logger.debug("\nNumber of hits below distance {}: {}\n".format(max_dist, len(hits)))
 
         ranking = []
 
