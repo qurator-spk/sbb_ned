@@ -104,7 +104,7 @@ function NED() {
 
                 entities_html += '<a href="https://de.wikipedia.org/wiki/' + candidate[0] + '">'
                                         + candidate[0] + '</a> '
-                                        + '(' + Number(candidate[1]['sentence_score']).toFixed(2)
+                                        + '(' + Number(candidate[1]['proba_1']).toFixed(2)
                                         + ', <a href="https://www.wikidata.org/wiki/' + candidate[1]['wikidata'] + '">'
                                         + candidate[1]['wikidata'] + '</a>'
                                         + ')' +' <br/>';
@@ -142,7 +142,7 @@ function NED() {
         runNED(input,
             function() {
                 if (entity in ned_result) {
-                    if ('ranking' in ned_result[entity]) {}
+                    if ('ranking' in ned_result[entity]) {
                         makeResultList(ned_result[entity]['ranking']);
 
                         onSuccess();

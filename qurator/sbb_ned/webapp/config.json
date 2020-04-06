@@ -1,4 +1,5 @@
 {
+  "LOG_LEVEL": "DEBUG",
   "MAX_SEQ_LENGTH": 128,
   "MODEL_DIR": "data/BERT/NED/de-model-1",
   "MODEL_FILE": "pytorch_model.bin",
@@ -19,7 +20,9 @@
   "LOOKUP_PROCESSES": 1,
   "PAIRING_PROCESSES": 8,
   "FEATURE_PROCESSES": 8,
-  "MAX_CANDIDATES": 250,
-  "MAX_PAIRS": 150,
-  "DECISION_THRESHOLD": 2.0
+  "MAX_CANDIDATES": 300,
+  "MAX_PAIRS": 50,
+  "DECIDER_PROCESSES":8,
+  "DECIDER_MODEL": "data/clef2020/max-pairs_150-dist_0.1/decider.pkl",
+  "DECISION_THRESHOLD": 0.5
 }

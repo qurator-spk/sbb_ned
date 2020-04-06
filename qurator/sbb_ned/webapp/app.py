@@ -2,13 +2,13 @@ import os
 import threading
 import logging
 from flask import Flask, send_from_directory, redirect, jsonify, request
-from pprint import pprint
+# from pprint import pprint
 # import html
 import json
 import numpy as np
 import pandas as pd
 import sqlite3
-
+import pickle
 # import torch
 
 import torch
@@ -17,12 +17,18 @@ from torch.utils.data import (DataLoader, SequentialSampler, TensorDataset)
 from collections import OrderedDict
 
 from qurator.sbb_ned.models.bert import get_device, model_predict_compare
+from qurator.sbb_ned.models.decider import predict
+from qurator.sbb_ned.models.decider import features as make_decider_features
+from qurator.utils.parallel import run as prun
 
 from qurator.sbb_ner.models.tokenization import BertTokenizer
 from pytorch_pretrained_bert.modeling import (CONFIG_NAME, BertConfig, BertForSequenceClassification)
 
 from ..embeddings.base import load_embeddings
 from ..models.ned_lookup import NEDLookup
+
+from tqdm import tqdm as tqdm
+
 
 app = Flask(__name__)
 
@@ -37,6 +43,8 @@ class ThreadStore:
 
     model = None
 
+    decider = None
+
     device = None
 
     tokenizer = None
@@ -49,7 +57,8 @@ class ThreadStore:
     def get_config(self):
         pass
 
-    def get_tokenizer(self):
+    @staticmethod
+    def get_tokenizer():
 
         if ThreadStore.tokenizer is not None:
 
@@ -89,6 +98,17 @@ class ThreadStore:
 
         return ThreadStore.model, ThreadStore.device
 
+    @staticmethod
+    def get_decider():
+
+        if ThreadStore.decider is not None:
+            return ThreadStore.decider
+
+        with open(app.config['DECIDER_MODEL'], 'rb') as fr:
+            ThreadStore.decider = pickle.load(fr)
+
+        return ThreadStore.decider
+
     def get_lookup(self):
 
         no_cuda = False if not os.environ.get('USE_CUDA') else os.environ.get('USE_CUDA').lower() == 'false'
@@ -104,7 +124,7 @@ class ThreadStore:
 
         ThreadStore.ned_lookup =\
             NEDLookup(max_seq_length=app.config['MAX_SEQ_LENGTH'],
-                      tokenizer=self.get_tokenizer(),
+                      tokenizer=ThreadStore.get_tokenizer(),
                       ned_sql_file=app.config['NED_SQL_FILE'],
                       entities_file=app.config['ENTITIES_FILE'],
                       embeddings=embeddings,
@@ -220,113 +240,133 @@ def parse_entities():
     return jsonify(parsed)
 
 
+class DeciderTask:
+
+    wiki_db_conn = None
+    decider = None
+    return_full = None
+
+    def __init__(self, entity_id, decision, candidates, quantiles, rank_intervalls, threshold):
+
+        self._entity_id = entity_id
+        self._decision = decision
+        self._candidates = candidates
+        self._quantiles = quantiles
+        self._rank_intervalls = rank_intervalls
+        self._threshold = threshold
+
+    def __call__(self, *args, **kwargs):
+
+        if self._candidates is None:
+            return self._entity_id, None
+
+        def get_wk_id(db_conn, page_title):
+
+            _wk_id = pd.read_sql("select page_props.pp_value from page_props "
+                                 "join page on page.page_id==page_props.pp_page "
+                                 "where page.page_title==? and page.page_namespace==0 "
+                                 "and page_props.pp_propname=='wikibase_item';", db_conn,
+                                 params=(page_title,))
+
+            if _wk_id is None or len(_wk_id) == 0:
+                return None
+
+            return _wk_id.iloc[0][0]
+
+        decider_features = make_decider_features(self._decision, self._candidates, self._quantiles,
+                                                 self._rank_intervalls)
+
+        prediction = predict(decider_features, DeciderTask.decider)
+
+        ranking = prediction[(prediction.proba_1 > self._threshold) |
+                             (prediction.guessed_title == self._decision.target.unique()[0])]. \
+            sort_values(['proba_1', 'case_rank_max'], ascending=[False, True]). \
+            set_index('guessed_title')
+
+        result = dict()
+
+        if len(ranking) > 0:
+            ranking['wikidata'] = [get_wk_id(DeciderTask.wiki_db_conn, k) for k, _ in ranking.iterrows()]
+
+            result['ranking'] = [i for i in ranking[['proba_1', 'wikidata']].T.to_dict(into=OrderedDict).items()]
+
+        if DeciderTask.return_full:
+            self._candidates['wikidata'] = [get_wk_id(DeciderTask.wiki_db_conn, v.guessed_title)
+                                            for _, v in self._candidates.iterrows()]
+
+            decision = self._decision.merge(self._candidates[['guessed_title', 'wikidata']],
+                                            left_on='guessed_title', right_on='guessed_title')
+
+            result['decision'] = json.loads(decision.to_json(orient='split'))
+            result['candidates'] = json.loads(self._candidates.to_json(orient='split'))
+
+        return self._entity_id, result
+
+    @staticmethod
+    def initialize(decider, return_full):
+
+        DeciderTask.return_full = return_full
+        DeciderTask.decider = decider
+        DeciderTask.wiki_db_conn = ThreadStore.get_wiki_db()
+
+
 @app.route('/ned', methods=['GET', 'POST'])
 def ned():
     return_full = request.args.get('return_full', default=False, type=bool)
+
+    threshold = request.args.get('threshold', default=app.config['DECISION_THRESHOLD'], type=float)
+
+    rank_intervalls = np.linspace(0.001, 0.1, 100)
+    quantiles = np.linspace(0.1, 1, 10)
 
     parsed = request.json
 
     model, device = thread_store.get_model()
 
-    ned_result = OrderedDict()
+    decider = thread_store.get_decider()
 
-    def get_wk_id(db_conn, page_title):
+    def classify_with_bert(job_sequence):
 
-        _wk_id = pd.read_sql("select page_props.pp_value from page_props "
-                             "join page on page.page_id==page_props.pp_page "
-                             "where page.page_title==? and page.page_namespace==0 "
-                             "and page_props.pp_propname=='wikibase_item';", db_conn,
-                             params=(page_title,))
+        def make_decider_tasks():
+            for entity_id, features, candidates in job_sequence:
 
-        if _wk_id is None or len(_wk_id) == 0:
-            return None
+                if len(candidates) == 0:
+                    yield DeciderTask(entity_id, None, None, quantiles, rank_intervalls, threshold)
+                    continue
 
-        return _wk_id.iloc[0][0]
+                all_input_ids = torch.tensor([f.input_ids for f in features], dtype=torch.long)
+                all_input_mask = torch.tensor([f.input_mask for f in features], dtype=torch.long)
+                all_segment_ids = torch.tensor([f.segment_ids for f in features], dtype=torch.long)
+                all_labels = torch.tensor([f.label for f in features], dtype=torch.long)
 
-    def classify_with_bert(entity_id, features, candidates):
+                data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_labels)
 
-        all_input_ids = torch.tensor([f.input_ids for f in features], dtype=torch.long)
-        all_input_mask = torch.tensor([f.input_mask for f in features], dtype=torch.long)
-        all_segment_ids = torch.tensor([f.segment_ids for f in features], dtype=torch.long)
-        all_labels = torch.tensor([f.label for f in features], dtype=torch.long)
+                sampler = SequentialSampler(data)
 
-        data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_labels)
+                data_loader = DataLoader(data, sampler=sampler, batch_size=app.config['BATCH_SIZE'])
 
-        sampler = SequentialSampler(data)
+                decision = model_predict_compare(data_loader, device, model, disable_output=True)
+                decision['guessed_title'] = [f.guid[1] for f in features]
+                decision['target'] = [f.guid[0] for f in features]
+                decision['scores'] = np.log(decision[1] / decision[0])
 
-        data_loader = DataLoader(data, sampler=sampler, batch_size=app.config['BATCH_SIZE'])
+                assert len(decision.target.unique()) == 1
 
-        decision = model_predict_compare(data_loader, device, model, disable_output=True)
+                yield DeciderTask(entity_id, decision, candidates, quantiles, rank_intervalls, threshold)
 
-        decision['guessed_title'] = [f.guid[1] for f in features]
-        decision['target'] = [f.guid[0] for f in features]
+        complete_result = OrderedDict()
 
-        assert len(decision.target.unique()) == 1
+        for eid, result in tqdm(prun(make_decider_tasks(), initializer=DeciderTask.initialize,
+                                initargs=(decider, return_full), processes=app.config['DECIDER_PROCESSES']),
+                                total=len(parsed)):
+            if result is None:
+                continue
 
-        decision['scores'] = np.log(decision[1] / decision[0])
+            complete_result[eid] = result
 
-        # decision = decision.query('scores > {}'.format(app.config['DECISION_THRESHOLD']))
+        return complete_result
 
-        # ranking = decision.groupby('guessed_title').max().sort_values('scores', ascending=False)
-
-        # model_ranking[decision.target.unique()[0]] = \
-        #     [i for i in ranking[['scores']].T.to_dict(orient='records', into=OrderedDict)[0].items()]
-
-        #
-
-        threshold = app.config['DECISION_THRESHOLD']
-
-        # noinspection PyUnresolvedReferences
-        ranking = [(k, ((g.scores > threshold).sum() - (g.scores < -threshold).sum())) # / len(g))
-                   for k, g in decision.groupby('guessed_title')]
-
-        ranking = pd.DataFrame(ranking, columns=['guessed_title', 'sentence_score'])
-
-        ranking = candidates.merge(ranking, on='guessed_title')
-
-        #    sort_values(['len_pa', 'len_guessed', 'sentence_score'], ascending=[False, True, True]).\
-        #    reset_index(drop=True)
-
-        # ranking['rank'] = ranking.index
-
-        ranking = ranking.sort_values(['sentence_score', 'rank'], ascending=[False, True])
-
-        # ranking = pd.DataFrame([(k,
-        #                          len(g.query('scores > {}'.format(app.config['DECISION_THRESHOLD'])))/len(g)
-        #                          )
-        #                         for k, g in decision.groupby('target')],
-        #                        columns=['target', 'hits']).\
-
-        ranking = ranking.\
-            query('sentence_score > 0 or guessed_title=="{}"'.format(decision.target.unique()[0])).\
-            set_index('guessed_title')
-
-        wiki_db_conn = ThreadStore.get_wiki_db()
-
-        result = dict()
-
-        if len(ranking) > 0:
-
-            ranking['wikidata'] = [get_wk_id(wiki_db_conn, k) for k, _ in ranking.iterrows()]
-
-            result['ranking'] = [i for i in ranking[['sentence_score', 'wikidata']].T.to_dict(into=OrderedDict).items()]
-
-        if return_full:
-            candidates['wikidata'] = [get_wk_id(wiki_db_conn, v.guessed_title) for _, v in candidates.iterrows()]
-
-            decision = decision.merge(candidates[['guessed_title', 'wikidata']],
-                                      left_on='guessed_title', right_on='guessed_title')
-
-            result['decision'] = json.loads(decision.to_json(orient='split'))
-            result['candidates'] = json.loads(candidates.to_json(orient='split'))
-
-        ned_result[entity_id] = result
-
-        # import ipdb;ipdb.set_trace()
-
-    thread_store.get_lookup().run_on_features(parsed, classify_with_bert)
-
-    # import ipdb;ipdb.set_trace()
+    ned_result = thread_store.get_lookup().run_on_features(parsed, classify_with_bert)
 
     return jsonify(ned_result)
 
