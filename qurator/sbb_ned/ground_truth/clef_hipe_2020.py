@@ -221,10 +221,12 @@ def sentence_stat(tsv_file, json_file, clef_gs_file, data_set_file, min_pairs, m
 
     results_with_gt = sum(['gt' in entity_result for _, entity_result in ned_result.items()])
 
+    rank_intervalls = np.linspace(0.001, 0.1, 100)
+    quantiles = np.linspace(0.1, 1, 10)
+
     def get_tasks():
 
-        rank_intervalls = np.linspace(0.001, 0.1, 100)
-        quantiles = np.linspace(0.1, 1, 10)
+        nonlocal rank_intervalls, quantiles
 
         for entity_id, entity_result in ned_result.items():
 
@@ -236,17 +238,19 @@ def sentence_stat(tsv_file, json_file, clef_gs_file, data_set_file, min_pairs, m
     progress = tqdm(prun(get_tasks(), processes=processes), total=results_with_gt)
 
     data = list()
-
+    data_len = 0
     for data_part in progress:
 
-        data += data_part
+        if data_part is None:
+            continue
 
-        progress.set_description("#data: {}".format(len(data)))
+        data.append(data_part)
+        data_len += len(data_part)
+
+        progress.set_description("#data: {}".format(data_len))
         progress.refresh()
 
-    data = pd.concat(data, axis=1).T
-
-    data.columns = ["_".join([str(pa) for pa in col if len(str(pa)) > 0]) for col in data.columns]
+    data = pd.concat(data)
 
     data.to_pickle(data_set_file)
 
