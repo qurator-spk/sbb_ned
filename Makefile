@@ -193,14 +193,24 @@ fr-ned-train-0:
 # ===============================================================================================================================================================
 
 CLEF_PATH ?=~/qurator/CLEF-HIPE-2020
+CLEF_TARGET_PATH ?=$(DATA_PATH)/clef2020/max-pairs_150-dist_0.1
 
-CLEF2020:
-	-clef2tsv $(CLEF_PATH)/data/training-v1.0/de/HIPE-data-v1.0-dev-de.tsv $(DATA_PATH)/clef2020/neat-HIPE-data-v1.0-dev-de.tsv
-	-clef2tsv $(CLEF_PATH)/data/training-v1.0/de/HIPE-data-v1.0-train-de.tsv $(DATA_PATH)/clef2020/neat-HIPE-data-v1.0-train-de.tsv
-	find-entities $(DATA_PATH)/clef2020/neat-HIPE-data-v1.0-dev-de.tsv $(DATA_PATH)/clef2020/ned-result-HIPE-data-v1.0-dev-de.tsv --ned-json-file=$(DATA_PATH)/clef2020/ned-full-data-HIPE-data-v1.0-dev-de.json --ner-rest-endpoint=http://localhost/sbb-tools/ner/ner --ned-rest-endpoint=http://localhost/sbb-tools/ned
-	find-entities $(DATA_PATH)/clef2020/neat-HIPE-data-v1.0-train-de.tsv $(DATA_PATH)/clef2020/ned-result-HIPE-data-v1.0-train-de.tsv --ned-json-file=$(DATA_PATH)/clef2020/ned-full-data-HIPE-data-v1.0-train-de.json --ner-rest-endpoint=http://localhost/sbb-tools/ner/ner --ned-rest-endpoint=http://localhost/sbb-tools/ned
-	sentence-stat data/clef2020/max-pairs_150-dist_0.1/ned-result-HIPE-data-v1.0-train-de.tsv data/clef2020/max-pairs_150-dist_0.1/ned-full-data-HIPE-data-v1.0-train-de.json data/clef2020/max-pairs_150-dist_0.1/neat-HIPE-data-v1.0-train-de.tsv decider-dataset.pkl
-	train-decider decider-dataset.pkl decider.pkl
+CLEF2020-tsc:
+	-clef2tsv $(CLEF_PATH)/data/training-v1.0/de/HIPE-data-v1.0-dev-de.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.0-dev-de.tsv
+	-clef2tsv $(CLEF_PATH)/data/training-v1.0/de/HIPE-data-v1.0-train-de.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.0-train-de.tsv
+
+CLEF2020-entities:
+	find-entities $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.0-dev-de.tsv $(CLEF_TARGET_PATH)/ned-result-HIPE-data-v1.0-dev-de.tsv --ned-json-file=$(CLEF_TARGET_PATH)/ned-full-data-HIPE-data-v1.0-dev-de.json --ner-rest-endpoint=http://localhost/sbb-tools/ner/ner --ned-rest-endpoint=http://localhost/sbb-tools/ned
+	find-entities $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.0-train-de.tsv $(CLEF_TARGET_PATH)/ned-result-HIPE-data-v1.0-train-de.tsv --ned-json-file=$(CLEF_TARGET_PATH)/ned-full-data-HIPE-data-v1.0-train-de.json --ner-rest-endpoint=http://localhost/sbb-tools/ner/ner --ned-rest-endpoint=http://localhost/sbb-tools/ned
+
+CLEF2020-train:
+	sentence-stat $(CLEF_TARGET_PATH)/ned-result-HIPE-data-v1.0-train-de.tsv $(CLEF_TARGET_PATH)/ned-full-data-HIPE-data-v1.0-train-de.json $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.0-train-de.tsv $(CLEF_TARGET_PATH)/decider-train-dataset.pkl
+
+CLEF2020-dev:
+	sentence-stat $(CLEF_TARGET_PATH)/ned-result-HIPE-data-v1.0-dev-de.tsv $(CLEF_TARGET_PATH)/ned-full-data-HIPE-data-v1.0-dev-de.json $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.0-dev-de.tsv $(CLEF_TARGET_PATH)/decider-dev-dataset.pkl
+
+CLEF2020-decider:
+	train-decider $(CLEF_TARGET_PATH)/decider-train-dataset.pkl $(CLEF_TARGET_PATH)/decider.pkl
 
 ned-test:
 	ned-bert --seed=29 --eval-batch-size=128 --dev-size=100000 --num-train-epochs=10 --ned-sql-file $(NED_FILE) --train-set-file $(NED_TRAIN_SUBSET_FILE) --dev-set-file $(NED_TEST_SUBSET_FILE) --test-set-file $(NED_TEST_SUBSET_FILE) data/BERT/NED/model-0 data/BERT/NED/model-0 --model-file pytorch_model.bin --entity-index-path $(ENTITY_INDEX_PATH) --entities-file $(ENTITIES_FILE) 
