@@ -14,6 +14,7 @@ from qurator.utils.parallel import run as prun
 
 logger = logging.getLogger(__name__)
 
+
 class LookUpBySurface:
 
     index = None

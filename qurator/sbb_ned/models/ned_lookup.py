@@ -34,6 +34,7 @@ class SentenceLookup:
     connection_map = None
 
     def __init__(self, found_sentences, candidates, max_pairs=0):
+
         self._found_sentences = found_sentences
 
         self._max_pairs = max_pairs  # number of sentence pair comparisons per candidate
@@ -44,17 +45,15 @@ class SentenceLookup:
 
     def select_sentences(self):
 
-        tmp = []
-        for i, r in self._candidates.iterrows():
+        limit = int(float(self._max_pairs) / float(self._use_found))
 
-            limit = int(float(self._max_pairs)/float(self._use_found))
+        tmp = []
+        for _, candidate in self._candidates.iterrows():
 
             s = pd.read_sql(
                 "select sentences.id,sentences.page_title, links.target, sentences.text, sentences.entities "
                 "from links join sentences on links.sentence=sentences.id where links.target=? limit ?;",
-                SentenceLookup.get_db(), params=(r.guessed_title, limit))
-
-            # print(r.guessed_title)
+                SentenceLookup.get_db(), params=(candidate.guessed_title, limit))
 
             if len(s) == 0:
                 logger.debug('1')
@@ -144,10 +143,11 @@ class SentenceLookup:
                         self._found_sentences.iloc[a].pos, candidate_sentences.iloc[b].pos,
                         self._found_sentences.iloc[a].end, candidate_sentences.iloc[b].end, 0) for a, b in combis]
 
-        ret = pd.DataFrame(check_pairs,
-                           columns=['id_a', 'id_b', 'sen_a', 'sen_b', 'pos_a', 'pos_b', 'end_a', 'end_b', 'label'])
+        check_pairs = pd.DataFrame(check_pairs,
+                                   columns=['id_a', 'id_b', 'sen_a', 'sen_b', 'pos_a', 'pos_b', 'end_a', 'end_b',
+                                            'label'])
 
-        return ret
+        return check_pairs
 
     @staticmethod
     def initialize(ned_sql_file):
@@ -174,16 +174,15 @@ class SentenceLookup:
 
 class LookUpBySurfaceWrapper(LookUpBySurface):
 
-    def __init__(self, entity_id, sentences, *args, **kwargs):
+    def __init__(self, sentences, *args, **kwargs):
 
-        self._entity_id = entity_id
         self._sentences = sentences
 
         super(LookUpBySurfaceWrapper, self).__init__(*args, **kwargs)
 
     def __call__(self, *args, **kwargs):
 
-        return self._entity_id, self._sentences, super(LookUpBySurfaceWrapper, self).__call__(*args, **kwargs)
+        return self._sentences, super(LookUpBySurfaceWrapper, self).__call__(*args, **kwargs)
 
 
 class SentenceLookupWrapper(SentenceLookup):
@@ -243,11 +242,11 @@ class NEDLookup:
                  lookup_processes=0, pairing_processes=0, feature_processes=0, max_candidates=20,
                  max_pairs=1000, split_parts=True):
 
+        logger.info('NEDLookup __init__')
+
         self._max_seq_length = max_seq_length
         self._tokenizer = tokenizer
         self._ned_sql_file = ned_sql_file
-
-        self._process_queue = []
 
         self._entities_file = entities_file
         self._embeddings = embeddings
@@ -261,6 +260,7 @@ class NEDLookup:
         self._pairing_processes = pairing_processes
         self._feature_processes = feature_processes
 
+        self._process_queue = []
         self._process_queue_sem = Semaphore(0)
 
         self._main_sem = Semaphore(1)
@@ -280,26 +280,25 @@ class NEDLookup:
 
             entities = self._process_queue.pop()
 
-            for k, v in entities.items():
+            for entity_id, v in entities.items():
 
-                print(k)
+                logger.debug(entity_id)
 
                 sentences = pd.DataFrame(v['sentences'])
-                sentences['target'] = v['target']
 
-                yield k, sentences, v['target'], v['type']
+                yield entity_id, sentences, v['surface'], v['type']
 
     def get_lookup(self):
 
-        for entity_id, sentences, page_title, ent_type in self.get_entity():
+        for entity_id, sentences, surface, ent_type in self.get_entity():
 
-            yield LookUpBySurfaceWrapper(entity_id, sentences, page_title=page_title, entity_surface_parts=[page_title],
-                                         entity_title=page_title, entity_type=ent_type, split_parts=self._split_parts,
+            yield LookUpBySurfaceWrapper(sentences, page_title=entity_id, entity_surface_parts=[surface],
+                                         entity_title=entity_id, entity_type=ent_type, split_parts=self._split_parts,
                                          max_candidates=self._max_candidates)
 
     def get_sentence_lookup(self):
 
-        for entity_id, sentences, (entity_title, candidates) in \
+        for sentences, (entity_id, candidates) in \
                 prun(self.get_lookup(), initializer=LookUpBySurface.initialize,
                      initargs=(self._entities_file, self._embeddings, self._n_trees, self._distance_measure,
                                self._entity_index_path, self._search_k, self._max_dist),
