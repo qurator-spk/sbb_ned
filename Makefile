@@ -212,6 +212,10 @@ CLEF2020-dev:
 CLEF2020-decider:
 	train-decider $(CLEF_TARGET_PATH)/decider-train-dataset.pkl $(CLEF_TARGET_PATH)/decider.pkl
 
+normalization:
+	pdftotext -raw $(DATA_PATH)/char_normalization/Special-Characters-in-Aletheia.pdf $(DATA_PATH)/char_normalization/special.txt
+	extract-normalization-table $(DATA_PATH)/char_normalization/special.txt $(DATA_PATH)/char_normalization/normalization-table.pkl
+
 ned-test:
 	ned-bert --seed=29 --eval-batch-size=128 --dev-size=100000 --num-train-epochs=10 --ned-sql-file $(NED_FILE) --train-set-file $(NED_TRAIN_SUBSET_FILE) --dev-set-file $(NED_TEST_SUBSET_FILE) --test-set-file $(NED_TEST_SUBSET_FILE) data/BERT/NED/model-0 data/BERT/NED/model-0 --model-file pytorch_model.bin --entity-index-path $(ENTITY_INDEX_PATH) --entities-file $(ENTITIES_FILE) 
 

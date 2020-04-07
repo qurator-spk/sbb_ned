@@ -35,7 +35,8 @@ setup(
         "tsv2clef=qurator.sbb_ned.ground_truth.clef_hipe_2020:tsv2clef",
         "sentence-stat=qurator.sbb_ned.ground_truth.clef_hipe_2020:sentence_stat",
         "train-decider=qurator.sbb_ned.models.decider:train",
-        "test-decider=qurator.sbb_ned.models.decider:test"
+        "test-decider=qurator.sbb_ned.models.decider:test",
+        "extract-normalization-table=qurator.sbb_ned.encoding.normalization:extract_normalization_table"
       ]
     },
     python_requires='>=3.6.0',
