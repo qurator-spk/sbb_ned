@@ -2,8 +2,107 @@ import numpy as np
 import pandas as pd
 import click
 import pickle
+import json
+import logging
+import threading
+import sqlite3
 from sklearn.model_selection import GroupKFold, cross_val_score
 from sklearn.ensemble import RandomForestClassifier
+from collections import OrderedDict
+
+logger = logging.getLogger(__name__)
+
+
+class DeciderTask:
+
+    decider = None
+    connection_map = None
+    wiki_db_file = None
+
+    def __init__(self, entity_id, decision, candidates, quantiles, rank_intervalls, threshold, return_full=False):
+
+        self._entity_id = entity_id
+        self._decision = decision
+        self._candidates = candidates
+        self._quantiles = quantiles
+        self._rank_intervalls = rank_intervalls
+        self._threshold = threshold
+        self._return_full = return_full
+
+    def __call__(self, *args, **kwargs):
+
+        if self._candidates is None:
+            return self._entity_id, None
+
+        wiki_db_conn = DeciderTask.get_wiki_db()
+
+        decider_features = features(self._decision, self._candidates, self._quantiles,
+                                                 self._rank_intervalls)
+
+        prediction = predict(decider_features, DeciderTask.decider)
+
+        ranking = prediction[(prediction.proba_1 > self._threshold) |
+                             (prediction.guessed_title == self._decision.target.unique()[0])]. \
+            sort_values(['proba_1', 'case_rank_max'], ascending=[False, True]). \
+            set_index('guessed_title')
+
+        result = dict()
+
+        if len(ranking) > 0:
+            ranking['wikidata'] = [DeciderTask.get_wk_id(wiki_db_conn, k) for k, _ in ranking.iterrows()]
+
+            result['ranking'] = [i for i in ranking[['proba_1', 'wikidata']].T.to_dict(into=OrderedDict).items()]
+
+        if self._return_full:
+            self._candidates['wikidata'] = [DeciderTask.get_wk_id(wiki_db_conn, v.guessed_title)
+                                            for _, v in self._candidates.iterrows()]
+
+            decision = self._decision.merge(self._candidates[['guessed_title', 'wikidata']],
+                                            left_on='guessed_title', right_on='guessed_title')
+
+            result['decision'] = json.loads(decision.to_json(orient='split'))
+            result['candidates'] = json.loads(self._candidates.to_json(orient='split'))
+
+        return self._entity_id, result
+
+    @staticmethod
+    def get_wk_id(db_conn, page_title):
+
+        _wk_id = pd.read_sql("select page_props.pp_value from page_props "
+                             "join page on page.page_id==page_props.pp_page "
+                             "where page.page_title==? and page.page_namespace==0 "
+                             "and page_props.pp_propname=='wikibase_item';", db_conn,
+                             params=(page_title,))
+
+        if _wk_id is None or len(_wk_id) == 0:
+            return None
+
+        return _wk_id.iloc[0][0]
+
+    @staticmethod
+    def get_wiki_db():
+
+        if DeciderTask.connection_map is None:
+            DeciderTask.connection_map = dict()
+
+        thid = threading.current_thread().ident
+
+        conn = DeciderTask.connection_map.get(thid)
+
+        if conn is None:
+            logger.info('Create database connection: {}'.format(DeciderTask.wiki_db_file))
+
+            conn = sqlite3.connect(DeciderTask.wiki_db_file)
+
+            DeciderTask.connection_map[thid] = conn
+
+        return conn
+
+    @staticmethod
+    def initialize(decider, wiki_db_file):
+
+        DeciderTask.decider = decider
+        DeciderTask.wiki_db_file = wiki_db_file
 
 
 def features(dec, cand, quantiles, rank_intervalls, min_pairs=np.inf, max_pairs=np.inf, wikidata_gt=None, stat_funcs=None):

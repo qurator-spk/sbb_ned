@@ -1,35 +1,22 @@
 import os
-import threading
 import logging
 from flask import Flask, send_from_directory, redirect, jsonify, request
 # from pprint import pprint
 # import html
 import json
-import numpy as np
 import pandas as pd
-import sqlite3
 import pickle
-# import torch
 
 import torch
-from torch.utils.data import (DataLoader, SequentialSampler, TensorDataset)
 
-from collections import OrderedDict
-
-from qurator.sbb_ned.models.bert import get_device, model_predict_compare
-from qurator.sbb_ned.models.decider import predict
-from qurator.sbb_ned.models.decider import features as make_decider_features
-from qurator.utils.parallel import run as prun
+from qurator.sbb_ned.models.bert import get_device
+from qurator.sbb_ned.models.classifier_decider_queue import ClassifierDeciderQueue
 
 from qurator.sbb_ner.models.tokenization import BertTokenizer
 from pytorch_pretrained_bert.modeling import (CONFIG_NAME, BertConfig, BertForSequenceClassification)
 
 from ..embeddings.base import load_embeddings
 from ..models.ned_lookup import NEDLookup
-
-from tqdm import tqdm as tqdm
-from multiprocessing import Semaphore
-
 
 app = Flask(__name__)
 
@@ -52,8 +39,6 @@ class ThreadStore:
         self.device = None
 
         self.tokenizer = None
-
-        self.connection_map = None
 
         self.normalization_map = None
 
@@ -111,7 +96,11 @@ class ThreadStore:
         if self.classify_decider_queue is not None:
             return self.classify_decider_queue
 
-        self.classify_decider_queue = ClassifierDeciderQueue()
+        model, device = self.get_model()
+        decider = thread_store.get_decider()
+        self.classify_decider_queue = ClassifierDeciderQueue(model, device, decider, app.config['DECISION_THRESHOLD'],
+                                                             app.config['WIKIPEDIA_SQL_FILE'],
+                                                             app.config['DECIDER_PROCESSES'], app.config['BATCH_SIZE'])
 
         return self.classify_decider_queue
 
@@ -147,24 +136,6 @@ class ThreadStore:
                       split_parts=app.config['SPLIT_PARTS'])
 
         return self.ned_lookup
-
-    def get_wiki_db(self):
-
-        if self.connection_map is None:
-            self.connection_map = dict()
-
-        thid = threading.current_thread().ident
-
-        conn = self.connection_map.get(thid)
-
-        if conn is None:
-            logger.info('Create database connection: {}'.format(app.config['WIKIPEDIA_SQL_FILE']))
-
-            conn = sqlite3.connect(app.config['WIKIPEDIA_SQL_FILE'])
-
-            self.connection_map[thid] = conn
-
-        return conn
 
     def get_normalization_map(self):
 
@@ -266,189 +237,6 @@ def parse_entities():
     return jsonify(parsed)
 
 
-class DeciderTask:
-
-    decider = None
-
-    def __init__(self, entity_id, decision, candidates, quantiles, rank_intervalls, threshold, return_full=False):
-
-        self._entity_id = entity_id
-        self._decision = decision
-        self._candidates = candidates
-        self._quantiles = quantiles
-        self._rank_intervalls = rank_intervalls
-        self._threshold = threshold
-        self._return_full = return_full
-
-    def __call__(self, *args, **kwargs):
-
-        if self._candidates is None:
-            return self._entity_id, None
-
-        wiki_db_conn = thread_store.get_wiki_db()
-
-        decider_features = make_decider_features(self._decision, self._candidates, self._quantiles,
-                                                 self._rank_intervalls)
-
-        prediction = predict(decider_features, DeciderTask.decider)
-
-        ranking = prediction[(prediction.proba_1 > self._threshold) |
-                             (prediction.guessed_title == self._decision.target.unique()[0])]. \
-            sort_values(['proba_1', 'case_rank_max'], ascending=[False, True]). \
-            set_index('guessed_title')
-
-        result = dict()
-
-        if len(ranking) > 0:
-            ranking['wikidata'] = [DeciderTask.get_wk_id(wiki_db_conn, k) for k, _ in ranking.iterrows()]
-
-            result['ranking'] = [i for i in ranking[['proba_1', 'wikidata']].T.to_dict(into=OrderedDict).items()]
-
-        if self._return_full:
-            self._candidates['wikidata'] = [DeciderTask.get_wk_id(wiki_db_conn, v.guessed_title)
-                                            for _, v in self._candidates.iterrows()]
-
-            decision = self._decision.merge(self._candidates[['guessed_title', 'wikidata']],
-                                            left_on='guessed_title', right_on='guessed_title')
-
-            result['decision'] = json.loads(decision.to_json(orient='split'))
-            result['candidates'] = json.loads(self._candidates.to_json(orient='split'))
-
-        return self._entity_id, result
-
-    @staticmethod
-    def get_wk_id(db_conn, page_title):
-
-        _wk_id = pd.read_sql("select page_props.pp_value from page_props "
-                             "join page on page.page_id==page_props.pp_page "
-                             "where page.page_title==? and page.page_namespace==0 "
-                             "and page_props.pp_propname=='wikibase_item';", db_conn,
-                             params=(page_title,))
-
-        if _wk_id is None or len(_wk_id) == 0:
-            return None
-
-        return _wk_id.iloc[0][0]
-
-    @staticmethod
-    def initialize(decider):
-
-        DeciderTask.decider = decider
-
-
-class ClassifierDeciderQueue:
-
-    quit = False
-
-    def __init__(self):
-
-        logger.info('ClassifierDeciderQueue __init__')
-
-        self._process_queue = []
-        self._process_queue_sem = Semaphore(0)
-        self._main_sem = Semaphore(1)
-
-        self._model, self._device = thread_store.get_model()
-
-        self._decider = thread_store.get_decider()
-        self._rank_intervalls = np.linspace(0.001, 0.1, 100)
-        self._quantiles = np.linspace(0.1, 1, 10)
-
-        self._threshold = app.config['DECISION_THRESHOLD']
-        self._return_full = False
-
-        self._sequence = self.process_sequence()
-
-    def run(self, job_sequence, len_sequence, return_full, threshold):
-
-        self._main_sem.acquire()
-
-        _threshold, self._threshold = self._threshold, threshold
-        _return_full, self._return_full = self._return_full, return_full
-
-        self._process_queue.append((job_sequence, len_sequence))
-
-        self._process_queue_sem.release()
-
-        ret = next(self._sequence)
-
-        self._threshold = _threshold
-        self._return_full = _return_full
-
-        self._main_sem.release()
-
-        return ret
-
-    def process_sequence(self):
-
-        complete_result = OrderedDict()
-
-        for eid, result in prun(self.get_decider_tasks(), initializer=DeciderTask.initialize,
-                                initargs=(self._decider,), processes=app.config['DECIDER_PROCESSES']):
-
-            if eid is None:
-                yield complete_result
-                complete_result = OrderedDict()
-                continue
-
-            if result is None:
-                continue
-
-            complete_result[eid] = result
-
-    def get_decider_tasks(self):
-
-        while True:
-
-            if not self.wait(self._process_queue_sem):
-                return
-
-            job_sequence, len_sequence = self._process_queue.pop()
-
-            for entity_id, features, candidates in tqdm(job_sequence, total=len_sequence):
-
-                if len(candidates) == 0:
-                    yield DeciderTask(entity_id, None, None, quantiles=None, rank_intervalls=None, threshold=None)
-                    continue
-
-                all_input_ids = torch.tensor([f.input_ids for f in features], dtype=torch.long)
-                all_input_mask = torch.tensor([f.input_mask for f in features], dtype=torch.long)
-                all_segment_ids = torch.tensor([f.segment_ids for f in features], dtype=torch.long)
-                all_labels = torch.tensor([f.label for f in features], dtype=torch.long)
-
-                data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_labels)
-
-                sampler = SequentialSampler(data)
-
-                data_loader = DataLoader(data, sampler=sampler, batch_size=app.config['BATCH_SIZE'])
-
-                decision = model_predict_compare(data_loader, self._device, self._model, disable_output=True)
-                decision['guessed_title'] = [f.guid[1] for f in features]
-                decision['target'] = [f.guid[0] for f in features]
-                decision['scores'] = np.log(decision[1] / decision[0])
-
-                assert len(decision.target.unique()) == 1
-
-                yield DeciderTask(entity_id, decision, candidates, self._quantiles, self._rank_intervalls,
-                                  self._threshold, self._return_full)
-
-            yield DeciderTask(entity_id=None, decision=None, candidates=None, quantiles=None, rank_intervalls=None,
-                              threshold=None)
-
-    @staticmethod
-    def wait(sem=None):
-
-        while True:
-            if sem is not None and sem.acquire(timeout=10):
-                return True
-
-            if ClassifierDeciderQueue.quit:
-                return False
-
-            if sem is None:
-                return True
-
-
 @app.route('/ned', methods=['GET', 'POST'])
 def ned():
     return_full = request.args.get('return_full', default=False, type=bool)
@@ -461,10 +249,12 @@ def ned():
 
     classify_decider_queue = thread_store.get_classify_decider_queue()
 
-    ned_result = ned_lookup.run_on_features(parsed,
-                                            lambda job_sequence:
-                                            classify_decider_queue.run(job_sequence, len(parsed),
-                                                                       return_full, threshold))
+    def classify_and_decide_on_lookup_results(job_sequence):
+
+        return classify_decider_queue.run(job_sequence, len(parsed), return_full, threshold)
+
+    ned_result = ned_lookup.run_on_features(parsed, classify_and_decide_on_lookup_results)
+
     return jsonify(ned_result)
 
 
