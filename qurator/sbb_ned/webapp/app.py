@@ -6,17 +6,19 @@ from flask import Flask, send_from_directory, redirect, jsonify, request
 import json
 import pandas as pd
 import pickle
-
+import re
 import torch
 
 from qurator.sbb_ned.models.bert import get_device
 from qurator.sbb_ned.models.classifier_decider_queue import ClassifierDeciderQueue
-
+from qurator.wikipedia.entities import get_redirects
 from qurator.sbb_ner.models.tokenization import BertTokenizer
 from pytorch_pretrained_bert.modeling import (CONFIG_NAME, BertConfig, BertForSequenceClassification)
 
 from ..embeddings.base import load_embeddings
 from ..models.ned_lookup import NEDLookup
+
+from nltk.stem.snowball import SnowballStemmer
 
 app = Flask(__name__)
 
@@ -40,6 +42,10 @@ class ThreadStore:
 
         self.tokenizer = None
 
+        self._stemmer = None
+
+        self._redirects = None
+
         self.normalization_map = None
 
     def get_tokenizer(self):
@@ -54,6 +60,27 @@ class ThreadStore:
             BertTokenizer.from_pretrained(app.config['MODEL_DIR'], do_lower_case=model_config['do_lower'])
 
         return self.tokenizer
+
+    def get_stemmer(self):
+
+        if self._stemmer is not None:
+
+            return self._stemmer
+
+        self._stemmer = SnowballStemmer(app.config['STEMMER'])
+
+        return self._stemmer
+
+    def get_redirects(self):
+
+        if self._redirects is not None:
+            return self._redirects
+
+        all_entities = pd.read_pickle(app.config['ENTITIES_FILE'])
+
+        self._redirects, page = get_redirects(all_entities, app.config['WIKIPEDIA_SQL_FILE'])
+
+        return self._redirects
 
     def get_model(self):
 
@@ -104,7 +131,7 @@ class ThreadStore:
 
         return self.classify_decider_queue
 
-    def get_lookup(self):
+    def get_lookup_queue(self):
 
         if self.ned_lookup is not None:
 
@@ -205,6 +232,10 @@ def parse_entities():
 
     normalization_map = thread_store.get_normalization_map()
 
+    stemmer = thread_store.get_stemmer()
+
+    redirects = thread_store.get_redirects()
+
     for sent in ner:
 
         entity_ids, entities, entity_types, text_json, tags_json, entities_json = \
@@ -227,10 +258,19 @@ def parse_entities():
             if entity_id in parsed:
                 parsed[entity_id]['sentences'].append(parsed_sent)
             else:
-                surface = "".join([normalization_map[c] if c in normalization_map else c for c in entity])
+                normalized = "".join([normalization_map[c] if c in normalization_map else c for c in entity])
+                stem = " ".join([stemmer.stem(p) for p in re.split(' |-|_', normalized)])
+
+                surfaces = {normalized, stem}
+                if normalized in redirects.index:
+                    surfaces.add(redirects.loc[normalized].rd_title.replace('_', ' '))
+
+                surfaces = list(surfaces)
+
+                logger.debug(str(surfaces))
 
                 try:
-                    parsed[entity_id] = {'sentences': [parsed_sent], 'type': ent_type, 'surface': surface}
+                    parsed[entity_id] = {'sentences': [parsed_sent], 'type': ent_type, 'surfaces': surfaces}
                 except KeyError as e:
                     logger.error(str(e))
 
@@ -245,7 +285,7 @@ def ned():
 
     parsed = request.json
 
-    ned_lookup = thread_store.get_lookup()
+    ned_lookup_queue = thread_store.get_lookup_queue()
 
     classify_decider_queue = thread_store.get_classify_decider_queue()
 
@@ -253,7 +293,7 @@ def ned():
 
         return classify_decider_queue.run(job_sequence, len(parsed), return_full, threshold)
 
-    ned_result = ned_lookup.run_on_features(parsed, classify_and_decide_on_lookup_results)
+    ned_result = ned_lookup_queue.run_on_features(parsed, classify_and_decide_on_lookup_results)
 
     return jsonify(ned_result)
 

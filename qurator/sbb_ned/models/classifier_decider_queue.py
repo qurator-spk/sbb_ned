@@ -91,10 +91,12 @@ class ClassifierDeciderQueue:
 
             for entity_id, features, candidates in tqdm(job_sequence, total=len_sequence):
 
+                logger.debug("get_decider_tasks: {}".format(entity_id))
+
+                if entity_id is None:
+                    continue
+
                 if len(candidates) == 0:
-                    # signal to process sequence to just continue
-                    yield DeciderTask(entity_id, decision=None, candidates=None, quantiles=None, rank_intervalls=None,
-                                      threshold=None)
                     continue
 
                 all_input_ids = torch.tensor([f.input_ids for f in features], dtype=torch.long)

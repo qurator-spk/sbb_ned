@@ -21,9 +21,10 @@
   "PAIRING_PROCESSES": 8,
   "FEATURE_PROCESSES": 8,
   "DECIDER_PROCESSES": 8,
-  "MAX_CANDIDATES": 300,
+  "MAX_CANDIDATES": 100,
   "MAX_PAIRS": 50,
   "DECIDER_MODEL": "data/clef2020/max-pairs_150-dist_0.1/decider.pkl",
   "DECISION_THRESHOLD": 0.5,
-  "NORMALIZATION_TABLE": "data/char_normalization/normalization-table.pkl"
+  "NORMALIZATION_TABLE": "data/char_normalization/de-normalization-table.pkl",
+  "STEMMER": "german"
 }
