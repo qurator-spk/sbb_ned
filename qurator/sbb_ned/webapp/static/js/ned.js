@@ -74,7 +74,7 @@ function NED() {
         let post_data = input;
 
         $.ajax({
-                url:  "ned?return_full=true" ,
+                url:  "ned?return_full=false" ,
                 data: JSON.stringify(post_data),
                 type: 'POST',
                 contentType: "application/json",
@@ -132,6 +132,7 @@ function NED() {
         }
 
         if (!(entity in ner_parsed) ){
+            console.log(entity)
             $("#result-entities").html("NO NER DATA.");
             return;
         }
@@ -194,7 +195,8 @@ function NED() {
                 sentence.forEach(
                     function(token) {
 
-                         if ((entity_text != "") && ((token.prediction == 'O') || (token.prediction.startsWith('B-')))) {
+                         if ((entity_text != "") && ((token.prediction == 'O') || (token.prediction.startsWith('B-')))
+                               || (token.prediction != entity_type)) {
 
                             var selector = entity_text + ' ' + entity_type.slice(entity_type.length-3);
 
