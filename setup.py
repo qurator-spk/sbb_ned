@@ -36,7 +36,8 @@ setup(
         "sentence-stat=qurator.sbb_ned.ground_truth.clef_hipe_2020:sentence_stat",
         "train-decider=qurator.sbb_ned.models.decider:train",
         "test-decider=qurator.sbb_ned.models.decider:test",
-        "extract-normalization-table=qurator.sbb_ned.encoding.normalization:extract_normalization_table"
+        "extract-normalization-table=qurator.sbb_ned.encoding.normalization:extract_normalization_table",
+        "adapt-normalization-table=qurator.sbb_ned.encoding.normalization:adapt_table_to_corpus"
       ]
     },
     python_requires='>=3.6.0',
