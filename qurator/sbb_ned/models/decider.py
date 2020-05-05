@@ -204,7 +204,7 @@ def train(data_file, model_file, n_jobs, include_prefix, exclude_prefix):
         ['label', 'wikidata_gt', 'wikidata', 'guessed_title'])
 
     if len(include_prefix) > 0:
-        X_columns =[c for c in X_columns 
+        X_columns = [c for c in X_columns
                     if any([c.startswith(p) for p in include_prefix])]
 
     if len(exclude_prefix) > 0:
