@@ -13,4 +13,5 @@ flask
 somajo
 gensim
 annoy
+nltk
 
