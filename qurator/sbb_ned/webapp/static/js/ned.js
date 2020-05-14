@@ -224,7 +224,7 @@ function NED() {
                                            '</font> ';
 
                             entities.push(entity_text);
-                            entity_types.push(entity_type.slice(entity_type.length-3));
+                            entity_types.push(entity_type);
                             entity_text = "";
                         }
 
@@ -235,7 +235,7 @@ function NED() {
                             text_html += token.word;
                          }
                          else {
-                            entity_type = token.prediction
+                            entity_type = token.prediction.slice(-3)
 
                             if (entity_text != "") entity_text += " ";
 
@@ -245,7 +245,7 @@ function NED() {
 
                  if ((entity_text != "") && (entity_text != null)) {
 
-                    var selector = entity_text + ' ' + entity_type.slice(entity_type.length-3);
+                    var selector = entity_text + ' ' + entity_type;
 
                     selector = selector.replace(/[^\w\s]|_/g, "").replace(/\s+/g, "-");
 
@@ -255,7 +255,7 @@ function NED() {
                                            '</font> ';
 
                     entities.push(entity_text);
-                    entity_types.push(entity_type.slice(entity_type.length-3));
+                    entity_types.push(entity_type);
                  }
 
                  text_html += '<br/>';
