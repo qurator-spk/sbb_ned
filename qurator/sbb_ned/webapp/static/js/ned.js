@@ -74,9 +74,11 @@ function NED() {
             return;
         }
 
-        if (input in ned_requested) return;
+        let keys = Object.keys(input);
 
-        ned_requested[input] = true;
+        if (keys in ned_requested) return;
+
+        ned_requested[keys] = true;
         ned_request_counter++;
 
         let post_data = input;
