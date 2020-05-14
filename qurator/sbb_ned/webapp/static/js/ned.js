@@ -64,7 +64,8 @@ function NED() {
         );
     }
 
-    let ned_request = null;
+    let ned_request_counter = 0;
+    let ned_requested = { };
 
     function runNED (input, onSuccess) {
 
@@ -73,14 +74,14 @@ function NED() {
             return;
         }
 
-        if (ned_request != null) {
-            ned_request.abort();
-            ned_request = null;
-        }
+        if (input in ned_requested) return;
+
+        ned_requested[input] = true;
+        ned_request_counter++;
 
         let post_data = input;
 
-        ned_request =
+        (function(current_counter) {
             $.ajax(
                 {
                     url:  "ned?return_full=false" ,
@@ -90,17 +91,19 @@ function NED() {
                     success:
                         function(result) {
                             Object.assign(ned_result, result);
+
+                            if (current_counter < ned_request_counter) return;
+
                             onSuccess(result);
-                            ned_request = null;
                         },
                     error:
                         function(error) {
                             console.log(error);
-                            ned_request = null;
                         },
                     timeout: 360000
                 }
             );
+        })(ned_request_counter);
     }
 
     function makeResultList(entities) {
