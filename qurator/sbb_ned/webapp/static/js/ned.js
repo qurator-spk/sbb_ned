@@ -64,6 +64,8 @@ function NED() {
         );
     }
 
+    let ned_request = null;
+
     function runNED (input, onSuccess) {
 
         if (ner_parsed == null) {
@@ -71,25 +73,34 @@ function NED() {
             return;
         }
 
+        if (ned_request != null) {
+            ned_request.abort();
+            ned_request = null;
+        }
+
         let post_data = input;
 
-        $.ajax({
-                url:  "ned?return_full=false" ,
-                data: JSON.stringify(post_data),
-                type: 'POST',
-                contentType: "application/json",
-                success:
-                    function(result) {
-                        Object.assign(ned_result, result);
-                        onSuccess(result);
-                    },
-                error:
-                    function(error) {
-                        console.log(error);
-                    },
-                timeout: 360000
-            }
-        );
+        ned_request =
+            $.ajax(
+                {
+                    url:  "ned?return_full=false" ,
+                    data: JSON.stringify(post_data),
+                    type: 'POST',
+                    contentType: "application/json",
+                    success:
+                        function(result) {
+                            Object.assign(ned_result, result);
+                            onSuccess(result);
+                            ned_request = null;
+                        },
+                    error:
+                        function(error) {
+                            console.log(error);
+                            ned_request = null;
+                        },
+                    timeout: 360000
+                }
+            );
     }
 
     function makeResultList(entities) {
