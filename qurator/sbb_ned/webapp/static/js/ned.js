@@ -212,7 +212,7 @@ function NED() {
                     function(token) {
 
                          if ((entity_text != "") && ((token.prediction == 'O') || (token.prediction.startsWith('B-')))
-                               || (token.prediction != entity_type)) {
+                               || (token.prediction.slice(-3) != entity_type)) {
 
                             var selector = entity_text + ' ' + entity_type.slice(entity_type.length-3);
 
