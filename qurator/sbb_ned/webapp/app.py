@@ -22,7 +22,7 @@ from nltk.stem.snowball import SnowballStemmer
 
 app = Flask(__name__)
 
-app.config.from_json('config.json' if not os.environ.get('CONFIG') else os.environ.get('CONFIG'))
+app.config.from_json('de-config.json' if not os.environ.get('CONFIG') else os.environ.get('CONFIG'))
 
 logger = logging.getLogger(__name__)
 
