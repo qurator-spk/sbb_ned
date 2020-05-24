@@ -25,6 +25,9 @@ from ..ground_truth.data_processor import ConvertSamples2Features, InputExample
 #                     datefmt='%m/%d/%Y %H:%M:%S',
 #                     level=logging.INFO)
 
+logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
+                    datefmt='%m/%d/%Y %H:%M:%S',
+                    level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
@@ -285,7 +288,7 @@ class NEDLookup:
 
                 for surface in entity_info['surfaces']:
 
-                    logger.debug("{}: {}".format(entity_id, surface))
+                    print("get_entity: {} / {}".format(entity_id, surface))
 
                     yield entity_id, sentences, surface, entity_info['type']
 
@@ -411,7 +414,7 @@ class NEDLookup:
 
                 entity_id, fe, cand = next(self._sequence)
 
-                logger.debug('job_sequence: {} ({},{})'.format(entity_id, len(fe), len(cand)))
+                print('job_sequence: {} ({},{})'.format(entity_id, len(fe), len(cand)))
 
                 yield entity_id, fe, cand
 

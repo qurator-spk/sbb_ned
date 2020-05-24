@@ -197,7 +197,9 @@ fr-ned-train-0:
 
 CLEF_SCORER_PATH ?=~/qurator/CLEF-HIPE-2020-scorer
 CLEF_PATH ?=~/qurator/CLEF-HIPE-2020
-CLEF_TARGET_PATH ?=$(DATA_PATH)/clef2020
+#CLEF_TARGET_PATH ?=$(DATA_PATH)/clef2020
+CLEF_TARGET_PATH ?=$(DATA_PATH)/clef2020-2
+NED_THRESHOLD ?= 0.2
 
 DE_NER_URL ?=http://b-lx0053.sbb.spk-berlin.de/sbb-tools/ner/ner/0
 FR_NER_URL ?=http://b-lx0053.sbb.spk-berlin.de/sbb-tools/ner/ner/1
@@ -226,26 +228,30 @@ $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-train-en.tsv:
 CLEF2020-tsc:	$(CLEF_TARGET_PATH) $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-dev-de.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-train-de.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-dev-fr.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-train-fr.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-dev-en.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-train-en.tsv
 
 # ==================================================
-
+#
+$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-train-de.tsv:	$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-train-de.json
 $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-train-de.json:	$(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-train-de.tsv
-	find-entities --noproxy $^ $*.tsv --ned-json-file=$@ --ner-rest-endpoint=$(DE_NER_URL) --ned-rest-endpoint=$(DE_NED_URL)
+	find-entities --ned-threshold=$(NED_THRESHOLD) --noproxy $^ $(basename $@).tsv --ned-json-file=$@ --ner-rest-endpoint=$(DE_NER_URL) --ned-rest-endpoint=$(DE_NED_URL)
 
+$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-dev-de.tsv:	$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-dev-de.json
 $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-dev-de.json:	$(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-dev-de.tsv
-	find-entities --noproxy $^ $*.tsv --ned-json-file=$@ --ner-rest-endpoint=$(DE_NER_URL) --ned-rest-endpoint=$(DE_NED_URL)
+	find-entities --ned-threshold=$(NED_THRESHOLD) --noproxy $^ $(basename $@).tsv --ned-json-file=$@ --ner-rest-endpoint=$(DE_NER_URL) --ned-rest-endpoint=$(DE_NED_URL)
 
-
+$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-train-fr.tsv:	$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-train-fr.json
 $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-train-fr.json:	$(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-train-fr.tsv
-	find-entities --noproxy $^ $(basename $@).tsv --ned-json-file=$@ --ner-rest-endpoint=$(FR_NER_URL) --ned-rest-endpoint=$(FR_NED_URL)
+	find-entities --ned-threshold=$(NED_THRESHOLD) --noproxy $^ $(basename $@).tsv --ned-json-file=$@ --ner-rest-endpoint=$(FR_NER_URL) --ned-rest-endpoint=$(FR_NED_URL)
 
+$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-dev-fr.tsv:		$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-dev-fr.json
 $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-dev-fr.json:	$(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-dev-fr.tsv
-	find-entities --noproxy $^ $*.tsv --ned-json-file=$@ --ner-rest-endpoint=$(FR_NER_URL) --ned-rest-endpoint=$(FR_NED_URL)
+	find-entities --ned-threshold=$(NED_THRESHOLD) --noproxy $^ $(basename $@).tsv --ned-json-file=$@ --ner-rest-endpoint=$(FR_NER_URL) --ned-rest-endpoint=$(FR_NED_URL)
 
-
+$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-train-en.tsv:	$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-train-en.json
 $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-train-en.json:	$(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-train-en.tsv
-	find-entities --noproxy $^ $(basename $@).tsv --ned-json-file=$@ --ner-rest-endpoint=$(EN_NER_URL) --ned-rest-endpoint=$(EN_NED_URL)
+	find-entities --ned-threshold=$(NED_THRESHOLD) --noproxy $^ $(basename $@).tsv --ned-json-file=$@ --ner-rest-endpoint=$(EN_NER_URL) --ned-rest-endpoint=$(EN_NED_URL)
 
+$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-dev-en.tsv:		$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-dev-en.json
 $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-dev-en.json:	$(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-dev-en.tsv
-	find-entities --noproxy $^ $*.tsv --ned-json-file=$@ --ner-rest-endpoint=$(EN_NER_URL) --ned-rest-endpoint=$(EN_NED_URL)
+	find-entities --ned-threshold=$(NED_THRESHOLD) --noproxy $^ $(basename $@).tsv --ned-json-file=$@ --ner-rest-endpoint=$(EN_NER_URL) --ned-rest-endpoint=$(EN_NED_URL)
 
 
 CLEF2020-de-json: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-train-de.json $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-dev-de.json
@@ -256,21 +262,21 @@ CLEF2020-en-json: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-train-en.json $(CL
 
 # ==================================================
 
-$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-train-de.tsv: $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-train-de.tsv $(CLEF_PATH)/data/training-v1.2/de/HIPE-data-v1.2-train-de.tsv
+$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-train-de.tsv: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-train-de.tsv $(CLEF_PATH)/data/training-v1.2/de/HIPE-data-v1.2-train-de.tsv
 	tsv2clef $^ $@
-$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-dev-de.tsv: $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-dev-de.tsv $(CLEF_PATH)/data/training-v1.2/de/HIPE-data-v1.2-dev-de.tsv
-	tsv2clef $^ $@
-
-
-$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-train-fr.tsv: $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-train-fr.tsv $(CLEF_PATH)/data/training-v1.2/fr/HIPE-data-v1.2-train-fr.tsv
-	tsv2clef $^ $@
-$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-dev-fr.tsv: $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-dev-fr.tsv $(CLEF_PATH)/data/training-v1.2/fr/HIPE-data-v1.2-dev-fr.tsv
+$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-dev-de.tsv: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-dev-de.tsv $(CLEF_PATH)/data/training-v1.2/de/HIPE-data-v1.2-dev-de.tsv
 	tsv2clef $^ $@
 
 
-$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-train-en.tsv: $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-train-en.tsv $(CLEF_PATH)/data/training-v1.2/en/HIPE-data-v1.2-train-en.tsv
+$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-train-fr.tsv: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-train-fr.tsv $(CLEF_PATH)/data/training-v1.2/fr/HIPE-data-v1.2-train-fr.tsv
 	tsv2clef $^ $@
-$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-dev-en.tsv: $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-dev-en.tsv $(CLEF_PATH)/data/training-v1.2/en/HIPE-data-v1.2-dev-en.tsv
+$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-dev-fr.tsv: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-dev-fr.tsv $(CLEF_PATH)/data/training-v1.2/fr/HIPE-data-v1.2-dev-fr.tsv
+	tsv2clef $^ $@
+
+
+$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-train-en.tsv: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-train-en.tsv $(CLEF_PATH)/data/training-v1.2/en/HIPE-data-v1.2-train-en.tsv
+	tsv2clef $^ $@
+$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-dev-en.tsv: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-dev-en.tsv $(CLEF_PATH)/data/training-v1.2/en/HIPE-data-v1.2-dev-en.tsv
 	tsv2clef $^ $@
 
 
@@ -282,25 +288,65 @@ CLEF2020-en-result: $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-train-en.
 
 # ===================================================
 
-CLEF2020-de-eval-nel: $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-train-de.tsv
-	python $(CLEF_SCORER_PATH)/clef_evaluation.py -s -r $(CLEF_PATH)/data/training-v1.2/de/HIPE-data-v1.2-train-de.tsv -p $^ -t nel -o $(CLEF_TARGET_PATH)
+CLEF2020-de-train-eval-nel: $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-train-de.tsv
+	python $(CLEF_SCORER_PATH)/clef_evaluation.py -s --n_best=3 -p $^ -r $(CLEF_PATH)/data/training-v1.2/de/HIPE-data-v1.2-train-de.tsv -t nel -o $(CLEF_TARGET_PATH)
+
+CLEF2020-de-dev-eval-nel: $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-dev-de.tsv
+	python $(CLEF_SCORER_PATH)/clef_evaluation.py -s --n_best=3 -p $^ -r $(CLEF_PATH)/data/training-v1.2/de/HIPE-data-v1.2-dev-de.tsv -t nel -o $(CLEF_TARGET_PATH)
+
+CLEF2020-fr-train-eval-nel: $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-train-fr.tsv
+	python $(CLEF_SCORER_PATH)/clef_evaluation.py -s --n_best=3 -p $^ -r $(CLEF_PATH)/data/training-v1.2/fr/HIPE-data-v1.2-train-fr.tsv -t nel -o $(CLEF_TARGET_PATH)
+
+CLEF2020-fr-dev-eval-nel: $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-dev-fr.tsv
+	python $(CLEF_SCORER_PATH)/clef_evaluation.py -s --n_best=3 -p $^ -r $(CLEF_PATH)/data/training-v1.2/fr/HIPE-data-v1.2-dev-fr.tsv -t nel -o $(CLEF_TARGET_PATH)
+
+CLEF2020-en-dev-eval-nel: $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-dev-en.tsv
+	python $(CLEF_SCORER_PATH)/clef_evaluation.py -s --n_best=3 -p $^ -r $(CLEF_PATH)/data/training-v1.2/en/HIPE-data-v1.2-dev-en.tsv -t nel -o $(CLEF_TARGET_PATH)
+
+CLEF2020-de-eval: $(CLEF_TARGET_PATH) CLEF2020-de-train-eval-nel CLEF2020-de-dev-eval-nel
+ 
+CLEF2020-fr-eval: $(CLEF_TARGET_PATH) CLEF2020-fr-train-eval-nel CLEF2020-fr-dev-eval-nel
+
+CLEF2020-en-eval: $(CLEF_TARGET_PATH) CLEF2020-en-dev-eval-nel
+
+
+CLEF2020-eval: $(CLEF_TARGET_PATH) CLEF2020-de-train-eval-nel CLEF2020-de-dev-eval-nel CLEF2020-fr-train-eval-nel CLEF2020-fr-dev-eval-nel CLEF2020-en-dev-eval-nel
 
 # ===============================================================================================================================================
 
-$(CLEF_TARGET_PATH)/de-decider-train-dataset.pkl: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-train-de.tsv $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-train-de.json $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-train-de.tsv
-	sentence-stat $^ $@
+$(CLEF_TARGET_PATH)/de-decider-train-dataset.pkl: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-train-de.json $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-train-de.tsv
+	sentence-stat $(basename $<).tsv $^ $@
 
-CLEF2020-decider-train-data: $(CLEF_TARGET_PATH)/de-decider-train-dataset.pkl
+$(CLEF_TARGET_PATH)/fr-decider-train-dataset.pkl: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-train-fr.json $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-train-fr.tsv
+	sentence-stat $(basename $<).tsv $^ $@
+
+$(CLEF_TARGET_PATH)/en-decider-train-dataset.pkl: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-dev-en.json $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-dev-en.tsv
+	sentence-stat $(basename $<).tsv $^ $@
+
+
+CLEF2020-decider-train-data: $(CLEF_TARGET_PATH)/de-decider-train-dataset.pkl $(CLEF_TARGET_PATH)/fr-decider-train-dataset.pkl $(CLEF_TARGET_PATH)/en-decider-train-dataset.pkl
+
+# =====================================
 
 $(CLEF_TARGET_PATH)/de-decider-dev-dataset.pkl: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-dev-de.tsv $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-dev-de.json $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-dev-de.tsv
 	sentence-stat $^ $@
 
 CLEF2020-decider-dev-data: $(CLEF_TARGET_PATH)/de-decider-dev-dataset.pkl
 
+# =====================================
+
 $(CLEF_TARGET_PATH)/de-decider.pkl: $(CLEF_TARGET_PATH)/de-decider-train-dataset.pkl
 	train-decider $^ $@
 
-CLEF2020-decider: $(CLEF_TARGET_PATH)/de-decider.pkl
+$(CLEF_TARGET_PATH)/fr-decider.pkl: $(CLEF_TARGET_PATH)/fr-decider-train-dataset.pkl
+	train-decider $^ $@
+
+$(CLEF_TARGET_PATH)/en-decider.pkl: $(CLEF_TARGET_PATH)/en-decider-train-dataset.pkl
+	train-decider $^ $@
+
+
+CLEF2020-decider: $(CLEF_TARGET_PATH)/de-decider.pkl $(CLEF_TARGET_PATH)/fr-decider.pkl $(CLEF_TARGET_PATH)/en-decider.pkl
+
 
 # ================================================================================================================================================
 

@@ -26,6 +26,7 @@ app.config.from_json('de-config.json' if not os.environ.get('CONFIG') else os.en
 
 logger = logging.getLogger(__name__)
 
+logging.basicConfig(level=logging.DEBUG)
 
 class ThreadStore:
 
@@ -294,6 +295,8 @@ def ned():
         return classify_decider_queue.run(job_sequence, len(parsed), return_full, threshold)
 
     ned_result = ned_lookup_queue.run_on_features(parsed, classify_and_decide_on_lookup_results)
+
+    torch.cuda.empty_cache()
 
     return jsonify(ned_result)
 
