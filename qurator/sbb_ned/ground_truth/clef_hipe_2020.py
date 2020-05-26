@@ -11,12 +11,17 @@ import logging
 from qurator.utils.parallel import run as prun
 from ..models.decider import features
 
+from somajo import Tokenizer, SentenceSplitter
+
+
 logger = logging.getLogger(__name__)
 
 
 def read_clef(clef_file):
 
     with open(clef_file, 'r') as f:
+
+        sentence_splitter = SentenceSplitter()
 
         docs = []
         segments = []
@@ -50,9 +55,14 @@ def read_clef(clef_file):
 
         def make_doc():
 
-            nonlocal docs, segments
+            nonlocal docs, segments, sentence_splitter
 
-            docs.append(pd.concat(segments))
+            doc = pd.concat(segments)
+
+            sentences = sentence_splitter.split(doc.TOKEN.astype(str).to_list())
+            doc['TOKEN_ID'] = [i for s in sentences for i in range(len(s))]
+            
+            docs.append(doc)
             segments = []
 
         for line in tqdm(f):

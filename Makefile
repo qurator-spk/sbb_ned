@@ -225,7 +225,15 @@ $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-dev-en.tsv:
 $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-train-en.tsv:
 	clef2tsv $(CLEF_PATH)/data/training-v1.2/en/HIPE-data-v1.2-train-en.tsv $@
 
-CLEF2020-tsc:	$(CLEF_TARGET_PATH) $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-dev-de.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-train-de.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-dev-fr.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-train-fr.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-dev-en.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-train-en.tsv
+$(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-test-masked-de.tsv:
+	clef2tsv $(CLEF_PATH)/data/test-masked-v1.2/de/HIPE-data-v1.2-test-masked-de.tsv $@
+$(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-test-masked-fr.tsv:
+	clef2tsv $(CLEF_PATH)/data/test-masked-v1.2/fr/HIPE-data-v1.2-test-masked-fr.tsv $@
+$(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-test-masked-en.tsv:
+	clef2tsv $(CLEF_PATH)/data/test-masked-v1.2/en/HIPE-data-v1.2-test-masked-en.tsv $@
+
+
+CLEF2020-tsc:	$(CLEF_TARGET_PATH) $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-dev-de.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-train-de.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-dev-fr.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-train-fr.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-dev-en.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-train-en.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-test-masked-de.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-test-masked-fr.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-test-masked-en.tsv 
 
 # ==================================================
 #
@@ -259,6 +267,25 @@ CLEF2020-de-json: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-train-de.json $(CL
 CLEF2020-fr-json: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-train-fr.json $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-dev-fr.json
 
 CLEF2020-en-json: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-train-en.json $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-dev-en.json
+
+
+$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-test-masked-de.tsv:		$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-test-masked-de.json
+$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-test-masked-de.json:	$(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-test-masked-de.tsv
+	find-entities --ned-threshold=$(NED_THRESHOLD) --noproxy $^ $(basename $@).tsv --ned-json-file=$@ --ner-rest-endpoint=$(DE_NER_URL) --ned-rest-endpoint=$(DE_NED_URL)
+
+$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-test-masked-fr.tsv:		$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-test-masked-fr.json
+$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-test-masked-fr.json:	$(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-test-masked-fr.tsv
+	find-entities --ned-threshold=$(NED_THRESHOLD) --noproxy $^ $(basename $@).tsv --ned-json-file=$@ --ner-rest-endpoint=$(FR_NER_URL) --ned-rest-endpoint=$(FR_NED_URL)
+
+$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-test-masked-en.tsv:		$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-test-masked-en.json
+$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-test-masked-en.json:	$(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-test-masked-en.tsv
+	find-entities --ned-threshold=$(NED_THRESHOLD) --noproxy $^ $(basename $@).tsv --ned-json-file=$@ --ner-rest-endpoint=$(EN_NER_URL) --ned-rest-endpoint=$(EN_NED_URL)
+
+CLEF2020-de-test-masked: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-test-masked-de.json
+
+CLEF2020-fr-test-masked: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-test-masked-fr.json
+
+CLEF2020-en-test-masked: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-test-masked-en.json
 
 # ==================================================
 
