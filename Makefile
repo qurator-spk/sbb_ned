@@ -307,6 +307,16 @@ $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-dev-en.tsv: $(CLEF_TARGET_PAT
 	tsv2clef $^ $@
 
 
+$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-test-masked-de.tsv: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-test-masked-de.tsv $(CLEF_PATH)/data/test-masked-v1.2/de/HIPE-data-v1.2-test-masked-de.tsv
+	tsv2clef $^ $@
+$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-test-masked-fr.tsv: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-test-masked-fr.tsv $(CLEF_PATH)/data/test-masked-v1.2/fr/HIPE-data-v1.2-test-masked-fr.tsv
+	tsv2clef $^ $@
+$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-test-masked-en.tsv: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-test-masked-en.tsv $(CLEF_PATH)/data/test-masked-v1.2/en/HIPE-data-v1.2-test-masked-en.tsv
+	tsv2clef $^ $@
+
+CLEF2020-neat-result:  $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-test-masked-de.tsv $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-test-masked-fr.tsv $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-test-masked-en.tsv
+	zip -j CLEF2020-neat.zip $^
+
 CLEF2020-de-result: $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-train-de.tsv $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-dev-de.tsv
 
 CLEF2020-fr-result: $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-train-fr.tsv $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-dev-fr.tsv
@@ -318,11 +328,13 @@ CLEF2020-en-result: $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-train-en.
 CLEF2020-de-train-eval-nel: $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-train-de.tsv
 	python $(CLEF_SCORER_PATH)/clef_evaluation.py -s --n_best=3 -p $^ -r $(CLEF_PATH)/data/training-v1.2/de/HIPE-data-v1.2-train-de.tsv -t nel -o $(CLEF_TARGET_PATH)
 
-CLEF2020-de-dev-eval-nel: $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-dev-de.tsv
-	python $(CLEF_SCORER_PATH)/clef_evaluation.py -s --n_best=3 -p $^ -r $(CLEF_PATH)/data/training-v1.2/de/HIPE-data-v1.2-dev-de.tsv -t nel -o $(CLEF_TARGET_PATH)
-
 CLEF2020-fr-train-eval-nel: $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-train-fr.tsv
 	python $(CLEF_SCORER_PATH)/clef_evaluation.py -s --n_best=3 -p $^ -r $(CLEF_PATH)/data/training-v1.2/fr/HIPE-data-v1.2-train-fr.tsv -t nel -o $(CLEF_TARGET_PATH)
+
+# ===================================================
+
+CLEF2020-de-dev-eval-nel: $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-dev-de.tsv
+	python $(CLEF_SCORER_PATH)/clef_evaluation.py -s --n_best=3 -p $^ -r $(CLEF_PATH)/data/training-v1.2/de/HIPE-data-v1.2-dev-de.tsv -t nel -o $(CLEF_TARGET_PATH)
 
 CLEF2020-fr-dev-eval-nel: $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-dev-fr.tsv
 	python $(CLEF_SCORER_PATH)/clef_evaluation.py -s --n_best=3 -p $^ -r $(CLEF_PATH)/data/training-v1.2/fr/HIPE-data-v1.2-dev-fr.tsv -t nel -o $(CLEF_TARGET_PATH)
@@ -330,14 +342,49 @@ CLEF2020-fr-dev-eval-nel: $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-dev
 CLEF2020-en-dev-eval-nel: $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-dev-en.tsv
 	python $(CLEF_SCORER_PATH)/clef_evaluation.py -s --n_best=3 -p $^ -r $(CLEF_PATH)/data/training-v1.2/en/HIPE-data-v1.2-dev-en.tsv -t nel -o $(CLEF_TARGET_PATH)
 
+# ===================================================
+
+RUNNUMBER ?=1
+
+CLEF2020-test-de-eval-nel: $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-dev-de.tsv
+	cp $^ SBB_bundle2_de_$(RUNNUMBER).tsv
+	python $(CLEF_SCORER_PATH)/clef_evaluation.py --n_best=3 -p SBB_bundle2_de_$(RUNNUMBER).tsv -r $(CLEF_PATH)/data/training-v1.2/de/HIPE-data-v1.2-dev-de.tsv -t nel -o $(CLEF_TARGET_PATH)
+
+CLEF2020-test-fr-eval-nel: $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-dev-fr.tsv
+	cp $^ SBB_bundle2_fr_$(RUNNUMBER).tsv
+	python $(CLEF_SCORER_PATH)/clef_evaluation.py --n_best=3 -p SBB_bundle2_fr_$(RUNNUMBER).tsv -r $(CLEF_PATH)/data/training-v1.2/fr/HIPE-data-v1.2-dev-fr.tsv -t nel -o $(CLEF_TARGET_PATH)
+
+CLEF2020-test-en--eval-nel: $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-dev-en.tsv
+	cp $^ SBB_bundle2_en_$(RUNNUMBER).tsv
+	python $(CLEF_SCORER_PATH)/clef_evaluation.py --n_best=3 -p SBB_bundle2_en_$(RUNNUMBER).tsv -r $(CLEF_PATH)/data/training-v1.2/en/HIPE-data-v1.2-dev-en.tsv -t nel -o $(CLEF_TARGET_PATH)
+
+
+
 CLEF2020-de-eval: $(CLEF_TARGET_PATH) CLEF2020-de-train-eval-nel CLEF2020-de-dev-eval-nel
  
 CLEF2020-fr-eval: $(CLEF_TARGET_PATH) CLEF2020-fr-train-eval-nel CLEF2020-fr-dev-eval-nel
 
 CLEF2020-en-eval: $(CLEF_TARGET_PATH) CLEF2020-en-dev-eval-nel
 
+CLEF2020-test-eval: CLEF2020-test-de-eval-nel CLEF2020-test-fr-eval-nel CLEF2020-test-en--eval-nel
 
-CLEF2020-eval: $(CLEF_TARGET_PATH) CLEF2020-de-train-eval-nel CLEF2020-de-dev-eval-nel CLEF2020-fr-train-eval-nel CLEF2020-fr-dev-eval-nel CLEF2020-en-dev-eval-nel
+CLEF2020-train-dev-eval: $(CLEF_TARGET_PATH) CLEF2020-de-train-eval-nel CLEF2020-de-dev-eval-nel CLEF2020-fr-train-eval-nel CLEF2020-fr-dev-eval-nel CLEF2020-en-dev-eval-nel
+
+# =================================
+
+$(CLEF_TARGET_PATH)/SBB_bundle2_de_1.tsv:	$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-test-masked-de.tsv
+	cp $^ $@
+
+$(CLEF_TARGET_PATH)/SBB_bundle2_fr_1.tsv:	$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-test-masked-fr.tsv
+	cp $^ $@
+
+$(CLEF_TARGET_PATH)/SBB_bundle2_en_1.tsv:	$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-test-masked-en.tsv
+	cp $^ $@
+
+CLEF2020-eval:	$(CLEF_TARGET_PATH)/SBB_bundle2_de_$(RUNNUMBER).tsv $(CLEF_TARGET_PATH)/SBB_bundle2_fr_$(RUNNUMBER).tsv $(CLEF_TARGET_PATH)/SBB_bundle2_en_$(RUNNUMBER).tsv
+	zip -j SBB_submission_$(RUNNUMBER).zip $^
+	
+
 
 # ===============================================================================================================================================
 
