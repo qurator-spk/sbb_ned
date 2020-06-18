@@ -34,7 +34,7 @@ server {
     client_max_body_size 2048M;
 
     location /sbb-tools/ner/ {
-     proxy_pass http://localhost:8080/;
+     proxy_pass http://localhost:5000/;
      proxy_connect_timeout       360000s;
      proxy_send_timeout          360000s;
      proxy_read_timeout          360000s;
@@ -42,7 +42,7 @@ server {
     }
 
     location /sbb-tools/ned/ {
-     proxy_pass http://localhost:8081/;
+     proxy_pass http://localhost:5001/;
      proxy_connect_timeout       360000s;
      proxy_send_timeout          360000s;
      proxy_read_timeout          360000s;
@@ -101,7 +101,7 @@ tar -xzf models.tar.gz
 Run webapp directly:
 
 ```
-env CONFIG=de-config.json env FLASK_APP=qurator/sbb_ned/webapp/app.py env FLASK_ENV=development env USE_CUDA=True flask run --host=0.0.0.0 --port=8081
+env CONFIG=de-config.json env FLASK_APP=qurator/sbb_ned/webapp/app.py env FLASK_ENV=development env USE_CUDA=True flask run --host=0.0.0.0 --port=5001
 ```
 
 Set USE_CUDA=False, if you do not have a GPU available/installed.
