@@ -233,6 +233,14 @@ $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-test-masked-en.tsv:
 	clef2tsv $(CLEF_PATH)/data/test-masked-v1.2/en/HIPE-data-v1.2-test-masked-en.tsv $@
 
 
+$(CLEF_TARGET_PATH)/neat-HIPE-data-v1.3-test-masked-bundle5-de.tsv:
+	clef2tsv $(CLEF_PATH)/data/test-masked-v1.3/de/HIPE-data-v1.3-test-masked-bundle5-de.tsv $@
+$(CLEF_TARGET_PATH)/neat-HIPE-data-v1.3-test-masked-bundle5-fr.tsv:
+	clef2tsv $(CLEF_PATH)/data/test-masked-v1.3/fr/HIPE-data-v1.3-test-masked-bundle5-fr.tsv $@
+$(CLEF_TARGET_PATH)/neat-HIPE-data-v1.3-test-masked-bundle5-en.tsv:
+	clef2tsv $(CLEF_PATH)/data/test-masked-v1.3/en/HIPE-data-v1.3-test-masked-bundle5-en.tsv $@
+
+
 CLEF2020-tsc:	$(CLEF_TARGET_PATH) $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-dev-de.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-train-de.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-dev-fr.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-train-fr.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-dev-en.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-train-en.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-test-masked-de.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-test-masked-fr.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-test-masked-en.tsv 
 
 # ==================================================
@@ -287,6 +295,26 @@ CLEF2020-fr-test-masked: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-test-masked
 
 CLEF2020-en-test-masked: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-test-masked-en.json
 
+
+$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.3-test-masked-bundle5-de.tsv:		$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.3-test-masked-bundle5-de.json
+$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.3-test-masked-bundle5-de.json:	$(CLEF_TARGET_PATH)/neat-HIPE-data-v1.3-test-masked-bundle5-de.tsv
+	find-entities --ned-threshold=$(NED_THRESHOLD) --noproxy $^ $(basename $@).tsv --ned-json-file=$@ --ned-rest-endpoint=$(DE_NED_URL)
+
+$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.3-test-masked-bundle5-fr.tsv:		$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.3-test-masked-bundle5-fr.json
+$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.3-test-masked-bundle5-fr.json:	$(CLEF_TARGET_PATH)/neat-HIPE-data-v1.3-test-masked-bundle5-fr.tsv
+	find-entities --ned-threshold=$(NED_THRESHOLD) --noproxy $^ $(basename $@).tsv --ned-json-file=$@ --ned-rest-endpoint=$(FR_NED_URL)
+
+$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.3-test-masked-bundle5-en.tsv:		$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.3-test-masked-bundle5-en.json
+$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.3-test-masked-bundle5-en.json:	$(CLEF_TARGET_PATH)/neat-HIPE-data-v1.3-test-masked-bundle5-en.tsv
+	find-entities --ned-threshold=$(NED_THRESHOLD) --noproxy $^ $(basename $@).tsv --ned-json-file=$@ --ned-rest-endpoint=$(EN_NED_URL)
+
+CLEF2020-de-test-masked-bundle5: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.3-test-masked-bundle5-de.json
+
+CLEF2020-fr-test-masked-bundle5: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.3-test-masked-bundle5-fr.json
+
+CLEF2020-en-test-masked-bundle5: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.3-test-masked-bundle5-en.json
+
+
 # ==================================================
 
 $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-train-de.tsv: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-train-de.tsv $(CLEF_PATH)/data/training-v1.2/de/HIPE-data-v1.2-train-de.tsv
@@ -316,6 +344,19 @@ $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-test-masked-en.tsv: $(CLEF_TA
 
 CLEF2020-neat-result:  $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-test-masked-de.tsv $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-test-masked-fr.tsv $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-test-masked-en.tsv
 	zip -j CLEF2020-neat.zip $^
+
+
+$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.3-test-masked-bundle5-de.tsv: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.3-test-masked-bundle5-de.tsv $(CLEF_PATH)/data/test-masked-v1.3/de/HIPE-data-v1.3-test-masked-bundle5-de.tsv
+	tsv2clef $^ $@
+$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.3-test-masked-bundle5-fr.tsv: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.3-test-masked-bundle5-fr.tsv $(CLEF_PATH)/data/test-masked-v1.3/fr/HIPE-data-v1.3-test-masked-bundle5-fr.tsv
+	tsv2clef $^ $@
+$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.3-test-masked-bundle5-en.tsv: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.3-test-masked-bundle5-en.tsv $(CLEF_PATH)/data/test-masked-v1.3/en/HIPE-data-v1.3-test-masked-bundle5-en.tsv
+	tsv2clef $^ $@
+
+CLEF2020-neat-result-bundle5:  $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.3-test-masked-bundle5-de.tsv $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.3-test-masked-bundle5-fr.tsv $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.3-test-masked-bundle5-en.tsv
+	zip -j CLEF2020-neat-bundle5.zip $^
+
+
 
 CLEF2020-de-result: $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-train-de.tsv $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-dev-de.tsv
 
@@ -384,6 +425,19 @@ $(CLEF_TARGET_PATH)/SBB_bundle2_en_1.tsv:	$(CLEF_TARGET_PATH)/CLEF-ned-result-HI
 CLEF2020-eval:	$(CLEF_TARGET_PATH)/SBB_bundle2_de_$(RUNNUMBER).tsv $(CLEF_TARGET_PATH)/SBB_bundle2_fr_$(RUNNUMBER).tsv $(CLEF_TARGET_PATH)/SBB_bundle2_en_$(RUNNUMBER).tsv
 	zip -j SBB_submission_$(RUNNUMBER).zip $^
 	
+# =================================
+
+$(CLEF_TARGET_PATH)/SBB_bundle5_de_1.tsv:	$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.3-test-masked-bundle5-de.tsv
+	cp $^ $@
+
+$(CLEF_TARGET_PATH)/SBB_bundle5_fr_1.tsv:	$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.3-test-masked-bundle5-fr.tsv
+	cp $^ $@
+
+$(CLEF_TARGET_PATH)/SBB_bundle5_en_1.tsv:	$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.3-test-masked-bundle5-en.tsv
+	cp $^ $@
+
+CLEF2020-eval-bundle5:	$(CLEF_TARGET_PATH)/SBB_bundle5_de_$(RUNNUMBER).tsv $(CLEF_TARGET_PATH)/SBB_bundle5_fr_$(RUNNUMBER).tsv $(CLEF_TARGET_PATH)/SBB_bundle5_en_$(RUNNUMBER).tsv
+	zip -j SBB_submission_$(RUNNUMBER)-bundle5.zip $^
 
 
 # ===============================================================================================================================================
