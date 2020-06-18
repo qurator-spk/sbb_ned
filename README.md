@@ -51,9 +51,11 @@ server {
 }
 ```
 
+NED web-interface is availabe at http://localhost/sbb-tools/ned/index.html . 
+
 NED as it is done by our system is computationally demanding, 
 therefore computations in particular for larger documents can take a long time.
-Therefore the nginx configuration contains the very high timeout setting for proxy 
+Therefore the nginx configuration contains the very high timeout settings for proxy 
 connections since otherwise the connection could break before the result of the 
 computation has been submitted.
 
@@ -103,6 +105,9 @@ Run webapp directly:
 ```
 env CONFIG=de-config.json env FLASK_APP=qurator/sbb_ned/webapp/app.py env FLASK_ENV=development env USE_CUDA=True flask run --host=0.0.0.0 --port=5001
 ```
+Replace de-config.json by fr-config.json or en-config.json to switch to french or english.
+Set USE_CUDA=False, if you do not have a GPU available/installed 
+(This NED already takes some time with GPU, it might not be feasible without GPU).
 
-Set USE_CUDA=False, if you do not have a GPU available/installed.
+***
 
