@@ -1,5 +1,5 @@
 
-![sbb-ner-demo example](.screenshots/sbb_ner_demo.png?raw=true)
+![sbb-ner-demo example](.screenshots/sbb_ned_demo.png?raw=true)
 
 # Named Entity Disambiguation
 
