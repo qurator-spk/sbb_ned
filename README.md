@@ -1,4 +1,3 @@
-
 ![sbb-ner-demo example](.screenshots/sbb_ned_demo.png?raw=true)
 
 ***
@@ -13,7 +12,7 @@ that accepts the NER-tagged input in JSON format.
 In order to try our NED-system, 
 you can either use some NER-tagger 
 and convert the output of that system into the expected format, 
-or you can download and install the [SBB-NER-tagger](../sbb_ner) 
+or you can download and install the [SBB-NER-tagger](sbb_ner/) 
 and use the output of that system
 as input of our NED-system.
 
