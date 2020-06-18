@@ -52,7 +52,10 @@ logger = logging.getLogger(__name__)
 def build(all_entities_file, embedding_type, entity_type, n_trees, output_path,
           n_processes, distance_measure, split_parts, model_path, layers, pooling, scalar_mix=False, max_iter=None):
     """
-    ALL_ENTITIES_FILE: Pandas DataFrame pickle containing all entites.
+    Create an approximative nearest neightbour index, based on the surface strings of entities that enables a fast
+    lookup of NE-candidates.
+
+    ALL_ENTITIES_FILE: Pandas DataFrame pickle that contains all entites.
 
     EMBEDDING_TYPE: Type of embedding [ fasttext, bert ]
 
@@ -90,6 +93,19 @@ def build(all_entities_file, embedding_type, entity_type, n_trees, output_path,
 def evaluate(tagged_parquet, embedding_type, entities_file, ent_type, n_trees,
              distance_measure, output_path, search_k, max_dist, processes, save_interval,
              split_parts, max_iter, model_path):
+    """
+    Evaluate the NE-lookup performance of some approximative nearest neighbour index.
+    Runs through a many Wikipedia texts where the occurrences of named entities have been marked.
+    Determines how often the ANN-index manages to provide the correct candidate among the nearest neighbours.
+
+    TAGGET_PARQUET: A sqlite file that contains the pre-processed wikipedia text (see tag_entities2sqlite for details)
+    EMBEDDING_TYPE: 'fasttext' or 'bert'
+    ENTITIES_FILE: The entity table as pickled Pandas DataFrame.
+    ENT_TYPE: What type of entities should be considered, for instance: 'PER', 'LOC' or 'ORG'.
+    N_TREES: Number trees in the approximative nearest neighbour index.
+    DISTANCE_MEASURE: of the approximative nearest neighbour index, i.e, 'angular' or 'euclidian'.
+    OUTPUT_PATH: Where to store the result.
+    """
 
     embeddings = load_embeddings(embedding_type, model_path=model_path)
 
