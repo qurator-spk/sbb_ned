@@ -1,4 +1,4 @@
-tensorflow-gpu==1.14.0
+tensorflow-gpu==1.15.2
 torch==1.2.0
 flair==0.4.3
 numpy==1.17.0 
