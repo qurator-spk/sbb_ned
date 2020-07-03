@@ -125,3 +125,175 @@ Set USE_CUDA=False, if you do not have a GPU available/installed
 Look into the relevant section of the [SBB-Tools README](https://github.com/qurator-spk/sbb_tools).
 
 ***
+
+# Creation of Approximative Nearest Neighbour Indices for Candidate Lookup:
+
+For entire processing chain look into the [Makefile](Makefile).
+
+## build-index
+
+```
+build-index --help
+
+Usage: build-index [OPTIONS] ALL_ENTITIES_FILE [fasttext|bert] ENTITY_TYPE
+                   N_TREES OUTPUT_PATH
+
+  Create an approximative nearest neightbour index, based on the surface
+  strings of entities that enables a fast lookup of NE-candidates.
+
+  ALL_ENTITIES_FILE: Pandas DataFrame pickle that contains all entites.
+
+  EMBEDDING_TYPE: Type of embedding [ fasttext, bert ]
+
+  ENTITY_TYPE: Type of entities, for instance ORG, LOC, PER ...
+
+  N_TREES: Number of trees in the approximative nearest neighbour index
+
+  OUTPUT_PATH: Where to write the result files.
+
+Options:
+  --n-processes INTEGER           Number of parallel processes. default: 6.
+  --distance-measure [angular|euclidean]
+                                  default: angular
+  --split-parts                   Process entity surfaces in parts.
+  --model-path PATH               From where to load the embedding model.
+  --layers TEXT                   Which layers to use. default -1,-2,-3,-4
+  --pooling TEXT                  How to pool the output for different
+                                  tokens/words. default: first.
+
+  --scalar-mix                    Use scalar mix of layers.
+  --max-iter INTEGER              Perform only max-iter iterations (for
+                                  testing purposes). default: process
+                                  everything.
+```
+
+***
+
+# Training of the evaluation model:
+
+For entire processing chain look into the [Makefile](Makefile).
+
+## ned-sentence-data:
+
+```
+ned-sentence-data --help
+
+Usage: ned-sentence-data [OPTIONS] TAGGED_SQLITE_FILE NED_SQLITE_FILE
+
+  TAGGED_SQLITE_FILE: A sqlite database file that contains all wikipedia
+  articles where the relevant entities have been tagged. This is a database
+  that gives per article access to the tagged sentences, it can be created
+  using 'tag-wiki-entities2sqlite'.
+
+  NED_SQLITE_FILE: Output database. This database gives fast per entity and
+  per sentence access, i.e., it provides a fast answer to the question:
+  "Give me all sentences where entity X is discussed."
+
+Options:
+  --processes INTEGER   number of parallel processes. default: 6
+  --writequeue INTEGER  size of database write queue. default: 1000.
+  --help                Show this message and exit.
+
+```
+
+## ned-train-test-split:
+
+```
+ned-train-test-split --help
+
+Usage: ned-train-test-split [OPTIONS] NED_SQL_FILE TRAIN_SET_FILE
+                            TEST_SET_FILE
+
+  Splits the sentence data into train and test set.
+
+  NED_SQL_FILE: See ned-sentence-data.
+
+  Output:
+
+  TRAIN_SET_FILE: Pickled pandas DataFrame that contains the sentence ids of
+  the training set.
+
+  TEST_SET_FILE: Pickled pandas DataFrame that contains the sentence ids of
+  the test set.
+
+Options:
+  --fraction-train FLOAT  fraction of training data.
+  --help                  Show this message and exit.
+
+```
+
+## ned-bert:
+
+```
+ned-bert --help
+Usage: ned-bert [OPTIONS] BERT_MODEL OUTPUT_DIR
+
+  bert_model: Bert pre-trained model selected in the list:
+
+              bert-base-uncased, bert-large-uncased, bert-base-cased,
+
+              bert-large-cased, bert-base-multilingual-uncased,
+
+              bert-base-multilingual-cased, bert-base-chinese.
+
+  output_dir: The output directory where the model predictions
+  and checkpoints will be written.
+
+Options:
+  --model-file PATH               Continue to train on this model file.
+  --train-set-file PATH           See ned-train-test-split.
+  --dev-set-file PATH             See ned-train-test-split.
+  --test-set-file PATH            See ned-train-test-split.
+  --train-size INTEGER
+  --dev-size INTEGER
+  --train-size INTEGER
+  --cache-dir PATH                Where do you want to store the pre-trained
+                                  models downloaded from s3
+
+  --max-seq-length INTEGER        The maximum total input sequence length
+                                  after WordPiece tokenization.  Sequences
+                                  longer than this will be truncated, and
+                                  sequences shorter   than this will be
+                                  padded.
+
+  --do-lower-case                 Set this flag if you are using an uncased
+                                  model.
+
+  --train-batch-size INTEGER      Total batch size for training.
+  --eval-batch-size INTEGER       Total batch size for eval.
+  --learning-rate FLOAT           The initial learning rate for Adam.
+  --weight-decay FLOAT            Weight decay for Adam.
+  --num-train-epochs FLOAT        Total number of training epochs to
+                                  perform/evaluate.
+
+  --warmup-proportion FLOAT       Proportion of training to perform linear
+                                  learning rate warmup for. E.g., 0.1 = 10%%
+                                  of training.
+
+  --no-cuda                       Whether not to use CUDA when available
+  --dry-run                       Test mode.
+  --local-rank INTEGER            local_rank for distributed training on gpus
+  --seed INTEGER                  random seed for initialization
+  --gradient-accumulation-steps INTEGER
+                                  Number of updates steps to accumulate before
+                                  performing a backward/update pass. default:
+                                  1
+
+  --fp16                          Whether to use 16-bit float precision
+                                  instead of 32-bit
+
+  --loss-scale FLOAT              Loss scaling to improve fp16 numeric
+                                  stability. Only used when fp16 set to True.
+                                  0 (default value): dynamic loss scaling.
+                                  Positive power of 2: static loss scaling
+                                  value.
+
+  --ned-sql-file PATH             See ned-sentence-data
+  --embedding-type [fasttext]
+  --embedding-model PATH
+  --n-trees INTEGER
+  --distance-measure [angular|euclidean]
+  --entity-index-path PATH
+  --entities-file PATH
+  --help                          Show this message and exit.
+```
