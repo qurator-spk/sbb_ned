@@ -16,7 +16,7 @@ or you can download and install the [SBB-NER-tagger](sbb_ner/)
 and use the output of that system
 as input of our NED-system.
 
-Please read the installation guide of the [SBB-NER-tagger](sbb_ner/) 
+Please read the installation guide of the [SBB-NER-tagger](https://github.com/qurator-spk/sbb_ner) 
 for more detailed information about the expected input format of the NED-system.
 
 If you want to use the NED - demo web interface as it is shown in the image above,
@@ -54,7 +54,7 @@ NED web-interface is availabe at http://localhost/sbb-tools/ned/index.html .
 
 NED as it is done by our system is computationally demanding, 
 therefore computations in particular for larger documents can take a long time.
-Therefore the nginx configuration contains the very high timeout settings for proxy 
+Therefore the nginx configuration contains very high timeout settings for proxy 
 connections since otherwise the connection could break before the result of the 
 computation has been submitted.
 
@@ -68,6 +68,9 @@ where the computation might take several hours.
 ***
 
 ## Installation of the NED-core:
+
+Clone this project, the [SBB-NER-tagger](https://github.com/qurator-spk/sbb_ner) and 
+the [SBB-Tools](https://github.com/qurator-spk/sbb_tools).
 
 Setup virtual environment:
 ```
@@ -84,15 +87,22 @@ Upgrade pip:
 pip install -U pip
 ```
 
-Install package together with its dependencies in development mode:
+Install packages together with its dependencies in development mode:
 ```
-pip install -e ./
+pip install -e sbb_tools
+pip install -e sbb_ner
+pip install -e sbb_ned
 ```
 
 Download required models: https://qurator-data.de/sbb_ned/models.tar.gz 
 
 Beware: The archive file contains the required models as well as the knowledge bases
 for german, french and english, altogether roughly 200GB!!! 
+
+Change into NED directory:
+```
+cd sbb_ned
+```
 
 Extract model archive:
 ```
@@ -110,3 +120,8 @@ Set USE_CUDA=False, if you do not have a GPU available/installed
 
 ***
 
+# Knowledge-base extraction:
+
+Look into the relevant section of the [SBB-Tools README](https://github.com/qurator-spk/sbb_tools).
+
+***
