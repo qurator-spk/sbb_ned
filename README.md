@@ -87,7 +87,7 @@ Upgrade pip:
 pip install -U pip
 ```
 
-Install packages together with its dependencies in development mode:
+Install packages together with their dependencies in development mode:
 ```
 pip install -e sbb_tools
 pip install -e sbb_ner
