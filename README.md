@@ -12,7 +12,7 @@ that accepts the NER-tagged input in JSON format.
 In order to try our NED-system, 
 you can either use some NER-tagger 
 and convert the output of that system into the expected format, 
-or you can download and install the [SBB-NER-tagger](sbb_ner/) 
+or you can download and install the [SBB-NER-tagger](https://github.com/qurator-spk/sbb_ner) 
 and use the output of that system
 as input of our NED-system.
 
@@ -21,7 +21,7 @@ for more detailed information about the expected input format of the NED-system.
 
 If you want to use the NED - demo web interface as it is shown in the image above,
 you have to 
-* install and run the [SBB-NER-tagger](sbb_ner/)
+* install and run the [SBB-NER-tagger](https://github.com/qurator-spk/sbb_ner)
 * install and run the SBB-NED system
 * setup an nginx installation (or other HTTP proxy) such that the NER and the NED system are available 
 behind a URL-structure as it is defined by the nginx configuration example below:
