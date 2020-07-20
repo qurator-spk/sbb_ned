@@ -745,9 +745,20 @@ def ned_pairing(pairing_sql_file,
 @click.argument('ned-sql-file', type=click.Path(exists=True), required=True, nargs=1)
 @click.argument('train-set-file', type=click.Path(exists=False), required=True, nargs=1)
 @click.argument('test-set-file', type=click.Path(exists=False), required=True, nargs=1)
-@click.option('--fraction-train', type=float, default=0.5)
+@click.option('--fraction-train', type=float, default=0.5, help="fraction of training data.")
 def ned_train_test_split(ned_sql_file, train_set_file, test_set_file, fraction_train):
+    """
+    Splits the sentence data into train and test set.
 
+    NED_SQL_FILE: See ned-sentence-data.
+
+    Output:
+
+    TRAIN_SET_FILE: Pickled pandas DataFrame that contains the sentence ids of the training set.
+
+    TEST_SET_FILE: Pickled pandas DataFrame that contains the sentence ids of the test set.
+
+    """
     with sqlite3.connect(ned_sql_file) as conn:
 
         df = shuffle(pd.read_sql("select sentences.id from sentences;", conn))

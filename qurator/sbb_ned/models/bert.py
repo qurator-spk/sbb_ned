@@ -342,10 +342,10 @@ def get_device(local_rank=-1, no_cuda=False):
 @click.command()
 @click.argument("bert-model", type=str, required=True, nargs=1)
 @click.argument("output-dir", type=str, required=True, nargs=1)
-@click.option("--model-file", type=click.Path(), default=None, help="")
-@click.option("--train-set-file", type=click.Path(exists=True), default=None, help="")
-@click.option("--dev-set-file", type=click.Path(exists=True), default=None, help="")
-@click.option("--test-set-file", type=click.Path(exists=True), default=None, help="")
+@click.option("--model-file", type=click.Path(), default=None, help="Continue to train on this model file.")
+@click.option("--train-set-file", type=click.Path(exists=True), default=None, help="See ned-train-test-split.")
+@click.option("--dev-set-file", type=click.Path(exists=True), default=None, help="See ned-train-test-split.")
+@click.option("--test-set-file", type=click.Path(exists=True), default=None, help="See ned-train-test-split.")
 @click.option("--train-size", default=0, type=int, help="")
 @click.option("--dev-size", default=0, type=int, help="")
 @click.option("--train-size", default=0, type=int, help="")
@@ -373,7 +373,7 @@ def get_device(local_rank=-1, no_cuda=False):
               help="Loss scaling to improve fp16 numeric stability. Only used when fp16 set to True.\n "
                    "0 (default value): dynamic loss scaling.\n"
                    "Positive power of 2: static loss scaling value.\n")
-@click.option("--ned-sql-file", type=click.Path(exists=True), default=None, required=False)
+@click.option("--ned-sql-file", type=click.Path(exists=True), default=None, required=False, help="See ned-sentence-data")
 @click.option('--embedding-type', type=click.Choice(['fasttext']), default='fasttext')
 @click.option('--embedding-model', type=click.Path(exists=True), default=None)
 @click.option('--n-trees', type=int, default=100)
@@ -389,10 +389,6 @@ def main(bert_model, output_dir,
          ned_sql_file=None, search_k=50, max_dist=0.25, embedding_type='fasttext', embedding_model=None, n_trees=100,
          distance_measure='angular', entity_index_path=None, entities_file=None, model_file=None):
     """
-    ned_sql_file: \n
-    train_set_file: \n
-    dev_set_file: \n
-    test_set_file: \n
     bert_model: Bert pre-trained model selected in the list:\n
                 bert-base-uncased, bert-large-uncased, bert-base-cased,\n
                 bert-large-cased, bert-base-multilingual-uncased,\n
