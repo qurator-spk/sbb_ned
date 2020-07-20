@@ -16,7 +16,8 @@ or you can download and install the [SBB-NER-tagger](sbb_ner/)
 and use the output of that system
 as input of our NED-system.
 
-Please read the installation guide of the [SBB-NER-tagger](sbb_ner/) 
+Please consider the example section at the bottom
+or read the installation guide of the [SBB-NER-tagger](sbb_ner/) 
 for more detailed information about the expected input format of the NED-system.
 
 If you want to use the NED - demo web interface as it is shown in the image above,
@@ -110,3 +111,96 @@ Set USE_CUDA=False, if you do not have a GPU available/installed
 
 ***
 
+## NED/NEL example: 
+
+Perform NER:
+
+```
+ curl --noproxy '*' -d '{ "text": "Paris Hilton wohnt im Hilton Paris in Paris." }' -H "Content-Type: application/json" http://localhost/sbb-tools/ner/ner/0
+```
+
+Answer:
+
+```
+[[{'prediction': 'B-PER', 'word': 'Paris'},
+  {'prediction': 'I-PER', 'word': 'Hilton'},
+  {'prediction': 'O', 'word': 'wohnt'},
+  {'prediction': 'O', 'word': 'im'},
+  {'prediction': 'B-ORG', 'word': 'Hilton'},
+  {'prediction': 'I-ORG', 'word': 'Paris'},
+  {'prediction': 'O', 'word': 'in'},
+  {'prediction': 'B-LOC', 'word': 'Paris'},
+  {'prediction': 'O', 'word': '.'}]]
+```
+
+Reorder NER result:
+
+```
+ curl --noproxy '*' -d '[[{"prediction":"B-PER","word":"Paris"},{"prediction":"I-PER","word":"Hilton"},{"prediction":"O","word":"wohnt"},{"prediction":"O","word":"im"},{"prediction":"B-ORG","word":"Hilton"},{"prediction":"I-ORG","word":"Paris"},{"prediction":"O","word":"in"},{"prediction":"B-LOC","word":"Paris"},{"prediction":"O","word":"."}]]' -H "Content-Type: application/json" http://localhost/sbb-tools/ned/parse
+```
+
+Answer:
+
+```
+{'Hilton Paris-ORG': {'sentences': [{'entities': '["Paris Hilton-PER", "Paris '
+                                                 'Hilton-PER", "-", "-", '
+                                                 '"Hilton Paris-ORG", "Hilton '
+                                                 'Paris-ORG", "-", '
+                                                 '"Paris-LOC", "-"]',
+                                     'tags': '["B-PER", "I-PER", "O", "O", '
+                                             '"B-ORG", "I-ORG", "O", "B-LOC", '
+                                             '"O"]',
+                                     'target': 'Hilton Paris-ORG',
+                                     'text': '["Paris", "Hilton", "wohnt", '
+                                             '"im", "Hilton", "Paris", "in", '
+                                             '"Paris", "."]'}],
+                      'surfaces': ['hilton paris', 'Hilton Paris'],
+                      'type': 'ORG'},
+ 'Paris Hilton-PER': {'sentences': [{'entities': '["Paris Hilton-PER", "Paris '
+                                                 'Hilton-PER", "-", "-", '
+                                                 '"Hilton Paris-ORG", "Hilton '
+                                                 'Paris-ORG", "-", '
+                                                 '"Paris-LOC", "-"]',
+                                     'tags': '["B-PER", "I-PER", "O", "O", '
+                                             '"B-ORG", "I-ORG", "O", "B-LOC", '
+                                             '"O"]',
+                                     'target': 'Paris Hilton-PER',
+                                     'text': '["Paris", "Hilton", "wohnt", '
+                                             '"im", "Hilton", "Paris", "in", '
+                                             '"Paris", "."]'}],
+                      'surfaces': ['paris hilton', 'Paris Hilton'],
+                      'type': 'PER'},
+ 'Paris-LOC': {'sentences': [{'entities': '["Paris Hilton-PER", "Paris '
+                                          'Hilton-PER", "-", "-", "Hilton '
+                                          'Paris-ORG", "Hilton Paris-ORG", '
+                                          '"-", "Paris-LOC", "-"]',
+                              'tags': '["B-PER", "I-PER", "O", "O", "B-ORG", '
+                                      '"I-ORG", "O", "B-LOC", "O"]',
+                              'target': 'Paris-LOC',
+                              'text': '["Paris", "Hilton", "wohnt", "im", '
+                                      '"Hilton", "Paris", "in", "Paris", '
+                                      '"."]'}],
+               'surfaces': ['paris', 'Paris'],
+               'type': 'LOC'}}
+```
+
+Perform NED/NEL on re-ordered NER-result:
+
+```
+ curl --noproxy '*' -d '{"Hilton Paris-ORG":{"sentences":[{"entities":"[\"Paris Hilton-PER\", \"Paris Hilton-PER\", \"-\", \"-\", \"Hilton Paris-ORG\", \"Hilton Paris-ORG\", \"-\", \"Paris-LOC\", \"-\"]","tags":"[\"B-PER\", \"I-PER\", \"O\", \"O\", \"B-ORG\", \"I-ORG\", \"O\", \"B-LOC\", \"O\"]","target":"Hilton Paris-ORG","text":"[\"Paris\", \"Hilton\", \"wohnt\", \"im\", \"Hilton\", \"Paris\", \"in\", \"Paris\", \".\"]"}],"surfaces":["hilton paris","Hilton Paris"],"type":"ORG"},"Paris Hilton-PER":{"sentences":[{"entities":"[\"Paris Hilton-PER\", \"Paris Hilton-PER\", \"-\", \"-\", \"Hilton Paris-ORG\", \"Hilton Paris-ORG\", \"-\", \"Paris-LOC\", \"-\"]","tags":"[\"B-PER\", \"I-PER\", \"O\", \"O\", \"B-ORG\", \"I-ORG\", \"O\", \"B-LOC\", \"O\"]","target":"Paris Hilton-PER","text":"[\"Paris\", \"Hilton\", \"wohnt\", \"im\", \"Hilton\", \"Paris\", \"in\", \"Paris\", \".\"]"}],"surfaces":["paris hilton","Paris Hilton"],"type":"PER"},"Paris-LOC":{"sentences":[{"entities":"[\"Paris Hilton-PER\", \"Paris Hilton-PER\", \"-\", \"-\", \"Hilton Paris-ORG\", \"Hilton Paris-ORG\", \"-\", \"Paris-LOC\", \"-\"]","tags":"[\"B-PER\", \"I-PER\", \"O\", \"O\", \"B-ORG\", \"I-ORG\", \"O\", \"B-LOC\", \"O\"]","target":"Paris-LOC","text":"[\"Paris\", \"Hilton\", \"wohnt\", \"im\", \"Hilton\", \"Paris\", \"in\", \"Paris\", \".\"]"}],"surfaces":["paris","Paris"],"type":"LOC"}}' -H "Content-Type: application/json" http://localhost/sbb-tools/ned/ned
+```
+
+Answer:
+
+```
+{'Hilton Paris-ORG': {'ranking': [['Hilton_Worldwide',
+                                   {'proba_1': 0.46, 'wikidata': 'Q1057464'}],
+                                  ['Hôtel_de_Paris',
+                                   {'proba_1': 0.19, 'wikidata': 'Q1279896'}]]},
+ 'Paris Hilton-PER': {'ranking': [['Paris_Hilton',
+                                   {'proba_1': 0.96, 'wikidata': 'Q47899'}]]},
+ 'Paris-LOC': {'ranking': [['Paris_(New_York)',
+                            {'proba_1': 0.15, 'wikidata': 'Q538772'}]]}}
+```
+
+***
