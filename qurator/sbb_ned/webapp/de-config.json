@@ -1,5 +1,11 @@
 {
   "LOG_LEVEL": "DEBUG",
+  "CACHE_TYPE": "filesystem",
+  "CACHE_DIR": "cache",
+  "CACHE_IGNORE_ERRORS": true,
+  "CACHE_THRESHOLD": 100000,
+  "CACHE_OPTIONS": { "mode": "777"},
+  "CACHE_DEFAULT_TIMEOUT": 100,
   "MAX_SEQ_LENGTH": 128,
   "MODEL_DIR": "data/BERT/NED/de-model-1",
   "MODEL_FILE": "pytorch_model.bin",

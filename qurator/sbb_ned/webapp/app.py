@@ -1,6 +1,8 @@
 import os
 import logging
 from flask import Flask, send_from_directory, redirect, jsonify, request
+from flask_cache import Cache
+from hashlib import sha256
 # from pprint import pprint
 # import html
 import json
@@ -22,11 +24,14 @@ from nltk.stem.snowball import SnowballStemmer
 
 app = Flask(__name__)
 
+cache = Cache(app)
+
 app.config.from_json('de-config.json' if not os.environ.get('CONFIG') else os.environ.get('CONFIG'))
 
 logger = logging.getLogger(__name__)
 
 logging.basicConfig(level=logging.DEBUG)
+
 
 class ThreadStore:
 
@@ -225,7 +230,12 @@ def parse_sentence(sent, normalization_map):
     return entity_ids, entities, entity_types, text_json, tags_json, entities_json
 
 
+def key_prefix():
+    return "{}:{}".format(request.path, sha256(str(request.json).encode('utf-8')).hexdigest())
+
+
 @app.route('/parse', methods=['GET', 'POST'])
+@cache.cached(key_prefix=key_prefix)
 def parse_entities():
     ner = request.json
 
@@ -279,6 +289,7 @@ def parse_entities():
 
 
 @app.route('/ned', methods=['GET', 'POST'])
+@cache.cached(key_prefix=key_prefix)
 def ned():
     return_full = request.args.get('return_full', default=False, type=bool)
 
