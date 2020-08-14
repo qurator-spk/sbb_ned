@@ -291,7 +291,7 @@ def parse_entities():
 @app.route('/ned', methods=['GET', 'POST'])
 @cache.cached(key_prefix=key_prefix)
 def ned():
-    return_full = request.args.get('return_full', default=False, type=bool)
+    return_full = bool(request.args.get('return_full', type=int))
 
     threshold = request.args.get('threshold', default=app.config['DECISION_THRESHOLD'], type=float)
 
