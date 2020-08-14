@@ -10,6 +10,7 @@ click
 pytest
 pytest-cov
 flask
+Flask-Caching
 somajo
 gensim
 annoy

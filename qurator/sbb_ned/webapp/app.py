@@ -1,7 +1,7 @@
 import os
 import logging
 from flask import Flask, send_from_directory, redirect, jsonify, request
-from flask_cache import Cache
+from flask_caching import Cache
 from hashlib import sha256
 # from pprint import pprint
 # import html
@@ -24,9 +24,9 @@ from nltk.stem.snowball import SnowballStemmer
 
 app = Flask(__name__)
 
-cache = Cache(app)
-
 app.config.from_json('de-config.json' if not os.environ.get('CONFIG') else os.environ.get('CONFIG'))
+
+cache = Cache(app)
 
 logger = logging.getLogger(__name__)
 
