@@ -198,7 +198,7 @@ function NED() {
                 </div>
             </div>`;
 
-        var text_html = "";
+        var text_html = [];
         var entities = [];
         var entity_types = [];
 
@@ -218,10 +218,10 @@ function NED() {
 
                             selector = selector.replace(/[^\w\s]|_/g, "").replace(/\s+/g, "-");
 
-                            text_html += ' <font color="' + getColor(entity_type) + '">'
+                            text_html.push(' <font color="' + getColor(entity_type) + '">'
                                                 + '<a id="ent-sel-'+ entities.length +'" class="' +
                                                 selector +'"> '+ entity_text + '</a>' +
-                                           '</font> ';
+                                           '</font> ');
 
                             entities.push(entity_text);
                             entity_types.push(entity_type);
@@ -230,9 +230,9 @@ function NED() {
 
                          if (token.prediction == 'O') {
 
-                            if (text_html != "") text_html += ' ';
+                            if (text_html.length > 0) text_html.push(' ');
 
-                            text_html += token.word;
+                            text_html.push(token.word);
                          }
                          else {
                             entity_type = token.prediction.slice(-3)
@@ -249,20 +249,20 @@ function NED() {
 
                     selector = selector.replace(/[^\w\s]|_/g, "").replace(/\s+/g, "-");
 
-                    text_html += ' <font color="' + getColor(entity_type) + '">'
+                    text_html.push(' <font color="' + getColor(entity_type) + '">'
                                                 + '<a id="ent-sel-'+ entities.length +'"class="' +
                                                         selector +'"> '+ entity_text + '</a>' +
-                                           '</font> ';
+                                           '</font> ');
 
                     entities.push(entity_text);
                     entity_types.push(entity_type);
                  }
 
-                 text_html += '<br/>';
+                 text_html.push('<br/>');
             }
         )
         $("#result-text").html(text_region_html);
-        $("#ner-text").html(text_html);
+        $("#ner-text")[0].innerHTML = text_html.join("");
 
         entities.forEach(
             function(entity, idx) {
