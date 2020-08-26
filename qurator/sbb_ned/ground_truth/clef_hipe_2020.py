@@ -7,12 +7,13 @@ import unicodedata
 from tqdm import tqdm
 import json
 import logging
+import glob
 # from CLEF2020.clef_evaluation import get_results
 from qurator.utils.parallel import run as prun
 from ..models.decider import features
 
 from somajo import Tokenizer, SentenceSplitter
-
+import sqlite3
 
 logger = logging.getLogger(__name__)
 
@@ -385,3 +386,230 @@ def add_ground_truth(ned_result, tsv, tsv_gs):
     assert row_gs is None
 
     return ned_result
+
+
+teams = {
+
+    'team1':
+        {
+            'name': 'ehrmama',
+            'place': 'University of Amsterdam',
+            'country': 'The Netherlands'
+        }
+    ,
+
+    'team7':
+        {
+            'name': 'IRISA',
+            'place': 'IRISA, Rennes',
+            'country': 'France'
+        }
+    ,
+
+    'team8':
+        {
+            'name': 'CISTeria',
+            'place': 'Ludwig-Maximilians-Universität and Bayerische Staatsbibliothek München, Munich',
+            'country': 'Germany'
+        }
+    ,
+
+    'team10':
+        {
+            'name': 'L3i',
+            'place': 'La Rochelle University, La Rochelle',
+            'country': 'France'
+        }
+    ,
+
+    'team11':
+        {
+            'name': 'NLP-UQAM',
+            'place': 'Université du Quebec à Montréal, Montréal',
+            'country': 'Quebec'
+        }
+    ,
+
+    'team16':
+        {
+            'name': 'ERTIM',
+            'place': 'Inalco, Paris',
+            'country': 'France'
+        }
+    ,
+
+    'team23':
+        {
+            'name': 'UPB',
+            'place': 'Politehnica University of Bucharest, Bucarest',
+            'country': 'Bulgaria'
+        }
+    ,
+
+    'team28':
+        {
+            'name': 'SinNER',
+            'place': 'INRIA and Paris-Sorbonne University, Paris',
+            'country': 'France'
+        }
+    ,
+
+    'team31':
+        {
+            'name': 'UvA.ILPS',
+            'place': 'University of Amsterdam, Amsterdam',
+            'country': 'The Netherlands'
+        }
+    ,
+
+    'team33':
+        {
+            'name': 'SBB',
+            'place': 'Berlin State Library, Berlin',
+            'country': 'Germany'
+        }
+    ,
+
+    'team37':
+        {
+            'name': 'Inria-DeLFT',
+            'place': 'Almanach, Inria, Paris',
+            'country': 'France'
+        }
+    ,
+
+    'team39':
+        {
+            'name': 'LIMSI',
+            'place': 'LIMSI, CNRS, Paris',
+            'country': 'France'
+        }
+    ,
+
+    'team40':
+        {
+            'name': 'Webis',
+            'place': 'Webis group, Bauhaus University Weimar',
+            'country': 'Germany'
+        },
+    'aidalight-baseline':
+        {
+            'name': 'aidalight-baseline'
+        }
+}
+
+
+def read_HIPE_results():
+
+    files = [f for f in glob.glob('*.tsv')]
+
+    results = pd.concat([pd.read_csv(f, sep='\t') for f in files])
+    results['team'] = results.System.str.extract('([^_]+).*')
+    results['Task'] = results.System.str.extract('[^_]+[_](.*)')
+    results['Lang'] = results.System.str.extract('^.+?_.+?_(.+?)_.+?$')
+
+    results['Lang'] = results.Lang.str.upper()
+    results.insert(0, 'team', results.pop('team'))
+    results.insert(0, 'Lang', results.pop('Lang'))
+
+    results['team'] = results.team.map(lambda i: teams[i]['name'] if i in teams else 'baseline')
+
+    sbb_results = results.loc[results.System.str.startswith('team33')]
+
+    return results, sbb_results
+
+
+def make_table_ner(sbb_results):
+    tmp = sbb_results.loc[(sbb_results.F1 > 0.1) & (sbb_results.Evaluation.str.startswith('NE-COARSE'))].sort_values(
+        ['System', 'Evaluation']).drop(columns=['F1_std', 'P_std', 'R_std'])
+
+    print(tmp[['Lang', 'Evaluation', 'Label', 'P', 'R', 'F1', 'TP', 'FP', 'FN']].to_latex(index=False))
+
+
+def make_table_nel(sbb_results):
+    tmp = \
+        sbb_results.loc[
+            (sbb_results.System.str.startswith('team33_bundle2')) & (sbb_results.F1 > 0.1) &
+            (sbb_results.Evaluation.str.startswith('NEL-LIT'))
+        ].\
+        sort_values(['System', 'Evaluation']).\
+        drop(columns=['F1_std', 'P_std', 'R_std', 'Task'])
+
+    print(tmp.to_latex(index=False))
+
+
+def make_table_nel_only(sbb_results):
+    tmp =\
+        sbb_results.loc[
+            (sbb_results.System.str.startswith('team33_bundle5')) & (sbb_results.F1 > 0.1) &
+            (sbb_results.Evaluation.str.startswith('NEL-LIT'))
+        ].\
+        sort_values(['System', 'Evaluation']).\
+        drop(columns=['F1_std', 'P_std', 'R_std', 'Task'])
+
+    print(tmp.to_latex(index=False))
+
+
+def make_table_nel_comparison(results):
+    lang = ['de', 'fr', 'en']
+
+    tmp =\
+        pd.concat(
+            [pd.concat(
+                [res.sort_values('P', ascending=False).iloc[[0]]
+                 for _, res in results.loc[
+                     results.System.str.contains('_bundle[1|2]_{}_'.format(lng)) &
+                     results.Evaluation.str.startswith('NEL-LIT')].drop_duplicates().groupby('team')]
+            ) for lng in lang]
+        ).\
+        drop(columns=['System', 'F1_std', 'P_std', 'R_std', 'TP', 'FP', 'FN', 'Task']).\
+        sort_values(['Lang', 'P'], ascending=[False, False])
+
+    print(tmp.to_latex(index=False))
+
+
+def make_table_nel_only_comparison(results):
+
+    lang = ['de', 'fr', 'en']
+
+    tmp =\
+        pd.concat(
+            [pd.concat(
+                [res.sort_values('P', ascending=False).iloc[[0]]
+                 for _, res in results.loc[
+                     results.System.str.contains('_bundle[5]_{}_'.format(lng)) &
+                     results.Evaluation.str.startswith('NEL-LIT')].drop_duplicates().groupby('team')]
+            ) for lng in lang]
+        ).\
+        drop(columns=['System', 'F1_std', 'P_std', 'R_std', 'TP', 'FP', 'FN', 'Task']).\
+        sort_values(['Lang', 'P'], ascending=[False, False])
+
+    print(tmp.to_latex(index=False))
+
+
+@click.command()
+@click.argument('entities-file', type=click.Path(exists=True), required=True, nargs=1)
+@click.argument('wiki-db-file', type=click.Path(exists=True), required=True, nargs=1)
+@click.argument('gt-file', type=click.Path(exists=True), required=True, nargs=1)
+def compute_knb_coverage(entities_file, wiki_db_file, gt_file):
+
+    dedata = pd.read_pickle(entities_file)
+
+    with sqlite3.connect(wiki_db_file) as con:
+
+        dewiki =\
+            pd.read_sql(
+                "select page_props.pp_value, page.page_id, page.page_title from page_props "
+                "join page on page.page_id==page_props.pp_page where page.page_namespace == 0 and "
+                "page_props.pp_propname == 'wikibase_item';", con)
+
+    knb = dedata.merge(dewiki, left_index=True, right_on='page_title')
+
+    test_data = pd.read_csv(gt_file, sep='\t', comment='#')
+
+    entities_in_test_data =\
+        test_data.loc[test_data['NEL-LIT'].str.len() > 1][['NEL-LIT']].drop_duplicates().reset_index(drop=True)
+
+    with_representation = entities_in_test_data.merge(knb, left_on='NEL-LIT', right_on='pp_value')
+
+    print("% of entities with representation: {}.".format(len(with_representation) / len(entities_in_test_data)))

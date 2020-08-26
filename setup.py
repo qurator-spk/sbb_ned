@@ -33,6 +33,7 @@ setup(
         "evaluate-combined=qurator.sbb_ned.cli:evaluate_combined",
         "clef2tsv=qurator.sbb_ned.ground_truth.clef_hipe_2020:clef2tsv",
         "tsv2clef=qurator.sbb_ned.ground_truth.clef_hipe_2020:tsv2clef",
+        "compute-knb-coverage=qurator.sbb_ned.ground_truth.clef_hipe_2020:compute_knb_coverage",
         "sentence-stat=qurator.sbb_ned.ground_truth.clef_hipe_2020:sentence_stat",
         "train-decider=qurator.sbb_ned.models.decider:train",
         "test-decider=qurator.sbb_ned.models.decider:test",

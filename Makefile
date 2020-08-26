@@ -475,6 +475,11 @@ $(CLEF_TARGET_PATH)/en-decider.pkl: $(CLEF_TARGET_PATH)/en-decider-train-dataset
 
 CLEF2020-decider: $(CLEF_TARGET_PATH)/de-decider.pkl $(CLEF_TARGET_PATH)/fr-decider.pkl $(CLEF_TARGET_PATH)/en-decider.pkl
 
+CLEF2020-compute-knb-coverage:
+	compute-knb-coverage $(WIKI_DATA_PATH)/de-wikipedia-ner-entities-no-redirects.pkl $(WIKI_DATA_PATH)/de-wikipedia.sqlite3 $(CLEF_PATH)/data/test-v1.3/de/HIPE-data-v1.3-test-de.tsv
+	compute-knb-coverage $(WIKI_DATA_PATH)/fr-wikipedia-ner-entities-no-redirects.pkl $(WIKI_DATA_PATH)/fr-wikipedia.sqlite3 $(CLEF_PATH)/data/test-v1.3/fr/HIPE-data-v1.3-test-fr.tsv
+	compute-knb-coverage $(WIKI_DATA_PATH)/en-wikipedia-ner-entities-no-redirects.pkl $(WIKI_DATA_PATH)/en-wikipedia.sqlite3 $(CLEF_PATH)/data/test-v1.3/en/HIPE-data-v1.3-test-en.tsv
+
 
 # ================================================================================================================================================
 

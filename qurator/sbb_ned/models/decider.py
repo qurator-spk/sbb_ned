@@ -87,6 +87,7 @@ class DeciderTask:
 
         thid = threading.current_thread().ident
 
+
         conn = DeciderTask.connection_map.get(thid)
 
         if conn is None:
