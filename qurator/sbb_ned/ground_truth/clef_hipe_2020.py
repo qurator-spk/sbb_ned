@@ -514,19 +514,33 @@ def read_HIPE_results():
 
     results['team'] = results.team.map(lambda i: teams[i]['name'] if i in teams else 'baseline')
 
+    return results
+
+
+def make_table_ner(results):
+
     sbb_results = results.loc[results.System.str.startswith('team33')]
 
-    return results, sbb_results
+    tmp = sbb_results.loc[(sbb_results.F1 > 0.1) & (sbb_results.Evaluation.str.startswith('NE-COARSE'))]
+
+    tmp2 = pd.concat(
+        [pd.concat([res.sort_values('F1', ascending=False).iloc[[0]] for _, res in results.loc[
+            (results.Evaluation.str.startswith('NE-COARSE-LIT-micro-{}'.format(evaluation)))].groupby(
+            'Lang')]).sort_values('F1', ascending=False) for evaluation in ['fuzzy', 'strict']])
+
+    tmp = pd.concat([tmp, tmp2])
+
+    tmp =\
+        tmp.sort_values(['Lang', 'Evaluation', 'F1'], ascending=[True, True, False]).\
+        drop(columns=['F1_std', 'P_std', 'R_std'])
+
+    print(tmp[['Lang', 'team', 'Evaluation', 'Label', 'P', 'R', 'F1', 'TP', 'FP', 'FN']].to_latex(index=False))
 
 
-def make_table_ner(sbb_results):
-    tmp = sbb_results.loc[(sbb_results.F1 > 0.1) & (sbb_results.Evaluation.str.startswith('NE-COARSE'))].sort_values(
-        ['System', 'Evaluation']).drop(columns=['F1_std', 'P_std', 'R_std'])
+def make_table_nel(results):
 
-    print(tmp[['Lang', 'Evaluation', 'Label', 'P', 'R', 'F1', 'TP', 'FP', 'FN']].to_latex(index=False))
+    sbb_results = results.loc[results.System.str.startswith('team33')]
 
-
-def make_table_nel(sbb_results):
     tmp = \
         sbb_results.loc[
             (sbb_results.System.str.startswith('team33_bundle2')) & (sbb_results.F1 > 0.1) &
@@ -538,7 +552,10 @@ def make_table_nel(sbb_results):
     print(tmp.to_latex(index=False))
 
 
-def make_table_nel_only(sbb_results):
+def make_table_nel_only(results):
+
+    sbb_results = results.loc[results.System.str.startswith('team33')]
+
     tmp =\
         sbb_results.loc[
             (sbb_results.System.str.startswith('team33_bundle5')) & (sbb_results.F1 > 0.1) &
