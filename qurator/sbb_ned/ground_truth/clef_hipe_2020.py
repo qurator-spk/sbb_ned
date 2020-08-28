@@ -626,5 +626,11 @@ def compute_knb_coverage(entities_file, wiki_db_file, gt_file):
     with_representation = entities_in_test_data.merge(knb, left_on='NEL-LIT', right_on='pp_value')
 
     print("% of entities with representation: {}.".format(len(with_representation) / len(entities_in_test_data)))
-    nf = (test_data['NEL-LIT']=='NIL').sum()/(test_data['NEL-LIT'].str.len()>1).sum()
-    print("NIL fraction: {}".format(nf))
+
+
+def compute_nil_fraction(gt_file):
+
+    vc = pd.read_csv(gt_file, sep='\t', comment='#')['NEL-LIT'].value_counts()
+
+    print(vc['NIL'] / (vc.sum() - vc['NIL'] - vc['_']))
+
