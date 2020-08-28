@@ -514,7 +514,7 @@ def read_HIPE_results():
 
     results['team'] = results.team.map(lambda i: teams[i]['name'] if i in teams else 'baseline')
 
-   return results
+    return results
 
 
 def make_table_ner(results):
@@ -621,8 +621,10 @@ def compute_knb_coverage(entities_file, wiki_db_file, gt_file):
     test_data = pd.read_csv(gt_file, sep='\t', comment='#')
 
     entities_in_test_data =\
-        test_data.loc[test_data['NEL-LIT'].str.len() > 1][['NEL-LIT']].drop_duplicates().reset_index(drop=True)
+        test_data.loc[(test_data['NEL-LIT'].str.len() > 1)& (test_data['NEL-LIT'] != 'NIL')][['NEL-LIT']].drop_duplicates().reset_index(drop=True)
 
     with_representation = entities_in_test_data.merge(knb, left_on='NEL-LIT', right_on='pp_value')
 
     print("% of entities with representation: {}.".format(len(with_representation) / len(entities_in_test_data)))
+    nf = (test_data['NEL-LIT']=='NIL').sum()/(test_data['NEL-LIT'].str.len()>1).sum()
+    print("NIL fraction: {}".format(nf))
