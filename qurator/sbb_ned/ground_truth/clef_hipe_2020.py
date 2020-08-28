@@ -514,38 +514,48 @@ def read_HIPE_results():
 
     results['team'] = results.team.map(lambda i: teams[i]['name'] if i in teams else 'baseline')
 
+   return results
+
+
+def make_table_ner(results):
+
     sbb_results = results.loc[results.System.str.startswith('team33')]
 
-    return results, sbb_results
+    tmp = sbb_results.loc[(sbb_results.F1 > 0.1) & (sbb_results.Evaluation.str.startswith('NE-COARSE'))]
+
+    tmp2 = pd.concat(
+        [pd.concat([res.sort_values('F1', ascending=False).iloc[[0]] for _, res in results.loc[
+            (results.Evaluation.str.startswith('NE-COARSE-LIT-micro-{}'.format(evaluation)))].groupby(
+            'Lang')]).sort_values('F1', ascending=False) for evaluation in ['fuzzy', 'strict']])
+
+    tmp = pd.concat([tmp, tmp2])
+
+    tmp =\
+        tmp.sort_values(['Lang', 'Evaluation', 'F1'], ascending=[True, True, False]).\
+        drop(columns=['F1_std', 'P_std', 'R_std'])
+
+    print(tmp[['Lang', 'team', 'Evaluation', 'Label', 'P', 'R', 'F1']].to_latex(index=False))
 
 
-def make_table_ner(sbb_results):
-    tmp = sbb_results.loc[(sbb_results.F1 > 0.1) & (sbb_results.Evaluation.str.startswith('NE-COARSE'))].sort_values(
-        ['System', 'Evaluation']).drop(columns=['F1_std', 'P_std', 'R_std'])
+def make_table_nel(results):
+    tmp = results.loc[results.System.str.startswith('team33_bundle2') &
+                      results.Evaluation.str.startswith('NEL-LIT-micro-fuzzy')].drop_duplicates()
 
-    print(tmp[['Lang', 'Evaluation', 'Label', 'P', 'R', 'F1', 'TP', 'FP', 'FN']].to_latex(index=False))
-
-
-def make_table_nel(sbb_results):
-    tmp = \
-        sbb_results.loc[
-            (sbb_results.System.str.startswith('team33_bundle2')) & (sbb_results.F1 > 0.1) &
-            (sbb_results.Evaluation.str.startswith('NEL-LIT'))
-        ].\
-        sort_values(['System', 'Evaluation']).\
-        drop(columns=['F1_std', 'P_std', 'R_std', 'Task'])
+    tmp = tmp. \
+        sort_values(['System', 'Evaluation']). \
+        drop(columns=['TP', 'FN', 'FP', 'F1_std', 'P_std', 'R_std', 'Task', 'System'])
 
     print(tmp.to_latex(index=False))
 
 
-def make_table_nel_only(sbb_results):
-    tmp =\
-        sbb_results.loc[
-            (sbb_results.System.str.startswith('team33_bundle5')) & (sbb_results.F1 > 0.1) &
-            (sbb_results.Evaluation.str.startswith('NEL-LIT'))
-        ].\
+def make_table_nel_only(results):
+
+    tmp = results.loc[results.System.str.startswith('team33_bundle5') &
+                      results.Evaluation.str.startswith('NEL-LIT-micro-fuzzy')].drop_duplicates()
+
+    tmp = tmp.\
         sort_values(['System', 'Evaluation']).\
-        drop(columns=['F1_std', 'P_std', 'R_std', 'Task'])
+        drop(columns=['TP', 'FN', 'FP', 'F1_std', 'P_std', 'R_std', 'Task', 'System'])
 
     print(tmp.to_latex(index=False))
 
@@ -559,7 +569,9 @@ def make_table_nel_comparison(results):
                 [res.sort_values('P', ascending=False).iloc[[0]]
                  for _, res in results.loc[
                      results.System.str.contains('_bundle[1|2]_{}_'.format(lng)) &
-                     results.Evaluation.str.startswith('NEL-LIT')].drop_duplicates().groupby('team')]
+
+                     results.Evaluation.str.startswith('NEL-LIT-micro-fuzzy-relaxed-@5')].drop_duplicates().
+                     groupby('team')]
             ) for lng in lang]
         ).\
         drop(columns=['System', 'F1_std', 'P_std', 'R_std', 'TP', 'FP', 'FN', 'Task']).\
@@ -578,7 +590,8 @@ def make_table_nel_only_comparison(results):
                 [res.sort_values('P', ascending=False).iloc[[0]]
                  for _, res in results.loc[
                      results.System.str.contains('_bundle[5]_{}_'.format(lng)) &
-                     results.Evaluation.str.startswith('NEL-LIT')].drop_duplicates().groupby('team')]
+                     results.Evaluation.str.startswith('NEL-LIT-micro-fuzzy-relaxed-@5')].drop_duplicates().
+                     groupby('team')]
             ) for lng in lang]
         ).\
         drop(columns=['System', 'F1_std', 'P_std', 'R_std', 'TP', 'FP', 'FN', 'Task']).\
