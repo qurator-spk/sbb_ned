@@ -17,7 +17,7 @@ and use the output of that system
 as input of our NED-system.
 
 Please consider the example section at the bottom
-or read the installation guide of the [SBB-NER-tagger](sbb_ner/) 
+or read the installation guide of the [SBB-NER-tagger](https://github.com/qurator-spk/sbb_ner) 
 for more detailed information about the expected input format of the NED-system.
 
 If you want to use the NED - demo web interface as it is shown in the image above,
