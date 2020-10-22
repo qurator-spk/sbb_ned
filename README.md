@@ -1,7 +1,11 @@
 ![sbb-ner-demo example](.screenshots/sbb_ned_demo.png?raw=true)
 
 ***
+# Named Entity Disambiguation and Linking with BERT
 
+An overview of the functionality of the NED system can be found in
+ our [CLEF 2020 HIPE paper](http://ceur-ws.org/Vol-2696/paper_163.pdf).
+ 
 # Installation:
 
 Before named entity disambiguation (NED) can be performed, 
