@@ -96,6 +96,11 @@ def read_clef(clef_file):
 @click.command()
 @click.argument('clef-file', type=click.Path(exists=True), required=True, nargs=1)
 @click.argument('tsv-file', type=click.Path(), required=True, nargs=1)
+def cli_clef2tsv(clef_file, tsv_file):
+
+    clef2tsv(clef_file, tsv_file)
+
+
 def clef2tsv(clef_file, tsv_file):
 
     out_columns = ['No.', 'TOKEN', 'NE-TAG', 'NE-EMB', 'ID', 'url_id', 'left', 'right', 'top', 'bottom']
@@ -141,6 +146,10 @@ def clef2tsv(clef_file, tsv_file):
 @click.argument('tsv-file', type=click.Path(exists=True), required=True, nargs=1)
 @click.argument('clef-gs-file', type=click.Path(), required=True, nargs=1)
 @click.argument('out-clef-file', type=click.Path(), required=True, nargs=1)
+def cli_tsv2clef(tsv_file, clef_gs_file, out_clef_file):
+    tsv2clef(tsv_file, clef_gs_file, out_clef_file)
+
+
 def tsv2clef(tsv_file, clef_gs_file, out_clef_file):
 
     out_columns = ['TOKEN', 'NE-COARSE-LIT', 'NE-COARSE-METO', 'NE-FINE-LIT', 'NE-FINE-METO', 'NE-FINE-COMP',

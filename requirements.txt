@@ -15,4 +15,5 @@ somajo
 gensim
 annoy
 nltk
+tsvtools
 

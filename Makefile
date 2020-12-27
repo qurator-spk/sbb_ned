@@ -1,6 +1,7 @@
 
 DATA_PATH ?=data
-WIKI_DATA_PATH ?=data/wikipedia
+WIKIPEDIA_PATH ?=data/wikipedia
+WIKIDATA_PATH ?=data/wikidata
 FASTTEXT_PATH ?= data/fasttext
 PROCESSES?=6
 DIST ?=angular
@@ -21,99 +22,79 @@ NED_TEST_SUBSET_FILE ?=$(DATA_PATH)/wikipedia/ned-test-subset.pkl
 $(OUTPUT_PATH):
 	mkdir -p $(OUTPUT_PATH)
 
-de-fasttext-files:
-	wget -nc --directory-prefix=$(FASTTEXT_PATH) https://dl.fbaipublicfiles.com/fasttext/vectors-crawl/cc.de.300.bin.gz
-	gunzip $(FASTTEXT_PATH)/cc.de.300.bin.gz
-fr-fasttexti-files:
-	wget -nc --directory-prefix=$(FASTTEXT_PATH) https://dl.fbaipublicfiles.com/fasttext/vectors-crawl/cc.fr.300.bin.gz
-	gunzip $(FASTTEXT_PATH)/cc.fr.300.bin.gz
-en-fasttexti-files:
-	wget -nc --directory-prefix=$(FASTTEXT_PATH) https://dl.fbaipublicfiles.com/fasttext/vectors-crawl/cc.en.300.bin.gz
-	gunzip $(FASTTEXT_PATH)/cc.en.300.bin.gz
+$(FASTTEXT_PATH)/cc.%.300.bin:
+	wget -nc --directory-prefix=$(FASTTEXT_PATH) https://dl.fbaipublicfiles.com/fasttext/vectors-crawl/cc.$*.300.bin.gz
+	gunzip $(FASTTEXT_PATH)/cc.$*.300.bin.gz
 
-de-fasttext-ORG:
-	build-index $(WIKI_DATA_PATH)/de-wikipedia-ner-entities-no-redirects.pkl fasttext ORG $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/fasttext/cc.de.300.bin --split-parts 
-de-fasttext-LOC:
-	build-index $(WIKI_DATA_PATH)/de-wikipedia-ner-entities-no-redirects.pkl fasttext LOC $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/fasttext/cc.de.300.bin --split-parts
-de-fasttext-PER:
-	build-index $(WIKI_DATA_PATH)/de-wikipedia-ner-entities-no-redirects.pkl fasttext PER $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/fasttext/cc.de.300.bin --split-parts
+%-fasttext-ORG:	$(FASTTEXT_PATH)/cc.%.300.bin
+	build-index $(WIKIDATA_PATH)/$*-wikipedia-ner-entities.pkl fasttext ORG $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=$(FASTTEXT_PATH)/cc.$*.300.bin --split-parts
+
+%-fasttext-LOC:	$(FASTTEXT_PATH)/cc.%.300.bin
+	build-index $(WIKIDATA_PATH)/$*-wikipedia-ner-entities.pkl fasttext LOC $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=$(FASTTEXT_PATH)/cc.$*.300.bin --split-parts
+
+%-fasttext-PER:	$(FASTTEXT_PATH)/cc.%.300.bin
+	build-index $(WIKIDATA_PATH)/$*-wikipedia-ner-entities.pkl fasttext PER $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=$(FASTTEXT_PATH)/cc.$*.300.bin --split-parts
+
 de-fasttext:	de-fasttext-ORG de-fasttext-LOC de-fasttext-PER
 
-fr-fasttext-ORG:
-	build-index $(WIKI_DATA_PATH)/fr-wikipedia-ner-entities-no-redirects.pkl fasttext ORG $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/fasttext/cc.fr.300.bin --split-parts 
-fr-fasttext-LOC:
-	build-index $(WIKI_DATA_PATH)/fr-wikipedia-ner-entities-no-redirects.pkl fasttext LOC $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/fasttext/cc.fr.300.bin --split-parts
-fr-fasttext-PER:
-	build-index $(WIKI_DATA_PATH)/fr-wikipedia-ner-entities-no-redirects.pkl fasttext PER $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/fasttext/cc.fr.300.bin --split-parts
 fr-fasttext:	fr-fasttext-ORG fr-fasttext-LOC fr-fasttext-PER
 
-en-fasttext-ORG:
-	build-index $(WIKI_DATA_PATH)/en-wikipedia-ner-entities-no-redirects.pkl fasttext ORG $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/fasttext/cc.en.300.bin --split-parts 
-en-fasttext-LOC:
-	build-index $(WIKI_DATA_PATH)/en-wikipedia-ner-entities-no-redirects.pkl fasttext LOC $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/fasttext/cc.en.300.bin --split-parts
-en-fasttext-PER:
-	build-index $(WIKI_DATA_PATH)/en-wikipedia-ner-entities-no-redirects.pkl fasttext PER $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/fasttext/cc.en.300.bin --split-parts
 en-fasttext:	en-fasttext-ORG en-fasttext-LOC en-fasttext-PER
 
 fasttext:	de-fasttext fr-fasttext en-fasttext
 
 # ==================================================================================================================================================================
 
-de-bert-ORG:
-	build-index $(WIKI_DATA_PATH)/de-wikipedia-ner-entities-no-redirects.pkl bert ORG $(N_TREES) $(ENTITY_INDEX_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/BERT/NED/de-model-1 --scalar-mix --split-parts --pooling=mean
-de-bert-LOC:
-	build-index $(WIKI_DATA_PATH)/de-wikipedia-ner-entities-no-redirects.pkl bert LOC $(N_TREES) $(ENTITY_INDEX_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/BERT/NED/de-model-1 --scalar-mix --split-parts --pooling=mean
-de-bert-PER:
-	build-index $(WIKI_DATA_PATH)/de-wikipedia-ner-entities-no-redirects.pkl bert PER $(N_TREES) $(ENTITY_INDEX_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/BERT/NED/de-model-1 --scalar-mix --split-parts --pooling=mean
+%-bert-ORG:
+	build-index $(WIKIDATA_PATH)/$*-wikipedia-ner-entities.pkl bert ORG $(N_TREES) $(ENTITY_INDEX_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/BERT/NED/$*-model --scalar-mix --split-parts --pooling=mean
+%-bert-LOC:
+	build-index $(WIKIDATA_PATH)/$*-wikipedia-ner-entities.pkl bert LOC $(N_TREES) $(ENTITY_INDEX_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/BERT/NED/$*-model --scalar-mix --split-parts --pooling=mean
+%-bert-PER:
+	build-index $(WIKIDATA_PATH)/$*-wikipedia-ner-entities.pkl bert PER $(N_TREES) $(ENTITY_INDEX_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/BERT/NED/$*-model --scalar-mix --split-parts --pooling=mean
+
 de-bert: de-bert-ORG de-bert-LOC de-bert-PER
 
-
-fr-bert-ORG:
-	build-index $(WIKI_DATA_PATH)/fr-wikipedia-ner-entities-no-redirects.pkl bert ORG $(N_TREES) $(ENTITY_INDEX_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/BERT/NED/fr-model-0 --scalar-mix --split-parts --pooling=mean
-fr-bert-LOC:
-	build-index $(WIKI_DATA_PATH)/fr-wikipedia-ner-entities-no-redirects.pkl bert LOC $(N_TREES) $(ENTITY_INDEX_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/BERT/NED/fr-model-0 --scalar-mix --split-parts --pooling=mean
-fr-bert-PER:
-	build-index $(WIKI_DATA_PATH)/fr-wikipedia-ner-entities-no-redirects.pkl bert PER $(N_TREES) $(ENTITY_INDEX_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/BERT/NED/fr-model-0 --scalar-mix --split-parts --pooling=mean
 fr-bert: fr-bert-ORG fr-bert-LOC fr-bert-PER
 
-
-en-bert-ORG:
-	build-index $(WIKI_DATA_PATH)/en-wikipedia-ner-entities-no-redirects.pkl bert ORG $(N_TREES) $(ENTITY_INDEX_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/BERT/NED/en-model-0 --scalar-mix --split-parts --pooling=mean
-en-bert-LOC:
-	build-index $(WIKI_DATA_PATH)/en-wikipedia-ner-entities-no-redirects.pkl bert LOC $(N_TREES) $(ENTITY_INDEX_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/BERT/NED/en-model-0 --scalar-mix --split-parts --pooling=mean
-en-bert-PER:
-	build-index $(WIKI_DATA_PATH)/en-wikipedia-ner-entities-no-redirects.pkl bert PER $(N_TREES) $(ENTITY_INDEX_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/BERT/NED/en-model-0 --scalar-mix --split-parts --pooling=mean
 en-bert: en-bert-ORG en-bert-LOC en-bert-PER
 
 # ==================================================================================================================================================================
 
-flair-ORG:
-	build-index $(ENTITIES_FILE) flair ORG $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST)
-flair-PER:
-	build-index $(ENTITIES_FILE) flair PER $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST)
-flair-LOC:
-	build-index $(ENTITIES_FILE) flair LOC $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST)
-flair:	flair-ORG flair-LOC flair-PER
+%-flair-ORG:
+	build-index $(WIKIDATA_PATH)/$*-wikipedia-ner-entities.pkl flair ORG $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST)
+%-flair-PER:
+	build-index $(WIKIDATA_PATH)/$*-wikipedia-ner-entities.pkl flair PER $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST)
+%-flair-LOC:
+	build-index $(WIKIDATA_PATH)/$*-wikipedia-ner-entities.pkl flair LOC $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST)
+
+de-flair:	de-flair-ORG de-flair-LOC de-flair-PER
+
+fr-flair:	fr-flair-ORG fr-flair-LOC fr-flair-PER
+
+en-flair:	en-flair-ORG en-flair-LOC en-flair-PER
+
+# ==================================================================================================================================================================
 
 fasttext-eval:
 	evaluate-index $(DATA_PATH)/wikipedia/wikipedia-tagged.parquet fasttext ORG  $(N_TREES) $(DIST) $(OUTPUT_PATH) --max-iter=1000000 --model-path=data/fasttext/cc.de.300.bin --split-parts
 	evaluate-index $(DATA_PATH)/wikipedia/wikipedia-tagged.parquet fasttext LOC  $(N_TREES) $(DIST) $(OUTPUT_PATH) --max-iter=1000000 --model-path=data/fasttext/cc.de.300.bin --split-parts
 	evaluate-index $(DATA_PATH)/wikipedia/wikipedia-tagged.parquet fasttext PER  $(N_TREES) $(DIST) $(OUTPUT_PATH) --max-iter=1000000 --model-path=data/fasttext/cc.de.300.bin --split-parts
 
-flair-context-ORG:
-	build-context-matrix $(ENTITIES_FILE) $(DATA_PATH)/wikipedia/wikipedia-tagged.parquet flair ORG $(OUTPUT_PATH) --processes=$(PROCESSES) --batch-size=$(BATCH_SIZE) --w-size $(WINDOW_SIZE)
-flair-context-LOC:
-	build-context-matrix $(ENTITIES_FILE) $(DATA_PATH)/wikipedia/wikipedia-tagged.parquet flair LOC $(OUTPUT_PATH) --processes=$(PROCESSES) --batch-size=$(BATCH_SIZE) --w-size $(WINDOW_SIZE)
-flair-context-PER:
-	build-context-matrix $(ENTITIES_FILE) $(DATA_PATH)/wikipedia/wikipedia-tagged.parquet flair PER $(OUTPUT_PATH) --processes=$(PROCESSES) --batch-size=$(BATCH_SIZE) --w-size $(WINDOW_SIZE)
-flair-context:	flair-context-ORG flair-context-LOC flair-context-PER
+%-flair-context-ORG:
+	build-context-matrix $(WIKIDATA_PATH)/$*-wikipedia-ner-entities.pkl $(DATA_PATH)/wikipedia/$*-wikipedia-tagged.sqlite flair ORG $(OUTPUT_PATH) --processes=$(PROCESSES) --batch-size=$(BATCH_SIZE) --w-size $(WINDOW_SIZE)
+%-flair-context-LOC:
+	build-context-matrix $(WIKIDATA_PATH)/$*-wikipedia-ner-entities.pkl $(DATA_PATH)/wikipedia/$*-wikipedia-tagged.sqlite flair LOC $(OUTPUT_PATH) --processes=$(PROCESSES) --batch-size=$(BATCH_SIZE) --w-size $(WINDOW_SIZE)
+%-flair-context-PER:
+	build-context-matrix $(WIKIDATA_PATH)/$*-wikipedia-ner-entities.pkl $(DATA_PATH)/wikipedia/$*-wikipedia-tagged.sqlite flair PER $(OUTPUT_PATH) --processes=$(PROCESSES) --batch-size=$(BATCH_SIZE) --w-size $(WINDOW_SIZE)
+
+de-flair-context:	de-flair-context-ORG de-flair-context-LOC de-flair-context-PER
 
 flair-context-index-ORG:
-	build-from-context-matrix $(OUTPUT_PATH)/context-embeddings-embt_flair-entt_ORG-wsize_$(WINDOW_SIZE).pkl $(N_TREES) $(DIST)
+	build-from-context-matrix $(ENTITY_INDEX_PATH)/context-embeddings-embt_flair-entt_ORG-wsize_$(WINDOW_SIZE).pkl $(N_TREES) $(DIST)
 flair-context-index-LOC:
-	build-from-context-matrix $(OUTPUT_PATH)/context-embeddings-embt_flair-entt_LOC-wsize_$(WINDOW_SIZE).pkl $(N_TREES) $(DIST)
+	build-from-context-matrix $(ENTITY_INDEX_PATH)/context-embeddings-embt_flair-entt_LOC-wsize_$(WINDOW_SIZE).pkl $(N_TREES) $(DIST)
 flair-context-index-PER:
-	build-from-context-matrix $(OUTPUT_PATH)/context-embeddings-embt_flair-entt_PER-wsize_$(WINDOW_SIZE).pkl $(N_TREES) $(DIST)
+	build-from-context-matrix $(ENTITY_INDEX_PATH)/context-embeddings-embt_flair-entt_PER-wsize_$(WINDOW_SIZE).pkl $(N_TREES) $(DIST)
 flair-context-index:	flair-context flair-context-index-ORG flair-context-index-LOC flair-context-index-PER
 
 flair-eval-ORG:
@@ -139,30 +120,17 @@ flair-eval-combined:	flair-eval-combined-ORG flair-eval-combined-LOC flair-eval-
 
 # =============================================================================================================================================================
 
-$(WIKI_DATA_PATH)/ned.sqlite:
-	ned-sentence-data --processes=$(PROCESSES) $(WIKI_DATA_PATH)/wikipedia-tagged.sqlite $@
-$(WIKI_DATA_PATH)/de-ned.sqlite:
-	ned-sentence-data --processes=$(PROCESSES) $(WIKI_DATA_PATH)/de-wikipedia-tagged.sqlite $@
-$(WIKI_DATA_PATH)/fr-ned.sqlite:
-	ned-sentence-data --processes=$(PROCESSES) $(WIKI_DATA_PATH)/fr-wikipedia-tagged.sqlite $@
-$(WIKI_DATA_PATH)/en-ned.sqlite:
-	ned-sentence-data --processes=$(PROCESSES) $(WIKI_DATA_PATH)/en-wikipedia-tagged.sqlite $@
+$(WIKIPEDIA_PATH)/%-ned.sqlite:
+	ned-sentence-data --processes=$(PROCESSES) $(WIKIPEDIA_PATH)/$*-wikipedia-tagged.sqlite $@
 
-ned-database:	$(WIKI_DATA_PATH)/de-ned.sqlite $(WIKI_DATA_PATH)/fr-ned.sqlite $(WIKI_DATA_PATH)/en-ned.sqlite
+ned-database:	$(WIKIPEDIA_PATH)/de-ned.sqlite $(WIKIPEDIA_PATH)/fr-ned.sqlite $(WIKIPEDIA_PATH)/en-ned.sqlite
 
-$(WIKI_DATA_PATH)/ned-train-subset.pkl $(WIKI_DATA_PATH)/ned-test-subset.pkl:	$(WIKI_DATA_PATH)/ned.sqlite
-	ned-train-test-split --fraction-train=0.5 $^ $(WIKI_DATA_PATH)/ned-train-subset.pkl $(WIKI_DATA_PATH)/ned-test-subset.pkl
+# =============================================================================================================================================================
 
-$(WIKI_DATA_PATH)/de-ned-train-subset.pkl $(WIKI_DATA_PATH)/de-ned-test-subset.pkl:	$(WIKI_DATA_PATH)/de-ned.sqlite
-	ned-train-test-split --fraction-train=0.5 $^ $(WIKI_DATA_PATH)/de-ned-train-subset.pkl $(WIKI_DATA_PATH)/de-ned-test-subset.pkl
+$(WIKIPEDIA_PATH)/%-ned-train-subset.pkl $(WIKIPEDIA_PATH)/%-ned-test-subset.pkl:	$(WIKIPEDIA_PATH)/%-ned.sqlite
+	ned-train-test-split --fraction-train=0.5 $^ $(WIKIPEDIA_PATH)/$*-ned-train-subset.pkl $(WIKIPEDIA_PATH)/$*-ned-test-subset.pkl
 
-$(WIKI_DATA_PATH)/fr-ned-train-subset.pkl $(WIKI_DATA_PATH)/fr-ned-test-subset.pkl:	$(WIKI_DATA_PATH)/fr-ned.sqlite
-	ned-train-test-split --fraction-train=0.5 $^ $(WIKI_DATA_PATH)/fr-ned-train-subset.pkl $(WIKI_DATA_PATH)/fr-ned-test-subset.pkl
-
-$(WIKI_DATA_PATH)/en-ned-train-subset.pkl $(WIKI_DATA_PATH)/en-ned-test-subset.pkl:	$(WIKI_DATA_PATH)/en-ned.sqlite
-	ned-train-test-split --fraction-train=0.5 $^ $(WIKI_DATA_PATH)/en-ned-train-subset.pkl $(WIKI_DATA_PATH)/en-ned-test-subset.pkl
-
-ned-train-test-split:	$(WIKI_DATA_PATH)/de-ned-train-subset.pkl $(WIKI_DATA_PATH)/fr-ned-train-subset.pkl $(WIKI_DATA_PATH)/en-ned-train-subset.pkl
+ned-train-test-split:	$(WIKIPEDIA_PATH)/de-ned-train-subset.pkl $(WIKIPEDIA_PATH)/fr-ned-train-subset.pkl $(WIKIPEDIA_PATH)/en-ned-train-subset.pkl
 
 # ==============================================================================================================================================================
 
@@ -178,307 +146,20 @@ ned-train-test:
 # ===============================================================================================================================================================
 
 de-ned-train-0:
-	ned-bert --learning-rate=3e-5 --seed=42 --train-batch-size=128 --train-size=100000 --num-train-epochs=400 --ned-sql-file $(NED_FILE) --train-set-file $(NED_TRAIN_SUBSET_FILE) --dev-set-file $(NED_TEST_SUBSET_FILE) --test-set-file $(NED_TEST_SUBSET_FILE) data/digisam/BERT_de_finetuned ./ned-model-0 --model-file pytorch_model.bin --entity-index-path $(ENTITY_INDEX_PATH) --entities-file $(WIKI_DATA_PATH)/de-wikipedia-ner-entities-no-redirects.pkl
+	ned-bert --learning-rate=3e-5 --seed=42 --train-batch-size=128 --train-size=100000 --num-train-epochs=400 --ned-sql-file $(NED_FILE) --train-set-file $(NED_TRAIN_SUBSET_FILE) --dev-set-file $(NED_TEST_SUBSET_FILE) --test-set-file $(NED_TEST_SUBSET_FILE) data/digisam/BERT_de_finetuned ./ned-model-0 --model-file pytorch_model.bin --entity-index-path $(ENTITY_INDEX_PATH) --entities-file $(WIKIPEDIA_PATH)/de-wikipedia-ner-entities-no-redirects.pkl
 
 de-ned-train-1:
-	ned-bert --learning-rate=5e-6 --seed=23 --train-batch-size=128 --train-size=100000 --num-train-epochs=1000 --ned-sql-file $(NED_FILE) --train-set-file $(NED_TRAIN_SUBSET_FILE) --dev-set-file $(NED_TEST_SUBSET_FILE) --test-set-file $(NED_TEST_SUBSET_FILE) data/BERT/NED/de-model-0 data/BERT/NED/de-model-1 --model-file pytorch_model.bin --entity-index-path $(ENTITY_INDEX_PATH) --entities-file $(WIKI_DATA_PATH)/de-wikipedia-ner-entities-no-redirects.pkl
+	ned-bert --learning-rate=5e-6 --seed=23 --train-batch-size=128 --train-size=100000 --num-train-epochs=1000 --ned-sql-file $(NED_FILE) --train-set-file $(NED_TRAIN_SUBSET_FILE) --dev-set-file $(NED_TEST_SUBSET_FILE) --test-set-file $(NED_TEST_SUBSET_FILE) data/BERT/NED/de-model-0 data/BERT/NED/de-model-1 --model-file pytorch_model.bin --entity-index-path $(ENTITY_INDEX_PATH) --entities-file $(WIKIPEDIA_PATH)/de-wikipedia-ner-entities-no-redirects.pkl
 
 # ===============================================================================================================================================================
 
 en-ned-train-0:
-	ned-bert --learning-rate=1e-5 --seed=42 --train-batch-size=128 --gradient-accumulation-steps=4 --train-size=100000 --num-train-epochs=1000 --ned-sql-file $(WIKI_DATA_PATH)/en-ned.sqlite --train-set-file $(WIKI_DATA_PATH)/en-ned-train-subset.pkl --dev-set-file $(WIKI_DATA_PATH)/en-ned-test-subset.pkl --test-set-file $(WIKI_DATA_PATH)/en-ned-test-subset.pkl data/BERT/multi_cased_L-12_H-768_A-12 data/BERT/NED/en-model-0 --model-file pytorch_model.bin --entity-index-path $(ENTITY_INDEX_PATH) --entities-file $(WIKI_DATA_PATH)/en-wikipedia-ner-entities-no-redirects.pkl --embedding-type=fasttext --embedding-model=data/fasttext/cc.en.300.bin
+	ned-bert --learning-rate=1e-5 --seed=42 --train-batch-size=128 --gradient-accumulation-steps=4 --train-size=100000 --num-train-epochs=1000 --ned-sql-file $(WIKIPEDIA_PATH)/en-ned.sqlite --train-set-file $(WIKIPEDIA_PATH)/en-ned-train-subset.pkl --dev-set-file $(WIKIPEDIA_PATH)/en-ned-test-subset.pkl --test-set-file $(WIKIPEDIA_PATH)/en-ned-test-subset.pkl data/BERT/multi_cased_L-12_H-768_A-12 data/BERT/NED/en-model-0 --model-file pytorch_model.bin --entity-index-path $(ENTITY_INDEX_PATH) --entities-file $(WIKIPEDIA_PATH)/en-wikipedia-ner-entities-no-redirects.pkl --embedding-type=fasttext --embedding-model=data/fasttext/cc.en.300.bin
 
 # ===============================================================================================================================================================
 
 fr-ned-train-0:
-	ned-bert --learning-rate=1e-5 --seed=42 --train-batch-size=128 --gradient-accumulation-steps=4 --train-size=100000 --num-train-epochs=1000 --ned-sql-file $(WIKI_DATA_PATH)/fr-ned.sqlite --train-set-file $(WIKI_DATA_PATH)/fr-ned-train-subset.pkl --dev-set-file $(WIKI_DATA_PATH)/fr-ned-test-subset.pkl --test-set-file $(WIKI_DATA_PATH)/fr-ned-test-subset.pkl data/BERT/multi_cased_L-12_H-768_A-12 data/BERT/NED/fr-model-0 --model-file pytorch_model.bin --entity-index-path $(ENTITY_INDEX_PATH) --entities-file $(WIKI_DATA_PATH)/fr-wikipedia-ner-entities-no-redirects.pkl --embedding-type=fasttext --embedding-model=data/fasttext/cc.fr.300.bin
-
-# ===============================================================================================================================================================
-
-CLEF_SCORER_PATH ?=~/qurator/CLEF-HIPE-2020-scorer
-CLEF_PATH ?=~/qurator/CLEF-HIPE-2020
-#CLEF_TARGET_PATH ?=$(DATA_PATH)/clef2020
-CLEF_TARGET_PATH ?=$(DATA_PATH)/clef2020-2
-NED_THRESHOLD ?= 0.2
-
-DE_NER_URL ?=http://b-lx0053.sbb.spk-berlin.de/sbb-tools/ner/ner/0
-FR_NER_URL ?=http://b-lx0053.sbb.spk-berlin.de/sbb-tools/ner/ner/1
-EN_NER_URL ?=http://b-lx0053.sbb.spk-berlin.de/sbb-tools/ner/ner/1
-
-DE_NED_URL ?=http://b-lx0053.sbb.spk-berlin.de/sbb-tools/de-ned
-FR_NED_URL ?=http://b-lx0053.sbb.spk-berlin.de/sbb-tools/fr-ned
-EN_NED_URL ?=http://b-lx0053.sbb.spk-berlin.de/sbb-tools/en-ned
-
-$(CLEF_TARGET_PATH):
-	mkdir -p $(CLEF_TARGET_PATH)
-
-$(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-dev-de.tsv:
-	clef2tsv $(CLEF_PATH)/data/training-v1.2/de/HIPE-data-v1.2-dev-de.tsv $@
-$(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-train-de.tsv:
-	clef2tsv $(CLEF_PATH)/data/training-v1.2/de/HIPE-data-v1.2-train-de.tsv $@
-$(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-dev-fr.tsv:
-	clef2tsv $(CLEF_PATH)/data/training-v1.2/fr/HIPE-data-v1.2-dev-fr.tsv $@
-$(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-train-fr.tsv:
-	clef2tsv $(CLEF_PATH)/data/training-v1.2/fr/HIPE-data-v1.2-train-fr.tsv $@
-$(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-dev-en.tsv:
-	clef2tsv $(CLEF_PATH)/data/training-v1.2/en/HIPE-data-v1.2-dev-en.tsv $@
-$(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-train-en.tsv:
-	clef2tsv $(CLEF_PATH)/data/training-v1.2/en/HIPE-data-v1.2-train-en.tsv $@
-
-$(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-test-masked-de.tsv:
-	clef2tsv $(CLEF_PATH)/data/test-masked-v1.2/de/HIPE-data-v1.2-test-masked-de.tsv $@
-$(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-test-masked-fr.tsv:
-	clef2tsv $(CLEF_PATH)/data/test-masked-v1.2/fr/HIPE-data-v1.2-test-masked-fr.tsv $@
-$(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-test-masked-en.tsv:
-	clef2tsv $(CLEF_PATH)/data/test-masked-v1.2/en/HIPE-data-v1.2-test-masked-en.tsv $@
-
-
-$(CLEF_TARGET_PATH)/neat-HIPE-data-v1.3-test-masked-bundle5-de.tsv:
-	clef2tsv $(CLEF_PATH)/data/test-masked-v1.3/de/HIPE-data-v1.3-test-masked-bundle5-de.tsv $@
-$(CLEF_TARGET_PATH)/neat-HIPE-data-v1.3-test-masked-bundle5-fr.tsv:
-	clef2tsv $(CLEF_PATH)/data/test-masked-v1.3/fr/HIPE-data-v1.3-test-masked-bundle5-fr.tsv $@
-$(CLEF_TARGET_PATH)/neat-HIPE-data-v1.3-test-masked-bundle5-en.tsv:
-	clef2tsv $(CLEF_PATH)/data/test-masked-v1.3/en/HIPE-data-v1.3-test-masked-bundle5-en.tsv $@
-
-
-CLEF2020-tsc:	$(CLEF_TARGET_PATH) $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-dev-de.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-train-de.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-dev-fr.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-train-fr.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-dev-en.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-train-en.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-test-masked-de.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-test-masked-fr.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-test-masked-en.tsv 
-
-# ==================================================
-#
-$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-train-de.tsv:	$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-train-de.json
-$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-train-de.json:	$(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-train-de.tsv
-	find-entities --ned-threshold=$(NED_THRESHOLD) --noproxy $^ $(basename $@).tsv --ned-json-file=$@ --ner-rest-endpoint=$(DE_NER_URL) --ned-rest-endpoint=$(DE_NED_URL)
-
-$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-dev-de.tsv:	$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-dev-de.json
-$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-dev-de.json:	$(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-dev-de.tsv
-	find-entities --ned-threshold=$(NED_THRESHOLD) --noproxy $^ $(basename $@).tsv --ned-json-file=$@ --ner-rest-endpoint=$(DE_NER_URL) --ned-rest-endpoint=$(DE_NED_URL)
-
-$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-train-fr.tsv:	$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-train-fr.json
-$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-train-fr.json:	$(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-train-fr.tsv
-	find-entities --ned-threshold=$(NED_THRESHOLD) --noproxy $^ $(basename $@).tsv --ned-json-file=$@ --ner-rest-endpoint=$(FR_NER_URL) --ned-rest-endpoint=$(FR_NED_URL)
-
-$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-dev-fr.tsv:		$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-dev-fr.json
-$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-dev-fr.json:	$(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-dev-fr.tsv
-	find-entities --ned-threshold=$(NED_THRESHOLD) --noproxy $^ $(basename $@).tsv --ned-json-file=$@ --ner-rest-endpoint=$(FR_NER_URL) --ned-rest-endpoint=$(FR_NED_URL)
-
-$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-train-en.tsv:	$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-train-en.json
-$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-train-en.json:	$(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-train-en.tsv
-	find-entities --ned-threshold=$(NED_THRESHOLD) --noproxy $^ $(basename $@).tsv --ned-json-file=$@ --ner-rest-endpoint=$(EN_NER_URL) --ned-rest-endpoint=$(EN_NED_URL)
-
-$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-dev-en.tsv:		$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-dev-en.json
-$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-dev-en.json:	$(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-dev-en.tsv
-	find-entities --ned-threshold=$(NED_THRESHOLD) --noproxy $^ $(basename $@).tsv --ned-json-file=$@ --ner-rest-endpoint=$(EN_NER_URL) --ned-rest-endpoint=$(EN_NED_URL)
-
-
-CLEF2020-de-json: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-train-de.json $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-dev-de.json
-
-CLEF2020-fr-json: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-train-fr.json $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-dev-fr.json
-
-CLEF2020-en-json: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-train-en.json $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-dev-en.json
-
-
-$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-test-masked-de.tsv:		$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-test-masked-de.json
-$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-test-masked-de.json:	$(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-test-masked-de.tsv
-	find-entities --ned-threshold=$(NED_THRESHOLD) --noproxy $^ $(basename $@).tsv --ned-json-file=$@ --ner-rest-endpoint=$(DE_NER_URL) --ned-rest-endpoint=$(DE_NED_URL)
-
-$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-test-masked-fr.tsv:		$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-test-masked-fr.json
-$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-test-masked-fr.json:	$(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-test-masked-fr.tsv
-	find-entities --ned-threshold=$(NED_THRESHOLD) --noproxy $^ $(basename $@).tsv --ned-json-file=$@ --ner-rest-endpoint=$(FR_NER_URL) --ned-rest-endpoint=$(FR_NED_URL)
-
-$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-test-masked-en.tsv:		$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-test-masked-en.json
-$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-test-masked-en.json:	$(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-test-masked-en.tsv
-	find-entities --ned-threshold=$(NED_THRESHOLD) --noproxy $^ $(basename $@).tsv --ned-json-file=$@ --ner-rest-endpoint=$(EN_NER_URL) --ned-rest-endpoint=$(EN_NED_URL)
-
-CLEF2020-de-test-masked: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-test-masked-de.json
-
-CLEF2020-fr-test-masked: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-test-masked-fr.json
-
-CLEF2020-en-test-masked: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-test-masked-en.json
-
-
-$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.3-test-masked-bundle5-de.tsv:		$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.3-test-masked-bundle5-de.json
-$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.3-test-masked-bundle5-de.json:	$(CLEF_TARGET_PATH)/neat-HIPE-data-v1.3-test-masked-bundle5-de.tsv
-	find-entities --ned-threshold=$(NED_THRESHOLD) --noproxy $^ $(basename $@).tsv --ned-json-file=$@ --ned-rest-endpoint=$(DE_NED_URL)
-
-$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.3-test-masked-bundle5-fr.tsv:		$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.3-test-masked-bundle5-fr.json
-$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.3-test-masked-bundle5-fr.json:	$(CLEF_TARGET_PATH)/neat-HIPE-data-v1.3-test-masked-bundle5-fr.tsv
-	find-entities --ned-threshold=$(NED_THRESHOLD) --noproxy $^ $(basename $@).tsv --ned-json-file=$@ --ned-rest-endpoint=$(FR_NED_URL)
-
-$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.3-test-masked-bundle5-en.tsv:		$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.3-test-masked-bundle5-en.json
-$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.3-test-masked-bundle5-en.json:	$(CLEF_TARGET_PATH)/neat-HIPE-data-v1.3-test-masked-bundle5-en.tsv
-	find-entities --ned-threshold=$(NED_THRESHOLD) --noproxy $^ $(basename $@).tsv --ned-json-file=$@ --ned-rest-endpoint=$(EN_NED_URL)
-
-CLEF2020-de-test-masked-bundle5: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.3-test-masked-bundle5-de.json
-
-CLEF2020-fr-test-masked-bundle5: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.3-test-masked-bundle5-fr.json
-
-CLEF2020-en-test-masked-bundle5: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.3-test-masked-bundle5-en.json
-
-
-# ==================================================
-
-$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-train-de.tsv: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-train-de.tsv $(CLEF_PATH)/data/training-v1.2/de/HIPE-data-v1.2-train-de.tsv
-	tsv2clef $^ $@
-$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-dev-de.tsv: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-dev-de.tsv $(CLEF_PATH)/data/training-v1.2/de/HIPE-data-v1.2-dev-de.tsv
-	tsv2clef $^ $@
-
-
-$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-train-fr.tsv: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-train-fr.tsv $(CLEF_PATH)/data/training-v1.2/fr/HIPE-data-v1.2-train-fr.tsv
-	tsv2clef $^ $@
-$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-dev-fr.tsv: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-dev-fr.tsv $(CLEF_PATH)/data/training-v1.2/fr/HIPE-data-v1.2-dev-fr.tsv
-	tsv2clef $^ $@
-
-
-$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-train-en.tsv: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-train-en.tsv $(CLEF_PATH)/data/training-v1.2/en/HIPE-data-v1.2-train-en.tsv
-	tsv2clef $^ $@
-$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-dev-en.tsv: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-dev-en.tsv $(CLEF_PATH)/data/training-v1.2/en/HIPE-data-v1.2-dev-en.tsv
-	tsv2clef $^ $@
-
-
-$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-test-masked-de.tsv: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-test-masked-de.tsv $(CLEF_PATH)/data/test-masked-v1.2/de/HIPE-data-v1.2-test-masked-de.tsv
-	tsv2clef $^ $@
-$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-test-masked-fr.tsv: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-test-masked-fr.tsv $(CLEF_PATH)/data/test-masked-v1.2/fr/HIPE-data-v1.2-test-masked-fr.tsv
-	tsv2clef $^ $@
-$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-test-masked-en.tsv: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-test-masked-en.tsv $(CLEF_PATH)/data/test-masked-v1.2/en/HIPE-data-v1.2-test-masked-en.tsv
-	tsv2clef $^ $@
-
-CLEF2020-neat-result:  $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-test-masked-de.tsv $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-test-masked-fr.tsv $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-test-masked-en.tsv
-	zip -j CLEF2020-neat.zip $^
-
-
-$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.3-test-masked-bundle5-de.tsv: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.3-test-masked-bundle5-de.tsv $(CLEF_PATH)/data/test-masked-v1.3/de/HIPE-data-v1.3-test-masked-bundle5-de.tsv
-	tsv2clef $^ $@
-$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.3-test-masked-bundle5-fr.tsv: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.3-test-masked-bundle5-fr.tsv $(CLEF_PATH)/data/test-masked-v1.3/fr/HIPE-data-v1.3-test-masked-bundle5-fr.tsv
-	tsv2clef $^ $@
-$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.3-test-masked-bundle5-en.tsv: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.3-test-masked-bundle5-en.tsv $(CLEF_PATH)/data/test-masked-v1.3/en/HIPE-data-v1.3-test-masked-bundle5-en.tsv
-	tsv2clef $^ $@
-
-CLEF2020-neat-result-bundle5:  $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.3-test-masked-bundle5-de.tsv $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.3-test-masked-bundle5-fr.tsv $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.3-test-masked-bundle5-en.tsv
-	zip -j CLEF2020-neat-bundle5.zip $^
-
-
-
-CLEF2020-de-result: $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-train-de.tsv $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-dev-de.tsv
-
-CLEF2020-fr-result: $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-train-fr.tsv $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-dev-fr.tsv
-
-CLEF2020-en-result: $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-train-en.tsv $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-dev-en.tsv
-
-# ===================================================
-
-CLEF2020-de-train-eval-nel: $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-train-de.tsv
-	python $(CLEF_SCORER_PATH)/clef_evaluation.py -s --n_best=3 -p $^ -r $(CLEF_PATH)/data/training-v1.2/de/HIPE-data-v1.2-train-de.tsv -t nel -o $(CLEF_TARGET_PATH)
-
-CLEF2020-fr-train-eval-nel: $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-train-fr.tsv
-	python $(CLEF_SCORER_PATH)/clef_evaluation.py -s --n_best=3 -p $^ -r $(CLEF_PATH)/data/training-v1.2/fr/HIPE-data-v1.2-train-fr.tsv -t nel -o $(CLEF_TARGET_PATH)
-
-# ===================================================
-
-CLEF2020-de-dev-eval-nel: $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-dev-de.tsv
-	python $(CLEF_SCORER_PATH)/clef_evaluation.py -s --n_best=3 -p $^ -r $(CLEF_PATH)/data/training-v1.2/de/HIPE-data-v1.2-dev-de.tsv -t nel -o $(CLEF_TARGET_PATH)
-
-CLEF2020-fr-dev-eval-nel: $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-dev-fr.tsv
-	python $(CLEF_SCORER_PATH)/clef_evaluation.py -s --n_best=3 -p $^ -r $(CLEF_PATH)/data/training-v1.2/fr/HIPE-data-v1.2-dev-fr.tsv -t nel -o $(CLEF_TARGET_PATH)
-
-CLEF2020-en-dev-eval-nel: $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-dev-en.tsv
-	python $(CLEF_SCORER_PATH)/clef_evaluation.py -s --n_best=3 -p $^ -r $(CLEF_PATH)/data/training-v1.2/en/HIPE-data-v1.2-dev-en.tsv -t nel -o $(CLEF_TARGET_PATH)
-
-# ===================================================
-
-RUNNUMBER ?=1
-
-CLEF2020-test-de-eval-nel: $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-dev-de.tsv
-	cp $^ SBB_bundle2_de_$(RUNNUMBER).tsv
-	python $(CLEF_SCORER_PATH)/clef_evaluation.py --n_best=3 -p SBB_bundle2_de_$(RUNNUMBER).tsv -r $(CLEF_PATH)/data/training-v1.2/de/HIPE-data-v1.2-dev-de.tsv -t nel -o $(CLEF_TARGET_PATH)
-
-CLEF2020-test-fr-eval-nel: $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-dev-fr.tsv
-	cp $^ SBB_bundle2_fr_$(RUNNUMBER).tsv
-	python $(CLEF_SCORER_PATH)/clef_evaluation.py --n_best=3 -p SBB_bundle2_fr_$(RUNNUMBER).tsv -r $(CLEF_PATH)/data/training-v1.2/fr/HIPE-data-v1.2-dev-fr.tsv -t nel -o $(CLEF_TARGET_PATH)
-
-CLEF2020-test-en--eval-nel: $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-dev-en.tsv
-	cp $^ SBB_bundle2_en_$(RUNNUMBER).tsv
-	python $(CLEF_SCORER_PATH)/clef_evaluation.py --n_best=3 -p SBB_bundle2_en_$(RUNNUMBER).tsv -r $(CLEF_PATH)/data/training-v1.2/en/HIPE-data-v1.2-dev-en.tsv -t nel -o $(CLEF_TARGET_PATH)
-
-
-
-CLEF2020-de-eval: $(CLEF_TARGET_PATH) CLEF2020-de-train-eval-nel CLEF2020-de-dev-eval-nel
- 
-CLEF2020-fr-eval: $(CLEF_TARGET_PATH) CLEF2020-fr-train-eval-nel CLEF2020-fr-dev-eval-nel
-
-CLEF2020-en-eval: $(CLEF_TARGET_PATH) CLEF2020-en-dev-eval-nel
-
-CLEF2020-test-eval: CLEF2020-test-de-eval-nel CLEF2020-test-fr-eval-nel CLEF2020-test-en--eval-nel
-
-CLEF2020-train-dev-eval: $(CLEF_TARGET_PATH) CLEF2020-de-train-eval-nel CLEF2020-de-dev-eval-nel CLEF2020-fr-train-eval-nel CLEF2020-fr-dev-eval-nel CLEF2020-en-dev-eval-nel
-
-# =================================
-
-$(CLEF_TARGET_PATH)/SBB_bundle2_de_1.tsv:	$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-test-masked-de.tsv
-	cp $^ $@
-
-$(CLEF_TARGET_PATH)/SBB_bundle2_fr_1.tsv:	$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-test-masked-fr.tsv
-	cp $^ $@
-
-$(CLEF_TARGET_PATH)/SBB_bundle2_en_1.tsv:	$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-test-masked-en.tsv
-	cp $^ $@
-
-CLEF2020-eval:	$(CLEF_TARGET_PATH)/SBB_bundle2_de_$(RUNNUMBER).tsv $(CLEF_TARGET_PATH)/SBB_bundle2_fr_$(RUNNUMBER).tsv $(CLEF_TARGET_PATH)/SBB_bundle2_en_$(RUNNUMBER).tsv
-	zip -j SBB_submission_$(RUNNUMBER).zip $^
-	
-# =================================
-
-$(CLEF_TARGET_PATH)/SBB_bundle5_de_1.tsv:	$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.3-test-masked-bundle5-de.tsv
-	cp $^ $@
-
-$(CLEF_TARGET_PATH)/SBB_bundle5_fr_1.tsv:	$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.3-test-masked-bundle5-fr.tsv
-	cp $^ $@
-
-$(CLEF_TARGET_PATH)/SBB_bundle5_en_1.tsv:	$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.3-test-masked-bundle5-en.tsv
-	cp $^ $@
-
-CLEF2020-eval-bundle5:	$(CLEF_TARGET_PATH)/SBB_bundle5_de_$(RUNNUMBER).tsv $(CLEF_TARGET_PATH)/SBB_bundle5_fr_$(RUNNUMBER).tsv $(CLEF_TARGET_PATH)/SBB_bundle5_en_$(RUNNUMBER).tsv
-	zip -j SBB_submission_$(RUNNUMBER)-bundle5.zip $^
-
-
-# ===============================================================================================================================================
-
-$(CLEF_TARGET_PATH)/de-decider-train-dataset.pkl: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-train-de.json $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-train-de.tsv
-	sentence-stat $(basename $<).tsv $^ $@
-
-$(CLEF_TARGET_PATH)/fr-decider-train-dataset.pkl: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-train-fr.json $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-train-fr.tsv
-	sentence-stat $(basename $<).tsv $^ $@
-
-$(CLEF_TARGET_PATH)/en-decider-train-dataset.pkl: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-dev-en.json $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-dev-en.tsv
-	sentence-stat $(basename $<).tsv $^ $@
-
-
-CLEF2020-decider-train-data: $(CLEF_TARGET_PATH)/de-decider-train-dataset.pkl $(CLEF_TARGET_PATH)/fr-decider-train-dataset.pkl $(CLEF_TARGET_PATH)/en-decider-train-dataset.pkl
-
-# =====================================
-
-$(CLEF_TARGET_PATH)/de-decider-dev-dataset.pkl: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-dev-de.tsv $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-dev-de.json $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-dev-de.tsv
-	sentence-stat $^ $@
-
-CLEF2020-decider-dev-data: $(CLEF_TARGET_PATH)/de-decider-dev-dataset.pkl
-
-# =====================================
-
-$(CLEF_TARGET_PATH)/de-decider.pkl: $(CLEF_TARGET_PATH)/de-decider-train-dataset.pkl
-	train-decider $^ $@
-
-$(CLEF_TARGET_PATH)/fr-decider.pkl: $(CLEF_TARGET_PATH)/fr-decider-train-dataset.pkl
-	train-decider $^ $@
-
-$(CLEF_TARGET_PATH)/en-decider.pkl: $(CLEF_TARGET_PATH)/en-decider-train-dataset.pkl
-	train-decider $^ $@
-
-
-CLEF2020-decider: $(CLEF_TARGET_PATH)/de-decider.pkl $(CLEF_TARGET_PATH)/fr-decider.pkl $(CLEF_TARGET_PATH)/en-decider.pkl
-
-CLEF2020-compute-knb-coverage:
-	compute-knb-coverage $(WIKI_DATA_PATH)/de-wikipedia-ner-entities-no-redirects.pkl $(WIKI_DATA_PATH)/de-wikipedia.sqlite3 $(CLEF_PATH)/data/test-v1.3/de/HIPE-data-v1.3-test-de.tsv
-	compute-knb-coverage $(WIKI_DATA_PATH)/fr-wikipedia-ner-entities-no-redirects.pkl $(WIKI_DATA_PATH)/fr-wikipedia.sqlite3 $(CLEF_PATH)/data/test-v1.3/fr/HIPE-data-v1.3-test-fr.tsv
-	compute-knb-coverage $(WIKI_DATA_PATH)/en-wikipedia-ner-entities-no-redirects.pkl $(WIKI_DATA_PATH)/en-wikipedia.sqlite3 $(CLEF_PATH)/data/test-v1.3/en/HIPE-data-v1.3-test-en.tsv
+	ned-bert --learning-rate=1e-5 --seed=42 --train-batch-size=128 --gradient-accumulation-steps=4 --train-size=100000 --num-train-epochs=1000 --ned-sql-file $(WIKIPEDIA_PATH)/fr-ned.sqlite --train-set-file $(WIKIPEDIA_PATH)/fr-ned-train-subset.pkl --dev-set-file $(WIKIPEDIA_PATH)/fr-ned-test-subset.pkl --test-set-file $(WIKIPEDIA_PATH)/fr-ned-test-subset.pkl data/BERT/multi_cased_L-12_H-768_A-12 data/BERT/NED/fr-model-0 --model-file pytorch_model.bin --entity-index-path $(ENTITY_INDEX_PATH) --entities-file $(WIKIPEDIA_PATH)/fr-wikipedia-ner-entities-no-redirects.pkl --embedding-type=fasttext --embedding-model=data/fasttext/cc.fr.300.bin
 
 
 # ================================================================================================================================================
@@ -487,13 +168,13 @@ $(DATA_PATH)/char_normalization/normalization-table.pkl:
 	pdftotext -raw $(DATA_PATH)/char_normalization/Special-Characters-in-Aletheia.pdf $(DATA_PATH)/char_normalization/special.txt
 	extract-normalization-table $(DATA_PATH)/char_normalization/special.txt $@
 
-$(DATA_PATH)/char_normalization/de-normalization-table.pkl:	$(WIKI_DATA_PATH)/de-ned.sqlite $(DATA_PATH)/char_normalization/normalization-table.pkl
+$(DATA_PATH)/char_normalization/de-normalization-table.pkl:	$(WIKIPEDIA_PATH)/de-ned.sqlite $(DATA_PATH)/char_normalization/normalization-table.pkl
 	adapt-normalization-table $^ $@
 
-$(DATA_PATH)/char_normalization/fr-normalization-table.pkl:	$(WIKI_DATA_PATH)/fr-ned.sqlite $(DATA_PATH)/char_normalization/normalization-table.pkl
+$(DATA_PATH)/char_normalization/fr-normalization-table.pkl:	$(WIKIPEDIA_PATH)/fr-ned.sqlite $(DATA_PATH)/char_normalization/normalization-table.pkl
 	adapt-normalization-table $^ $@
 
-$(DATA_PATH)/char_normalization/en-normalization-table.pkl:	$(WIKI_DATA_PATH)/en-ned.sqlite $(DATA_PATH)/char_normalization/normalization-table.pkl
+$(DATA_PATH)/char_normalization/en-normalization-table.pkl:	$(WIKIPEDIA_PATH)/en-ned.sqlite $(DATA_PATH)/char_normalization/normalization-table.pkl
 	adapt-normalization-table $^ $@
 
 normalization-tables: $(DATA_PATH)/char_normalization/de-normalization-table.pkl $(DATA_PATH)/char_normalization/fr-normalization-table.pkl $(DATA_PATH)/char_normalization/en-normalization-table.pkl
