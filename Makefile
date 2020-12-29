@@ -120,7 +120,7 @@ flair-eval-combined:	flair-eval-combined-ORG flair-eval-combined-LOC flair-eval-
 
 # =============================================================================================================================================================
 
-$(WIKIPEDIA_PATH)/%-ned.sqlite:
+$(WIKIPEDIA_PATH)/%-ned.sqlite:	$(WIKIPEDIA_PATH)/%-wikipedia-tagged.sqlite
 	ned-sentence-data --processes=$(PROCESSES) $(WIKIPEDIA_PATH)/$*-wikipedia-tagged.sqlite $@
 
 ned-database:	$(WIKIPEDIA_PATH)/de-ned.sqlite $(WIKIPEDIA_PATH)/fr-ned.sqlite $(WIKIPEDIA_PATH)/en-ned.sqlite

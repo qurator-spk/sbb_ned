@@ -283,7 +283,7 @@ def build(all_entities_file, embeddings, ent_type, n_trees, processes=10, distan
 
     all_entities = pd.read_pickle(all_entities_file)
 
-    if ent_type in all_entities.columms:
+    if ent_type in all_entities.columns:
 
         all_entities = all_entities.loc[all_entities[ent_type], ['TYPE']]
         all_entities['TYPE'] = ent_type
