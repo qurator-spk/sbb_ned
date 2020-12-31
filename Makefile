@@ -132,6 +132,17 @@ ned-database:	$(WIKIPEDIA_PATH)/de-ned.sqlite $(WIKIPEDIA_PATH)/fr-ned.sqlite $(
 
 add-tables: add-de-tables add-fr-tables add-en-tables
 
+# ================================================================================================================================================
+
+$(DATA_PATH)/char_normalization/normalization-table.pkl:
+	pdftotext -raw $(DATA_PATH)/char_normalization/Special-Characters-in-Aletheia.pdf $(DATA_PATH)/char_normalization/special.txt
+	extract-normalization-table $(DATA_PATH)/char_normalization/special.txt $@
+
+$(DATA_PATH)/char_normalization/%-normalization-table.pkl:	$(WIKIPEDIA_PATH)/%-ned.sqlite $(DATA_PATH)/char_normalization/normalization-table.pkl
+	adapt-normalization-table $^ $@
+
+normalization-tables: $(DATA_PATH)/char_normalization/de-normalization-table.pkl $(DATA_PATH)/char_normalization/fr-normalization-table.pkl $(DATA_PATH)/char_normalization/en-normalization-table.pkl
+
 # =============================================================================================================================================================
 
 $(WIKIPEDIA_PATH)/%-ned-train-subset.pkl $(WIKIPEDIA_PATH)/%-ned-test-subset.pkl:	$(WIKIPEDIA_PATH)/%-ned.sqlite
@@ -168,23 +179,6 @@ en-ned-train-0:
 fr-ned-train-0:
 	ned-bert --learning-rate=1e-5 --seed=42 --train-batch-size=128 --gradient-accumulation-steps=4 --train-size=100000 --num-train-epochs=1000 --ned-sql-file $(WIKIPEDIA_PATH)/fr-ned.sqlite --train-set-file $(WIKIPEDIA_PATH)/fr-ned-train-subset.pkl --dev-set-file $(WIKIPEDIA_PATH)/fr-ned-test-subset.pkl --test-set-file $(WIKIPEDIA_PATH)/fr-ned-test-subset.pkl data/BERT/multi_cased_L-12_H-768_A-12 data/BERT/NED/fr-model-0 --model-file pytorch_model.bin --entity-index-path $(ENTITY_INDEX_PATH) --entities-file $(WIKIPEDIA_PATH)/fr-wikipedia-ner-entities-no-redirects.pkl --embedding-type=fasttext --embedding-model=data/fasttext/cc.fr.300.bin
 
-
-# ================================================================================================================================================
-
-$(DATA_PATH)/char_normalization/normalization-table.pkl:
-	pdftotext -raw $(DATA_PATH)/char_normalization/Special-Characters-in-Aletheia.pdf $(DATA_PATH)/char_normalization/special.txt
-	extract-normalization-table $(DATA_PATH)/char_normalization/special.txt $@
-
-$(DATA_PATH)/char_normalization/de-normalization-table.pkl:	$(WIKIPEDIA_PATH)/de-ned.sqlite $(DATA_PATH)/char_normalization/normalization-table.pkl
-	adapt-normalization-table $^ $@
-
-$(DATA_PATH)/char_normalization/fr-normalization-table.pkl:	$(WIKIPEDIA_PATH)/fr-ned.sqlite $(DATA_PATH)/char_normalization/normalization-table.pkl
-	adapt-normalization-table $^ $@
-
-$(DATA_PATH)/char_normalization/en-normalization-table.pkl:	$(WIKIPEDIA_PATH)/en-ned.sqlite $(DATA_PATH)/char_normalization/normalization-table.pkl
-	adapt-normalization-table $^ $@
-
-normalization-tables: $(DATA_PATH)/char_normalization/de-normalization-table.pkl $(DATA_PATH)/char_normalization/fr-normalization-table.pkl $(DATA_PATH)/char_normalization/en-normalization-table.pkl
 # ================================================================================================================================================
 
 ned-test:
