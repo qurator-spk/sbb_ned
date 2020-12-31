@@ -120,10 +120,17 @@ flair-eval-combined:	flair-eval-combined-ORG flair-eval-combined-LOC flair-eval-
 
 # =============================================================================================================================================================
 
-$(WIKIPEDIA_PATH)/%-ned.sqlite:	$(WIKIPEDIA_PATH)/%-wikipedia-tagged.sqlite
+$(WIKIPEDIA_PATH)/%-ned.sqlite:	$(WIKIPEDIA_PATH)/%-wikipedia-tagged.sqlite $(WIKIPEDIA_PATH)/%-wikipedia-ner-entities.pkl $(WIKIPEDIA_PATH)/%-redirects.pkl
 	ned-sentence-data --processes=$(PROCESSES) $(WIKIPEDIA_PATH)/$*-wikipedia-tagged.sqlite $@
 
+add-%-tables:	$(WIKIPEDIA_PATH)/%-ned.sqlite
+	df2sqlite $(WIKIDATA_PATH)/$*-wikipedia-ner-entities.pkl $^ entities
+	df2sqlite $(WIKIPEDIA_PATH)/$*-redirects.pkl $^ redirects 
+	df2sqlite $(DATA_PATH)/char_normalization/$*-normalization-table.pkl $^ normalization
+
 ned-database:	$(WIKIPEDIA_PATH)/de-ned.sqlite $(WIKIPEDIA_PATH)/fr-ned.sqlite $(WIKIPEDIA_PATH)/en-ned.sqlite
+
+add-tables: add-de-tables add-fr-tables add-en-tables
 
 # =============================================================================================================================================================
 
