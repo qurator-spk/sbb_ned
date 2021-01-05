@@ -10,10 +10,10 @@ import pandas as pd
 import pickle
 import re
 import torch
+import sqlite3
 
 from qurator.sbb_ned.models.bert import get_device
 from qurator.sbb_ned.models.classifier_decider_queue import ClassifierDeciderQueue
-from qurator.wikipedia.entities import get_redirects
 from qurator.sbb_ner.models.tokenization import BertTokenizer
 from pytorch_pretrained_bert.modeling import (CONFIG_NAME, BertConfig, BertForSequenceClassification)
 
@@ -50,6 +50,8 @@ class ThreadStore:
 
         self._stemmer = None
 
+        self._entities = None
+
         self._redirects = None
 
         self.normalization_map = None
@@ -77,14 +79,23 @@ class ThreadStore:
 
         return self._stemmer
 
+    def get_entities(self):
+
+        if self._entities is not None:
+            return self._entities
+
+        with sqlite3.connect(app.config['NED_SQL_FILE']) as con:
+            self._entities = pd.read_sql('SELECT * from entities', con).set_index('page_title')
+
+        return self._entities
+
     def get_redirects(self):
 
         if self._redirects is not None:
             return self._redirects
 
-        all_entities = pd.read_pickle(app.config['ENTITIES_FILE'])
-
-        self._redirects, page = get_redirects(all_entities, app.config['WIKIPEDIA_SQL_FILE'])
+        with sqlite3.connect(app.config['NED_SQL_FILE']) as con:
+            self._redirects = pd.read_sql('SELECT * from redirects', con).set_index('rd_from_title')
 
         return self._redirects
 
@@ -131,9 +142,10 @@ class ThreadStore:
 
         model, device = self.get_model()
         decider = thread_store.get_decider()
-        self.classify_decider_queue = ClassifierDeciderQueue(model, device, decider, app.config['DECISION_THRESHOLD'],
-                                                             app.config['WIKIPEDIA_SQL_FILE'],
-                                                             app.config['DECIDER_PROCESSES'], app.config['BATCH_SIZE'])
+
+        self.classify_decider_queue = \
+            ClassifierDeciderQueue(model, device, decider, app.config['DECISION_THRESHOLD'], self.get_entities(),
+                                   app.config['DECIDER_PROCESSES'], app.config['BATCH_SIZE'])
 
         return self.classify_decider_queue
 
@@ -175,9 +187,11 @@ class ThreadStore:
         if self.normalization_map is not None:
             return self.normalization_map
 
-        table = pd.read_pickle(app.config['NORMALIZATION_TABLE'])
+        with sqlite3.connect(app.config['NED_SQL_FILE']) as con:
 
-        self.normalization_map = {row['unicode']: row['base'] for _, row in table.iterrows()}
+            table = pd.read_sql('SELECT * from normalization', con)
+
+            self.normalization_map = {row['unicode']: row['base'] for _, row in table.iterrows()}
 
         return self.normalization_map
 

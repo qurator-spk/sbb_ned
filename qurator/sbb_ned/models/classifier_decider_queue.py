@@ -19,7 +19,7 @@ class ClassifierDeciderQueue:
 
     quit = False
 
-    def __init__(self, model, device, decider, threshold, wiki_db_file, decider_processes, batch_size):
+    def __init__(self, model, device, decider, threshold, entities, decider_processes, batch_size):
 
         logger.info('ClassifierDeciderQueue __init__')
 
@@ -33,7 +33,7 @@ class ClassifierDeciderQueue:
         self._decider = decider
         self._threshold = threshold
 
-        self._wiki_db_file = wiki_db_file
+        self._entities = entities
         self._decider_processes = decider_processes
         self._batch_size = batch_size
 
@@ -67,7 +67,7 @@ class ClassifierDeciderQueue:
         complete_result = OrderedDict()
 
         for eid, result in prun(self.get_decider_tasks(), initializer=DeciderTask.initialize,
-                                initargs=(self._decider, self._wiki_db_file),
+                                initargs=(self._decider, self._entities),
                                 processes=self._decider_processes):
 
             if eid is None:

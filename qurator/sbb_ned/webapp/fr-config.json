@@ -1,16 +1,15 @@
 {
   "LOG_LEVEL": "DEBUG",
   "MAX_SEQ_LENGTH": 128,
-  "MODEL_DIR": "data/BERT/NED/fr-model-0",
+  "MODEL_DIR": "data/BERT/NED/fr-model",
   "MODEL_FILE": "pytorch_model.bin",
   "BATCH_SIZE": 8,
   "EPOCH": "",
   "NED_SQL_FILE": "data/wikipedia/fr-ned.sqlite",
-  "WIKIPEDIA_SQL_FILE": "data/wikipedia/fr-wikipedia.sqlite3",
-  "ENTITIES_FILE": "data/wikipedia/fr-wikipedia-ner-entities-no-redirects.pkl",
+  "ENTITIES_FILE": "data/wikidata/fr-wikipedia-ner-entities.pkl",
   "EMBEDDING_TYPE": "bert",
   "POOLING": "mean",
-  "EMBEDDING_MODEL_PATH": "data/BERT/NED/fr-model-0",
+  "EMBEDDING_MODEL_PATH": "data/BERT/NED/fr-model",
   "SPLIT_PARTS": true,
   "N_TREES": 100,
   "DISTANCE_MEASURE": "angular",
@@ -25,6 +24,5 @@
   "MAX_PAIRS": 50,
   "DECIDER_MODEL": "data/clef2020/fr-decider.pkl",
   "DECISION_THRESHOLD": 0.1,
-  "NORMALIZATION_TABLE": "data/char_normalization/fr-normalization-table.pkl",
   "STEMMER": "french"
 }
