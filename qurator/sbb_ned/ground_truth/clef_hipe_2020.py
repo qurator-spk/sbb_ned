@@ -611,30 +611,20 @@ def make_table_nel_only_comparison(results):
 
 @click.command()
 @click.argument('entities-file', type=click.Path(exists=True), required=True, nargs=1)
-@click.argument('wiki-db-file', type=click.Path(exists=True), required=True, nargs=1)
 @click.argument('gt-file', type=click.Path(exists=True), required=True, nargs=1)
-def compute_knb_coverage(entities_file, wiki_db_file, gt_file):
+def compute_knb_coverage(entities_file, gt_file):
 
-    dedata = pd.read_pickle(entities_file)
-
-    with sqlite3.connect(wiki_db_file) as con:
-
-        dewiki =\
-            pd.read_sql(
-                "select page_props.pp_value, page.page_id, page.page_title from page_props "
-                "join page on page.page_id==page_props.pp_page where page.page_namespace == 0 and "
-                "page_props.pp_propname == 'wikibase_item';", con)
-
-    knb = dedata.merge(dewiki, left_index=True, right_on='page_title')
+    knb = pd.read_pickle(entities_file)
 
     test_data = pd.read_csv(gt_file, sep='\t', comment='#')
 
     entities_in_test_data =\
-        test_data.loc[(test_data['NEL-LIT'].str.len() > 1)& (test_data['NEL-LIT'] != 'NIL')][['NEL-LIT']].drop_duplicates().reset_index(drop=True)
+        test_data.loc[(test_data['NEL-LIT'].str.len() > 1) & (test_data['NEL-LIT'] != 'NIL')][['NEL-LIT']].drop_duplicates().reset_index(drop=True)
 
-    with_representation = entities_in_test_data.merge(knb, left_on='NEL-LIT', right_on='pp_value')
+    with_representation = entities_in_test_data.merge(knb, left_on='NEL-LIT', right_on='QID')
 
     print("% of entities with representation: {}.".format(len(with_representation) / len(entities_in_test_data)))
+
 
 def compute_nil_fraction(gt_file):
 
