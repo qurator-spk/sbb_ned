@@ -181,7 +181,7 @@ CLEF2020-decider-dev-data: $(CLEF_TARGET_PATH)/de-decider-dev-dataset.pkl
 # =====================================
 # train decider ...
 
-$(CLEF_TARGET_PATH)/%-decider.pkl: $(CLEF_TARGET_PATH)/%-decider-train-dataset.pkl
+$(CLEF_TARGET_PATH)/%-decider.pkl:	$(CLEF_TARGET_PATH) $(CLEF_TARGET_PATH)/%-decider-train-dataset.pkl
 	train-decider $^ $@
 
 CLEF2020-decider: $(CLEF_TARGET_PATH)/de-decider.pkl $(CLEF_TARGET_PATH)/fr-decider.pkl $(CLEF_TARGET_PATH)/en-decider.pkl
