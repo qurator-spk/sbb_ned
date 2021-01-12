@@ -16,6 +16,7 @@ DE_NED_URL ?=http://b-lx0053.sbb.spk-berlin.de/sbb-tools/de-ned
 FR_NED_URL ?=http://b-lx0053.sbb.spk-berlin.de/sbb-tools/fr-ned
 EN_NED_URL ?=http://b-lx0053.sbb.spk-berlin.de/sbb-tools/en-ned
 
+RUNNUMBER ?=1
 
 # ====================================================
 # create result directory ...
@@ -116,10 +117,7 @@ CLEF2020-%-dev-eval-nel: $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-dev-
 
 # ===================================================
 
-RUNNUMBER ?=1
-
-CLEF2020-test-de-eval-nel: $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-dev-de.tsv
-	cp $^ SBB_bundle2_de_$(RUNNUMBER).tsv
+CLEF2020-test-dev-%-eval-nel: $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-dev-%.tsv SBB_bundle2_de_$(RUNNUMBER).tsv
 	python $(CLEF_SCORER_PATH)/clef_evaluation.py --task=nel --n_best=3 -p SBB_bundle2_de_$(RUNNUMBER).tsv -r $(CLEF_PATH)/data/training-v1.2/de/HIPE-data-v1.2-dev-de.tsv -t nel -o $(CLEF_TARGET_PATH)
 
 CLEF2020-test-fr-eval-nel: $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-dev-fr.tsv
@@ -132,15 +130,15 @@ CLEF2020-test-en--eval-nel: $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-d
 
 
 
-CLEF2020-de-eval: $(CLEF_TARGET_PATH) CLEF2020-de-train-eval-nel CLEF2020-de-dev-eval-nel
-
-CLEF2020-fr-eval: $(CLEF_TARGET_PATH) CLEF2020-fr-train-eval-nel CLEF2020-fr-dev-eval-nel
-
-CLEF2020-en-eval: $(CLEF_TARGET_PATH) CLEF2020-en-dev-eval-nel
-
-CLEF2020-test-eval: CLEF2020-test-de-eval-nel CLEF2020-test-fr-eval-nel CLEF2020-test-en--eval-nel
-
-CLEF2020-train-dev-eval: $(CLEF_TARGET_PATH) CLEF2020-de-train-eval-nel CLEF2020-de-dev-eval-nel CLEF2020-fr-train-eval-nel CLEF2020-fr-dev-eval-nel CLEF2020-en-dev-eval-nel
+#CLEF2020-de-eval: $(CLEF_TARGET_PATH) CLEF2020-de-train-eval-nel CLEF2020-de-dev-eval-nel
+#
+#CLEF2020-fr-eval: $(CLEF_TARGET_PATH) CLEF2020-fr-train-eval-nel CLEF2020-fr-dev-eval-nel
+#
+#CLEF2020-en-eval: $(CLEF_TARGET_PATH) CLEF2020-en-dev-eval-nel
+#
+#CLEF2020-test-eval: CLEF2020-test-de-eval-nel CLEF2020-test-fr-eval-nel CLEF2020-test-en--eval-nel
+#
+#CLEF2020-train-dev-eval: $(CLEF_TARGET_PATH) CLEF2020-de-train-eval-nel CLEF2020-de-dev-eval-nel CLEF2020-fr-train-eval-nel CLEF2020-fr-dev-eval-nel CLEF2020-en-dev-eval-nel
 
 # =================================
 # Change filenames according to conventions and create submission file for bundle2
@@ -154,7 +152,7 @@ CLEF2020-bundle2:	$(CLEF_TARGET_PATH)/SBB_bundle2_de_$(RUNNUMBER).tsv $(CLEF_TAR
 # =================================
 # Change filenames according to conventions and create submission file for bundle5
 
-$(CLEF_TARGET_PATH)/SBB_bundle5_%_1.tsv:	$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.3-test-masked-bundle5-%.tsv
+$(CLEF_TARGET_PATH)/SBB_bundle5_%_$(RUNNUMBER).tsv:	$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.3-test-masked-bundle5-%.tsv
 	cp $^ $@
 
 CLEF2020-bundle5:	$(CLEF_TARGET_PATH)/SBB_bundle5_de_$(RUNNUMBER).tsv $(CLEF_TARGET_PATH)/SBB_bundle5_fr_$(RUNNUMBER).tsv $(CLEF_TARGET_PATH)/SBB_bundle5_en_$(RUNNUMBER).tsv
