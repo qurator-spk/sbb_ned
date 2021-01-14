@@ -1,6 +1,6 @@
 
 CLEF_SCORER_PATH ?=~/qurator/CLEF-HIPE-2020-scorer
-CLEF_PATH ?=/home/labusch/qurator/CLEF-HIPE-2020
+CLEF_PATH ?=/home/kai.labusch/qurator/CLEF-HIPE-2020
 #CLEF_TARGET_PATH ?=$(DATA_PATH)/clef2020
 CLEF_TARGET_PATH ?=$(DATA_PATH)/clef2020-2
 
