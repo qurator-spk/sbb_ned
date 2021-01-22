@@ -28,7 +28,7 @@
   "DECIDER_PROCESSES": 0,
   "MAX_CANDIDATES": 400,
   "MAX_PAIRS": 50,
-  "DECIDER_MODEL": "data/clef2020/de-decider.pkl",
+  "DECIDER_MODEL": "data/clef2020-decider/de-decider.pkl",
   "DECISION_THRESHOLD": 0.1,
   "STEMMER": "german"
 }

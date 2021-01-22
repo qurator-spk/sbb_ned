@@ -117,18 +117,16 @@ CLEF2020-%-dev-eval-nel: $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-dev-
 
 # ===================================================
 
-CLEF2020-test-dev-%-eval-nel: $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-dev-%.tsv SBB_bundle2_de_$(RUNNUMBER).tsv
-	python $(CLEF_SCORER_PATH)/clef_evaluation.py --task=nel --n_best=3 -p SBB_bundle2_de_$(RUNNUMBER).tsv -r $(CLEF_PATH)/data/training-v1.2/de/HIPE-data-v1.2-dev-de.tsv -t nel -o $(CLEF_TARGET_PATH)
-
-CLEF2020-test-fr-eval-nel: $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-dev-fr.tsv
-	cp $^ SBB_bundle2_fr_$(RUNNUMBER).tsv
-	python $(CLEF_SCORER_PATH)/clef_evaluation.py --task=nel --n_best=3 -p SBB_bundle2_fr_$(RUNNUMBER).tsv -r $(CLEF_PATH)/data/training-v1.2/fr/HIPE-data-v1.2-dev-fr.tsv -t nel -o $(CLEF_TARGET_PATH)
-
-CLEF2020-test-en--eval-nel: $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-dev-en.tsv
-	cp $^ SBB_bundle2_en_$(RUNNUMBER).tsv
-	python $(CLEF_SCORER_PATH)/clef_evaluation.py --task=nel --n_best=3 -p SBB_bundle2_en_$(RUNNUMBER).tsv -r $(CLEF_PATH)/data/training-v1.2/en/HIPE-data-v1.2-dev-en.tsv -t nel -o $(CLEF_TARGET_PATH)
-
-
+#CLEF2020-test-dev-%-eval-nel: $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-dev-%.tsv SBB_bundle2_de_$(RUNNUMBER).tsv
+#	python $(CLEF_SCORER_PATH)/clef_evaluation.py --task=nel --n_best=3 -p SBB_bundle2_de_$(RUNNUMBER).tsv -r $(CLEF_PATH)/data/training-v1.2/de/HIPE-data-v1.2-dev-de.tsv -t nel -o $(CLEF_TARGET_PATH)
+#
+#CLEF2020-test-fr-eval-nel: $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-dev-fr.tsv
+#	cp $^ SBB_bundle2_fr_$(RUNNUMBER).tsv
+#	python $(CLEF_SCORER_PATH)/clef_evaluation.py --task=nel --n_best=3 -p SBB_bundle2_fr_$(RUNNUMBER).tsv -r $(CLEF_PATH)/data/training-v1.2/fr/HIPE-data-v1.2-dev-fr.tsv -t nel -o $(CLEF_TARGET_PATH)
+#
+#CLEF2020-test-en--eval-nel: $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-dev-en.tsv
+#	cp $^ SBB_bundle2_en_$(RUNNUMBER).tsv
+#	python $(CLEF_SCORER_PATH)/clef_evaluation.py --task=nel --n_best=3 -p SBB_bundle2_en_$(RUNNUMBER).tsv -r $(CLEF_PATH)/data/training-v1.2/en/HIPE-data-v1.2-dev-en.tsv -t nel -o $(CLEF_TARGET_PATH)
 
 #CLEF2020-de-eval: $(CLEF_TARGET_PATH) CLEF2020-de-train-eval-nel CLEF2020-de-dev-eval-nel
 #
@@ -155,7 +153,7 @@ CLEF2020-bundle2:	$(CLEF_TARGET_PATH)/SBB_bundle2_de_$(RUNNUMBER).tsv $(CLEF_TAR
 $(CLEF_TARGET_PATH)/SBB_bundle5_%_$(RUNNUMBER).tsv:	$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.3-test-masked-bundle5-%.tsv
 	cp $^ $@
 
-CLEF2020-bundle5:	$(CLEF_TARGET_PATH)/SBB_bundle5_de_$(RUNNUMBER).tsv $(CLEF_TARGET_PATH)/SBB_bundle5_fr_$(RUNNUMBER).tsv $(CLEF_TARGET_PATH)/SBB_bundle5_en_$(RUNNUMBER).tsv
+CLEF2020-bundle5:	$(CLEF_TARGET_PATH) $(CLEF_TARGET_PATH)/SBB_bundle5_de_$(RUNNUMBER).tsv $(CLEF_TARGET_PATH)/SBB_bundle5_fr_$(RUNNUMBER).tsv $(CLEF_TARGET_PATH)/SBB_bundle5_en_$(RUNNUMBER).tsv
 	zip -j SBB_submission_$(RUNNUMBER)-bundle5.zip $^
 
 # ===============================================================================================================================================
@@ -184,7 +182,7 @@ CLEF2020-decider-dev-data: $(CLEF_TARGET_PATH)/de-decider-dev-dataset.pkl
 $(CLEF_TARGET_PATH)/%-decider.pkl: $(CLEF_TARGET_PATH)/%-decider-train-dataset.pkl
 	train-decider $^ $@
 
-CLEF2020-decider: $(CLEF_TARGET_PATH)/de-decider.pkl $(CLEF_TARGET_PATH)/fr-decider.pkl $(CLEF_TARGET_PATH)/en-decider.pkl
+CLEF2020-decider: $(CLEF_TARGET_PATH) $(CLEF_TARGET_PATH)/de-decider.pkl $(CLEF_TARGET_PATH)/fr-decider.pkl $(CLEF_TARGET_PATH)/en-decider.pkl
 
 # =====================================
 
@@ -192,3 +190,6 @@ CLEF2020-compute-knb-coverage:
 	compute-knb-coverage $(WIKI_DATA_PATH)/de-wikipedia-ner-entities.pkl $(CLEF_PATH)/data/test-v1.3/de/HIPE-data-v1.3-test-de.tsv
 	compute-knb-coverage $(WIKI_DATA_PATH)/fr-wikipedia-ner-entities.pkl $(CLEF_PATH)/data/test-v1.3/fr/HIPE-data-v1.3-test-fr.tsv
 	compute-knb-coverage $(WIKI_DATA_PATH)/en-wikipedia-ner-entities.pkl $(CLEF_PATH)/data/test-v1.3/en/HIPE-data-v1.3-test-en.tsv
+
+model-archive:
+	tar --verbose --exclude=loss_ep*.pkl -h -cz -f models.tar.gz	data/BERT/NED/en-model data/BERT/NED/de-model data/BERT/NED/fr-model data/wikidata/*wikipedia-ner-entities.pkl data/wikipedia/*-ned.sqlite data/entity_index/*wikipedia-ner-entities-index-n_trees_100-dist_angular-emb_bert* data/entity_index/*wikipedia-ner-entities-mapping-n_trees_100-dist_angular-emb_bert* data/clef2020-decider/*-decider.pkl
