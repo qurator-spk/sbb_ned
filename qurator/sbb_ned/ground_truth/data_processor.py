@@ -25,7 +25,8 @@ import sqlite3
 import itertools
 
 import json
-
+import re
+import random
 
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
                     datefmt='%m/%d/%Y %H:%M:%S',
@@ -259,8 +260,10 @@ class WikipediaDataset(Dataset):
             self._entities = shuffle(self._entities)
 
             for idx, row in self._entities.iterrows():
-
-                yield idx, row.TYPE
+                if re.match('.*\|.*', row.TYPE):
+                    yield idx, random.choice(row.TYPE.split('|'))
+                else:
+                    yield idx, row.TYPE
 
     def get_random_lookup(self):
 

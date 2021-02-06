@@ -174,6 +174,9 @@ de-ned-train-1:
 en-ned-train-0:
 	ned-bert --learning-rate=1e-5 --seed=42 --train-batch-size=128 --gradient-accumulation-steps=4 --train-size=100000 --num-train-epochs=1000 --ned-sql-file $(WIKIPEDIA_PATH)/en-ned.sqlite --train-set-file $(WIKIPEDIA_PATH)/en-ned-train-subset.pkl --dev-set-file $(WIKIPEDIA_PATH)/en-ned-test-subset.pkl --test-set-file $(WIKIPEDIA_PATH)/en-ned-test-subset.pkl data/BERT/multi_cased_L-12_H-768_A-12 data/BERT/NED/en-model-0 --model-file pytorch_model.bin --entity-index-path $(ENTITY_INDEX_PATH) --entities-file $(WIKIPEDIA_PATH)/en-wikipedia-ner-entities-no-redirects.pkl --embedding-type=fasttext --embedding-model=data/fasttext/cc.en.300.bin
 
+en-ned-train-1:
+	ned-bert --learning-rate=1e-5 --seed=42 --train-batch-size=128 --gradient-accumulation-steps=4 --train-size=100000 --num-train-epochs=1000 --ned-sql-file $(WIKIPEDIA_PATH)/en-ned.sqlite --train-set-file $(WIKIPEDIA_PATH)/en-ned-train-subset.pkl --dev-set-file $(WIKIPEDIA_PATH)/en-ned-test-subset.pkl --test-set-file $(WIKIPEDIA_PATH)/en-ned-test-subset.pkl data/BERT/multi_cased_L-12_H-768_A-12 data/BERT/NED/en-model-1 --model-file pytorch_model.bin --entity-index-path $(ENTITY_INDEX_PATH) --entities-file $(WIKIDATA_PATH)/en-wikipedia-ner-entities.pkl --embedding-type=fasttext --embedding-model=data/fasttext/cc.en.300.bin
+
 # ===============================================================================================================================================================
 
 fr-ned-train-0:

@@ -144,7 +144,7 @@ CLEF2020-%-dev-eval-nel: $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-dev-
 $(CLEF_TARGET_PATH)/SBB_bundle2_%_$(RUNNUMBER).tsv:	$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-test-masked-%.tsv
 	cp $^ $@
 
-CLEF2020-bundle2:	$(CLEF_TARGET_PATH)/SBB_bundle2_de_$(RUNNUMBER).tsv $(CLEF_TARGET_PATH)/SBB_bundle2_fr_$(RUNNUMBER).tsv $(CLEF_TARGET_PATH)/SBB_bundle2_en_$(RUNNUMBER).tsv
+CLEF2020-bundle2:	$(CLEF_TARGET_PATH) $(CLEF_TARGET_PATH)/SBB_bundle2_de_$(RUNNUMBER).tsv $(CLEF_TARGET_PATH)/SBB_bundle2_fr_$(RUNNUMBER).tsv $(CLEF_TARGET_PATH)/SBB_bundle2_en_$(RUNNUMBER).tsv
 	zip -j SBB_submission_$(RUNNUMBER).zip $^
 
 # =================================
