@@ -127,7 +127,7 @@ Set USE_CUDA=False, if you do not have a GPU available/installed
 
 ## NED/NEL example: 
 
-Perform NER:
+Perform NER (This works only if you install and run the [SBB-NER-tagger](https://github.com/qurator-spk/sbb_ner):
 
 ```
  curl --noproxy '*' -d '{ "text": "Paris Hilton wohnt im Hilton Paris in Paris." }' -H "Content-Type: application/json" http://localhost/sbb-tools/ner/ner/0
@@ -210,6 +210,8 @@ Perform NED/NEL on re-ordered NER-result:
 ```
  curl --noproxy '*' -d '{"Hilton Paris-ORG":{"sentences":[{"entities":"[\"Paris Hilton-PER\", \"Paris Hilton-PER\", \"-\", \"-\", \"Hilton Paris-ORG\", \"Hilton Paris-ORG\", \"-\", \"Paris-LOC\", \"-\"]","tags":"[\"B-PER\", \"I-PER\", \"O\", \"O\", \"B-ORG\", \"I-ORG\", \"O\", \"B-LOC\", \"O\"]","target":"Hilton Paris-ORG","text":"[\"Paris\", \"Hilton\", \"wohnt\", \"im\", \"Hilton\", \"Paris\", \"in\", \"Paris\", \".\"]"}],"surfaces":["hilton paris","Hilton Paris"],"type":"ORG"},"Paris Hilton-PER":{"sentences":[{"entities":"[\"Paris Hilton-PER\", \"Paris Hilton-PER\", \"-\", \"-\", \"Hilton Paris-ORG\", \"Hilton Paris-ORG\", \"-\", \"Paris-LOC\", \"-\"]","tags":"[\"B-PER\", \"I-PER\", \"O\", \"O\", \"B-ORG\", \"I-ORG\", \"O\", \"B-LOC\", \"O\"]","target":"Paris Hilton-PER","text":"[\"Paris\", \"Hilton\", \"wohnt\", \"im\", \"Hilton\", \"Paris\", \"in\", \"Paris\", \".\"]"}],"surfaces":["paris hilton","Paris Hilton"],"type":"PER"},"Paris-LOC":{"sentences":[{"entities":"[\"Paris Hilton-PER\", \"Paris Hilton-PER\", \"-\", \"-\", \"Hilton Paris-ORG\", \"Hilton Paris-ORG\", \"-\", \"Paris-LOC\", \"-\"]","tags":"[\"B-PER\", \"I-PER\", \"O\", \"O\", \"B-ORG\", \"I-ORG\", \"O\", \"B-LOC\", \"O\"]","target":"Paris-LOC","text":"[\"Paris\", \"Hilton\", \"wohnt\", \"im\", \"Hilton\", \"Paris\", \"in\", \"Paris\", \".\"]"}],"surfaces":["paris","Paris"],"type":"LOC"}}' -H "Content-Type: application/json" http://localhost/sbb-tools/ned/ned
 ```
+
+HINT: In order to use the system without proxy in between you can use http://localhost:5001/ned as request url instead.
 
 Answer:
 
