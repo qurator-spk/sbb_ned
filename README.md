@@ -153,6 +153,13 @@ Reorder NER result:
  curl --noproxy '*' -d '[[{"prediction":"B-PER","word":"Paris"},{"prediction":"I-PER","word":"Hilton"},{"prediction":"O","word":"wohnt"},{"prediction":"O","word":"im"},{"prediction":"B-ORG","word":"Hilton"},{"prediction":"I-ORG","word":"Paris"},{"prediction":"O","word":"in"},{"prediction":"B-LOC","word":"Paris"},{"prediction":"O","word":"."}]]' -H "Content-Type: application/json" http://localhost/sbb-tools/ned/parse
 ```
 
+HINT: In order to test the system without proxy in between you can use http://localhost:5001/parse as request url instead:
+
+```
+ curl --noproxy '*' -d '[[{"prediction":"B-PER","word":"Paris"},{"prediction":"I-PER","word":"Hilton"},{"prediction":"O","word":"wohnt"},{"prediction":"O","word":"im"},{"prediction":"B-ORG","word":"Hilton"},{"prediction":"I-ORG","word":"Paris"},{"prediction":"O","word":"in"},{"prediction":"B-LOC","word":"Paris"},{"prediction":"O","word":"."}]]' -H "Content-Type: application/json" http://localhost:5001/parse
+```
+
+
 Answer:
 
 ```
