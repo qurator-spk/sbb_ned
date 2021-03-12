@@ -417,7 +417,7 @@ def best_matches(text_embeddings, get_index_and_mapping, search_k=10, max_dist=0
 
         lookup_index = pd.DataFrame({'ann_index': ann_indices, 'dist': dist})
 
-        related_pages = mapping.loc[mapping.ann_index.isin(ann_indices)].copy()
+        related_pages = mapping.loc[mapping.index.isin(ann_indices)].copy()
 
         related_pages = related_pages.merge(lookup_index, left_on="ann_index", right_on='ann_index')
         related_pages['part'] = part
