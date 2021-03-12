@@ -41,27 +41,35 @@ class LookUpBySurface:
 
     def __call__(self, *args, **kwargs):
 
-        surface_text = " ".join(self._entity_surface_parts)
-
         def get_index_and_mapping(dims):
 
             LookUpBySurface.init_indices(dims)
 
             return LookUpBySurface.index[self._entity_type], LookUpBySurface.mapping[self._entity_type]
 
-        text_embeddings = get_embedding_vectors(LookUpBySurface.embeddings[self._entity_type], surface_text,
-                                                self._split_parts)
+        rankings = []
+        for surface in self._entity_surface_parts:
+            text_embeddings = get_embedding_vectors(LookUpBySurface.embeddings[self._entity_type],
+                                                    surface, self._split_parts)
 
-        ranking, hits = best_matches(text_embeddings, get_index_and_mapping,
-                                     LookUpBySurface.search_k, LookUpBySurface.max_dist)
+            ranking, _ = best_matches(text_embeddings, get_index_and_mapping,
+                                      LookUpBySurface.search_k, LookUpBySurface.max_dist)
 
-        ranking['on_page'] = self._page_title
-        ranking['surface'] = surface_text
+            ranking['surface'] = surface
+            rankings.append(ranking)
+
+        rankings = pd.concat(rankings). \
+            drop_duplicates('guessed_title'). \
+            sort_values(['match_uniqueness', 'dist', 'match_coverage' 'len_guessed'],
+                        ascending=[False, True, False, True]).reset_index(drop=True)
+
+        rankings['on_page'] = self._page_title
 
         if self._max_candidates is not None:
-            ranking = ranking.iloc[0:self._max_candidates]
 
-        return self._entity_title, ranking
+            rankings = rankings.iloc[0:self._max_candidates]
+
+        return self._entity_title, rankings
 
     @staticmethod
     def _get_all(data_sequence, ent_types, split_parts, sem=None):
@@ -400,62 +408,53 @@ def load(entities_file, embedding_config, ent_type, n_trees, distance_measure='a
 def best_matches(text_embeddings, get_index_and_mapping, search_k=10, max_dist=0.25, summarizer='max'):
 
     hits = []
+    ranking = []
 
     for part, e in text_embeddings.iterrows():
-
         index, mapping = get_index_and_mapping(len(e))
 
         ann_indices, dist = index.get_nns_by_vector(e, search_k, include_distances=True)
 
         lookup_index = pd.DataFrame({'ann_index': ann_indices, 'dist': dist})
 
-        related_pages = mapping.loc[mapping.index.isin(ann_indices)].copy()
+        related_pages = mapping.loc[mapping.ann_index.isin(ann_indices)].copy()
 
-        related_pages = related_pages.merge(lookup_index, left_index=True, right_on='ann_index')
+        related_pages = related_pages.merge(lookup_index, left_on="ann_index", right_on='ann_index')
         related_pages['part'] = part
 
         hits.append(related_pages)
 
-    if len(hits) < 1:
-        ranking = pd.DataFrame({'guessed_title': '', 'dist': np.inf, 'len_pa': 0, 'rank': -1}, index=[0])
-
-        hits = None
-    else:
+    if len(hits) >= 1:
         hits = pd.concat(hits)
-
-        logger.debug("\nNumber of hits: {}\n".format(len(hits)))
-
         hits = hits.loc[hits.dist < max_dist]
 
-        logger.debug("\nNumber of hits below distance {}: {}\n".format(max_dist, len(hits)))
+    if len(hits) >= 1:
 
-        ranking = []
+        hit_counter = hits.part.value_counts()
 
-        for page_title, matched in hits.groupby('page_title', as_index=False):
+        for guessed_title, matched in hits.groupby('page_title', as_index=False):
 
-            weighted = (len(hits)/hits.part.value_counts()[matched.drop_duplicates(subset=['part']).part]).sum()
+            matched = matched.drop_duplicates(subset=['part'])
 
-            num_matched_parts = len(matched.drop_duplicates(subset=['part']))
+            match_uniqueness = (float(len(hits)) / hit_counter[matched.part]).sum() * len(matched)
 
-            # weighted = factor * len(matched.drop_duplicates(subset=['part']))
-
-            # if len(matched) >= 3:
-            #    import ipdb;ipdb.set_trace()
+            match_coverage = float(len(guessed_title))/matched.part.astype(str).len().sum()
 
             summarized_dist_over_all_parts = matched.dist.apply(summarizer)
 
-            ranking.append((page_title, summarized_dist_over_all_parts, weighted*num_matched_parts))
+            ranking.append((guessed_title, summarized_dist_over_all_parts, match_uniqueness, match_coverage))
 
-        ranking = pd.DataFrame(ranking, columns=['guessed_title', 'dist', 'len_pa'])
+        ranking = pd.DataFrame(ranking, columns=['guessed_title', 'dist', 'match_uniqueness', 'match_coverage'])
 
         ranking['len_guessed'] = ranking.guessed_title.str.len()
 
-        ranking = ranking.sort_values(['len_pa', 'dist', 'len_guessed'],
-                                      ascending=[False, True, True]).reset_index(drop=True)
-
-        ranking['rank'] = ranking.index
+        ranking = ranking.sort_values(['match_uniqueness', 'dist', 'match_coverage' 'len_guessed'],
+                                      ascending=[False, True, False, True]).reset_index(drop=True)
 
     if len(ranking) == 0:
-        ranking = pd.DataFrame({'guessed_title': '', 'dist': np.inf, 'len_pa': 0, 'rank': -1}, index=[0])
+        ranking = \
+            pd.DataFrame({'guessed_title': '', 'dist': np.inf, 'match_uniqueness': 0, 'match_coverage': 0}, index=[0])
+        hits = None
 
     return ranking, hits
+

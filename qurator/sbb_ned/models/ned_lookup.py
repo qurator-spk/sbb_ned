@@ -21,10 +21,6 @@ import threading
 
 from ..ground_truth.data_processor import ConvertSamples2Features, InputExample
 
-# logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
-#                     datefmt='%m/%d/%Y %H:%M:%S',
-#                     level=logging.INFO)
-
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
                     datefmt='%m/%d/%Y %H:%M:%S',
                     level=logging.DEBUG)
@@ -273,6 +269,11 @@ class NEDLookup:
         self._max_pairs = max_pairs
         self._split_parts = split_parts
 
+        with sqlite3.connect(self._ned_sql_file) as con:
+            self._entities = pd.read_sql('select * from entities', con=con).\
+                set_index('page_title').\
+                sort_index()
+
     def get_entity(self):
 
         while True:
@@ -284,16 +285,12 @@ class NEDLookup:
 
             for entity_id, entity_info in entities.items():
 
-                sentences = pd.DataFrame(entity_info['sentences'])
+                print("get_entity: {} / {}".format(entity_id, entity_info['surfaces']))
 
-                for surface in entity_info['surfaces']:
+                yield entity_id, pd.DataFrame(entity_info['sentences']), entity_info['surfaces'], entity_info['type']
 
-                    print("get_entity: {} / {}".format(entity_id, surface))
-
-                    yield entity_id, sentences, surface, entity_info['type']
-
-                # signal entity_id == None
-                yield None, None, None, None
+            # signal entity_id == None
+            yield None, None, None, None
 
     def get_lookup(self):
 
@@ -301,7 +298,7 @@ class NEDLookup:
 
             yield LookUpBySurfaceWrapper(entity_id, sentences, page_title=entity_id, entity_surface_parts=[surface],
                                          entity_title=entity_id, entity_type=ent_type, split_parts=self._split_parts,
-                                         max_candidates=self._max_candidates)
+                                         max_candidates=None)  # return all the candidates - filtering is done below
 
     def get_sentence_lookup(self):
 
@@ -315,6 +312,14 @@ class NEDLookup:
                 # signal entity_id == None
                 yield SentenceLookupWrapper(entity_id=None)
                 continue
+
+            candidates = candidates.merge(self._entities[['proba']], left_on="guessed_title", right_index=True)
+
+            candidates = candidates.\
+                sort_values(['match_uniqueness', 'dist', 'proba', 'match_coverage' 'len_guessed'],
+                            ascending=[False, True, False, False, True])
+
+            candidates = candidates.iloc[0:self._max_candidates]
 
             for idx in range(0, len(candidates)):
                 yield SentenceLookupWrapper(entity_id, sentences=sentences, candidates=candidates.iloc[[idx]],

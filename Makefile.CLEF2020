@@ -39,7 +39,10 @@ $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-test-masked-%.tsv:
 $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.3-test-masked-bundle5-%.tsv:
 	clef2tsv $(CLEF_PATH)/data/test-masked-v1.3/$*/HIPE-data-v1.3-test-masked-bundle5-$*.tsv $@
 
-CLEF2020-tsv:	$(CLEF_TARGET_PATH) $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-dev-de.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-train-de.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-dev-fr.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-train-fr.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-dev-en.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-train-en.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-test-masked-de.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-test-masked-fr.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-test-masked-en.tsv
+$(CLEF_TARGET_PATH)/neat-HIPE-data-v1.3-test-%.tsv:
+	clef2tsv $(CLEF_PATH)/data/test-v1.3/$*/HIPE-data-v1.3-test-$*.tsv $@
+
+CLEF2020-tsv:	$(CLEF_TARGET_PATH) $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.3-test-de.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.3-test-fr.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.3-test-en.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-dev-de.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-train-de.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-dev-fr.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-train-fr.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-dev-en.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-train-en.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-test-masked-de.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-test-masked-fr.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-test-masked-en.tsv
 
 # ==================================================
 # Perform NER and NED ...

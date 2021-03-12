@@ -35,10 +35,12 @@ class DeciderTask:
 
         prediction = predict(decider_features, DeciderTask.decider)
 
-        ranking = prediction[(prediction.proba_1 > self._threshold) |
-                             (prediction.guessed_title == self._decision.target.unique()[0])]. \
-            sort_values(['proba_1', 'case_rank_max'], ascending=[False, True]). \
-            set_index('guessed_title')
+        prediction = self._candidates[['surface', 'guessed_title']].merge(prediction, on='guessed_title')
+
+        ranking = prediction[(prediction.proba_1 >= self._threshold) |
+                             (prediction.guessed_title.lower() == prediction.surface.lower())].\
+            sort_values(['proba_1', 'case_rank_min'], ascending=[False, True]).\
+            drop_duplicates(['guessed_title']).set_index('guessed_title')
 
         result = dict()
 
@@ -67,12 +69,14 @@ class DeciderTask:
         DeciderTask.entities = entities
 
 
-def features(dec, cand, quantiles, rank_intervalls, min_pairs=np.inf, max_pairs=np.inf, wikidata_gt=None, stat_funcs=None):
+def features(dec, cand, quantiles, rank_intervalls, min_pairs=np.inf, max_pairs=np.inf,
+             wikidata_gt=None, stat_funcs=None):
 
     if stat_funcs is None:
         stat_funcs = ['min', 'max', 'mean', 'std', 'median']
 
     data = list()
+    cand = cand.copy()
 
     # normalize rank, i.e, rank is afterwards in between [0,1]
     cand['rank'] = [r / (len(cand) - 1 if len(cand) > 1 else 1) for r in range(0, len(cand))]
