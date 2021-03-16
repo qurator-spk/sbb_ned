@@ -21,13 +21,27 @@ class Embeddings:
         raise NotImplementedError()
 
 
-def get_embedding_vectors(embeddings, text, split_parts):
+def get_embedding_vectors(embeddings, surface, split_parts):
 
-    if split_parts:
-        parts = [re.sub(r'[\W_]+', '', p) for p in re.split(" |-|_", text)]
-        parts = [p for p in parts if len(p) > 0]
+    parts = []
+    if type(surface) == str:
+
+        if split_parts:
+            parts = [p for p in re.split(r'[ \-_]', surface)]
+        else:
+            parts = [surface]
+
+    elif type(surface) == list:
+
+        if split_parts:
+            parts = [p for s in surface for p in re.split(r'[ \-_]', s)]
+        else:
+            parts = surface
     else:
-        parts = [text]
+        RuntimeError('Type of surface not supported.')
+
+    parts = [re.sub(r'[\W_]+', '', p) for p in parts]
+    parts = [p.lower() for p in parts if len(p) > 0]
 
     vectors = []
     vector_parts = []
@@ -80,13 +94,13 @@ def load_embeddings(embedding_type, **kwargs):
 class EmbedTask:
     embeddings = None
 
-    def __init__(self, index, entity_title, split_parts):
-        self._index = index
-        self._entity_title = entity_title
+    def __init__(self, page_title, entity_label, split_parts):
+        self._page_title = page_title
+        self._entity_label = entity_label
         self._split_parts = split_parts
 
     def __call__(self, *args, **kwargs):
-        return self._entity_title, get_embedding_vectors(EmbedTask.embeddings, self._entity_title, self._split_parts)
+        return self._page_title, get_embedding_vectors(EmbedTask.embeddings, self._entity_label, self._split_parts)
 
     @staticmethod
     def initialize(embeddings):
@@ -98,12 +112,12 @@ class EmbedTask:
 
     @staticmethod
     def _get_all(all_entities, split_parts):
-        for i, (title, v) in tqdm(enumerate(all_entities.iterrows()), total=len(all_entities)):
+        for i, (page_title, entity) in tqdm(enumerate(all_entities.iterrows()), total=len(all_entities)):
 
             if i % 1000 == 0:
                 torch.cuda.empty_cache()
 
-            yield EmbedTask(i, title, split_parts)
+            yield EmbedTask(page_title, entity.label, split_parts)
 
     @staticmethod
     def run(embeddings, all_entities, split_parts, processes):

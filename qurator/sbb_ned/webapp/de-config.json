@@ -1,6 +1,6 @@
 {
   "LOG_LEVEL": "DEBUG",
-  "CACHE_TYPE": "filesystem",
+  "CACHE_TYPE": "null",
   "CACHE_DIR": "de-cache",
   "CACHE_IGNORE_ERRORS": true,
   "CACHE_THRESHOLD": 100000,
