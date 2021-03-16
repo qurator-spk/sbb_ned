@@ -132,6 +132,11 @@ ned-database:	$(WIKIPEDIA_PATH)/de-ned.sqlite $(WIKIPEDIA_PATH)/fr-ned.sqlite $(
 
 add-tables: add-de-tables add-fr-tables add-en-tables
 
+compute-%-apriori: $(WIKIPEDIA_PATH)/%-ned.sqlite
+	compute-apriori-probs --processes=$(PROCESSES) $^
+
+compute-apriori: compute-de-apriori compute-fr-apriori compute-en-apriori
+
 # ================================================================================================================================================
 
 $(DATA_PATH)/char_normalization/normalization-table.pkl:
