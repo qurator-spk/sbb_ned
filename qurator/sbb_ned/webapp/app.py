@@ -130,6 +130,9 @@ class ThreadStore:
         if self.decider is not None:
             return self.decider
 
+        if len(app.config['DECIDER_MODEL']) < 1:
+            return None
+
         with open(app.config['DECIDER_MODEL'], 'rb') as fr:
             self.decider = pickle.load(fr)
 

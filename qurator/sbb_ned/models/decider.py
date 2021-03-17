@@ -33,14 +33,16 @@ class DeciderTask:
 
         decider_features = features(self._decision, self._candidates, self._quantiles, self._rank_intervalls)
 
-        prediction = predict(decider_features, DeciderTask.decider)
+        ranking = pd.DataFrame()
+        if DeciderTask.decider is not None:
+            prediction = predict(decider_features, DeciderTask.decider)
 
-        prediction = self._candidates[['surface', 'guessed_title']].merge(prediction, on='guessed_title')
+            prediction = self._candidates[['surface', 'guessed_title']].merge(prediction, on='guessed_title')
 
-        ranking = prediction[(prediction.proba_1 >= self._threshold) |
-                             (prediction.guessed_title.lower() == prediction.surface.lower())].\
-            sort_values(['proba_1', 'case_rank_min'], ascending=[False, True]).\
-            drop_duplicates(['guessed_title']).set_index('guessed_title')
+            ranking = prediction[(prediction.proba_1 >= self._threshold) |
+                                 (prediction.guessed_title.lower() == prediction.surface.lower())].\
+                sort_values(['proba_1', 'case_rank_min'], ascending=[False, True]).\
+                drop_duplicates(['guessed_title']).set_index('guessed_title')
 
         result = dict()
 
