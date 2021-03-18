@@ -438,7 +438,7 @@ def best_matches(text_embeddings, get_index_and_mapping, search_k=10, max_dist=0
 
             match_uniqueness = (float(len(hits)) / hit_counter[matched.part]).sum() * len(matched)
 
-            match_coverage = float(len(guessed_title))/matched.part.astype(str).len().sum()
+            match_coverage = float(len(guessed_title))/matched.part.astype(str).str.len().sum()
 
             summarized_dist_over_all_parts = matched.dist.apply(summarizer)
 
@@ -448,7 +448,7 @@ def best_matches(text_embeddings, get_index_and_mapping, search_k=10, max_dist=0
 
         ranking['len_guessed'] = ranking.guessed_title.str.len()
 
-        ranking = ranking.sort_values(['match_uniqueness', 'dist', 'match_coverage' 'len_guessed'],
+        ranking = ranking.sort_values(['match_uniqueness', 'dist', 'match_coverage', 'len_guessed'],
                                       ascending=[False, True, False, True]).reset_index(drop=True)
 
     if len(ranking) == 0:

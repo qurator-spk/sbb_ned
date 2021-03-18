@@ -173,6 +173,8 @@ $(CLEF_TARGET_PATH)/en-decider-train-dataset.pkl: $(CLEF_TARGET_PATH)/ned-full-d
 
 CLEF2020-decider-train-data: $(CLEF_TARGET_PATH)/de-decider-train-dataset.pkl $(CLEF_TARGET_PATH)/fr-decider-train-dataset.pkl $(CLEF_TARGET_PATH)/en-decider-train-dataset.pkl
 
+CLEF2020-%-decider-train-data: $(CLEF_TARGET_PATH)/%-decider-train-dataset.pkl ;
+
 
 $(CLEF_TARGET_PATH)/de-decider-dev-dataset.pkl: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-dev-de.tsv $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-dev-de.json $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-dev-de.tsv
 	sentence-stat $^ $@

@@ -289,8 +289,8 @@ class NEDLookup:
 
                 yield entity_id, pd.DataFrame(entity_info['sentences']), entity_info['surfaces'], entity_info['type']
 
-            # signal entity_id == None
-            yield None, None, None, None
+                # signal entity_id == None
+                yield None, None, None, None
 
     def get_lookup(self):
 
