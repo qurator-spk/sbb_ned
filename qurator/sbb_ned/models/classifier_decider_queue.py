@@ -32,6 +32,9 @@ class ClassifierTask:
 
     def __call__(self, *args, **kwargs):
 
+        if self._entity_id is None:
+            return None, None, None
+
         all_input_ids = torch.tensor([f.input_ids for f in self._features], dtype=torch.long)
         all_input_mask = torch.tensor([f.input_mask for f in self._features], dtype=torch.long)
         all_segment_ids = torch.tensor([f.segment_ids for f in self._features], dtype=torch.long)
@@ -155,7 +158,8 @@ class ClassifierDeciderQueue:
             print("get_classifier_tasks: {}".format(entity_id))
 
             if entity_id is None:
-                continue
+
+                yield ClassifierTask(None, None, None)
 
             if len(candidates) == 0:
                 continue
