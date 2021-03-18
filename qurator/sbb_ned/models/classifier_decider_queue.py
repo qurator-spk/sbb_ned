@@ -138,6 +138,7 @@ class ClassifierDeciderQueue:
                                 processes=self._decider_processes):
 
             if eid is None:
+                print('process_sequence done.')
                 yield complete_result
                 complete_result = OrderedDict()
                 continue
@@ -179,6 +180,9 @@ class ClassifierDeciderQueue:
 
                 yield DeciderTask(entity_id, decision, candidates, self._quantiles, self._rank_intervalls,
                                   self._threshold, self._return_full)
+
+            yield DeciderTask(entity_id=None, decision=None, candidates=None, quantiles=None, rank_intervalls=None,
+                              threshold=None)
 
             # for entity_id, features, candidates in tqdm(job_sequence, total=len_sequence):
             #
