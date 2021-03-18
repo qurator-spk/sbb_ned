@@ -453,7 +453,8 @@ def best_matches(text_embeddings, get_index_and_mapping, search_k=10, max_dist=0
 
     if len(ranking) == 0:
         ranking = \
-            pd.DataFrame({'guessed_title': '', 'dist': np.inf, 'match_uniqueness': 0, 'match_coverage': 0}, index=[0])
+            pd.DataFrame({'guessed_title': '', 'dist': np.inf, 'match_uniqueness': 0, 'match_coverage': 0,
+                          'len_guessed': np.inf}, index=[0])
         hits = None
 
     return ranking, hits
