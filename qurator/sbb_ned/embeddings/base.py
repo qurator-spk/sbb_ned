@@ -100,7 +100,20 @@ class EmbedTask:
         self._split_parts = split_parts
 
     def __call__(self, *args, **kwargs):
-        return self._page_title, get_embedding_vectors(EmbedTask.embeddings, self._entity_label, self._split_parts)
+
+        if type(self._entity_label) == list:
+
+            emb = []
+            for el in self._entity_label:
+                emb.extend(get_embedding_vectors(EmbedTask.embeddings, el, self._split_parts))
+
+            emb = pd.concat(emb).sort_index()
+
+            emb = emb[~emb.index.duplicated(keep='first')]
+
+            return self._page_title, emb
+        else:
+            return self._page_title, get_embedding_vectors(EmbedTask.embeddings, self._entity_label, self._split_parts)
 
     @staticmethod
     def initialize(embeddings):

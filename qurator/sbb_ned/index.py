@@ -15,6 +15,94 @@ from qurator.utils.parallel import run as prun
 logger = logging.getLogger(__name__)
 
 
+class LookUpByEmbeddings:
+
+    index = None
+    entities_file = None
+    embeddings = None
+    embedding_conf = None
+    mapping = None
+    n_trees = None
+    distance_measure = None
+    output_path = None
+    search_k = None
+    max_dist = None
+
+    init_sem = None
+
+    def __init__(self, page_title, entity_embeddings, entity_title, entity_type, split_parts, max_candidates=None):
+
+        self._entity_embeddings = entity_embeddings
+        self._entity_title = entity_title
+        self._entity_type = entity_type
+        self._page_title = page_title
+        self._split_parts = split_parts
+        self._max_candidates = max_candidates
+
+    def __call__(self, *args, **kwargs):
+
+        def get_index_and_mapping(dims):
+
+            LookUpByEmbeddings.init_indices(dims)
+
+            return LookUpByEmbeddings.index[self._entity_type], LookUpByEmbeddings.mapping[self._entity_type]
+
+        ranking, _ = best_matches(self._entity_embeddings, get_index_and_mapping,
+                                  LookUpByEmbeddings.search_k, LookUpByEmbeddings.max_dist)
+
+        ranking = ranking. \
+            drop_duplicates('guessed_title'). \
+            sort_values(['match_uniqueness', 'dist', 'match_coverage', 'len_guessed'],
+                        ascending=[False, True, False, True]).reset_index(drop=True)
+
+        ranking['on_page'] = self._page_title
+
+        if self._max_candidates is not None:
+
+            ranking = ranking.iloc[0:self._max_candidates]
+
+        return self._entity_title, ranking
+
+    @staticmethod
+    def init_indices(dims):
+
+        if LookUpByEmbeddings.index is not None:
+            return
+
+            LookUpByEmbeddings.init_sem.acquire()
+
+        if LookUpByEmbeddings.index is not None:
+            LookUpByEmbeddings.init_sem.release()
+            return
+
+        LookUpByEmbeddings.index = dict()
+        LookUpByEmbeddings.mapping = dict()
+
+        for ent_type, emb in LookUpBySurface.embeddings.items():
+
+            config = emb.config()
+            config['dims'] = dims
+
+            LookUpByEmbeddings.index[ent_type], LookUpByEmbeddings.mapping[ent_type] = \
+                load(LookUpByEmbeddings.entities_file, config, ent_type, LookUpByEmbeddings.n_trees,
+                     LookUpByEmbeddings.distance_measure, LookUpByEmbeddings.output_path)
+
+            LookUpByEmbeddings.init_sem.release()
+
+    @staticmethod
+    def initialize(entity_types, n_trees, distance_measure, output_path, search_k, max_dist):
+
+        LookUpByEmbeddings.entity_types = entity_types
+
+        LookUpByEmbeddings.n_trees = n_trees
+        LookUpByEmbeddings.distance_measure = distance_measure
+        LookUpByEmbeddings.output_path = output_path
+        LookUpByEmbeddings.search_k = search_k
+        LookUpByEmbeddings.max_dist = max_dist
+
+        LookUpByEmbeddings.init_sem = Semaphore(1)
+
+
 class LookUpBySurface:
 
     index = None
@@ -446,9 +534,11 @@ def best_matches(text_embeddings, get_index_and_mapping, search_k=10, max_dist=0
 
             summarized_dist_over_all_parts = matched.dist.apply(summarizer)
 
-            ranking.append((guessed_title, summarized_dist_over_all_parts, match_uniqueness, match_coverage))
+            ranking.append((guessed_title, summarized_dist_over_all_parts, match_uniqueness, match_coverage,
+                            matched.part.iloc[0]))
 
-        ranking = pd.DataFrame(ranking, columns=['guessed_title', 'dist', 'match_uniqueness', 'match_coverage'])
+        ranking = pd.DataFrame(ranking, columns=['guessed_title', 'dist', 'match_uniqueness', 'match_coverage',
+                                                 'surface'])
 
         ranking['len_guessed'] = ranking.guessed_title.str.len()
 

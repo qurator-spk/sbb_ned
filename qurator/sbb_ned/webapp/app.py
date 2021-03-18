@@ -163,10 +163,10 @@ class ThreadStore:
 
         no_cuda = False if not os.environ.get('USE_CUDA') else os.environ.get('USE_CUDA').lower() == 'false'
 
-        embs = load_embeddings(app.config['EMBEDDING_TYPE'], model_path=app.config["EMBEDDING_MODEL_PATH"],
-                               pooling_operation=app.config['POOLING'], no_cuda=no_cuda)
+        embeddings = load_embeddings(app.config['EMBEDDING_TYPE'], model_path=app.config["EMBEDDING_MODEL_PATH"],
+                                     pooling_operation=app.config['POOLING'], no_cuda=no_cuda)
 
-        embeddings = {'PER': embs, 'LOC': embs, 'ORG': embs}
+        # embeddings = {'PER': embs, 'LOC': embs, 'ORG': embs}
 
         self.ned_lookup =\
             NEDLookup(max_seq_length=app.config['MAX_SEQ_LENGTH'],
@@ -177,8 +177,10 @@ class ThreadStore:
                       n_trees=app.config['N_TREES'],
                       distance_measure=app.config['DISTANCE_MEASURE'],
                       entity_index_path=app.config['ENTITY_INDEX_PATH'],
+                      entity_types=['PER', 'LOC', 'ORG'],
                       search_k=app.config['SEARCH_K'],
                       max_dist=app.config['MAX_DIST'],
+                      embed_processes=app.config['EMBED_PROCESSES'],
                       lookup_processes=app.config['LOOKUP_PROCESSES'],
                       pairing_processes=app.config['PAIRING_PROCESSES'],
                       feature_processes=app.config['FEATURE_PROCESSES'],

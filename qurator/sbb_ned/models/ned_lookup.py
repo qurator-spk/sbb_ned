@@ -4,7 +4,8 @@ import logging
 # import os
 import pandas as pd
 
-from ..index import LookUpBySurface
+from ..index import LookUpByEmbeddings
+from ..embeddings.base import EmbedTask
 
 from qurator.utils.parallel import run as prun
 from multiprocessing import Semaphore
@@ -170,21 +171,39 @@ class SentenceLookup:
         return conn
 
 
-class LookUpBySurfaceWrapper(LookUpBySurface):
+class EmbedTaskWrapper(EmbedTask):
+
+    def __init__(self, entity_id, ent_type, sentences, *args, **kwargs):
+
+        self._entity_id = entity_id
+        self._ent_type = ent_type
+        self._sentences = sentences
+
+        super(EmbedTaskWrapper, self).__init__(*args, **kwargs)
+
+    def __call__(self, *args, **kwargs):
+
+        if self._entity_id is None:
+            return None, None, None, (None, None)
+
+        return self._entity_id, self._ent_type, self._sentences, super(EmbedTaskWrapper, self).__call__(*args, **kwargs)
+
+
+class LookUpByEmbeddingWrapper(LookUpByEmbeddings):
 
     def __init__(self, entity_id, sentences, *args, **kwargs):
 
         self._entity_id = entity_id
         self._sentences = sentences
 
-        super(LookUpBySurfaceWrapper, self).__init__(*args, **kwargs)
+        super(LookUpByEmbeddingWrapper, self).__init__(*args, **kwargs)
 
     def __call__(self, *args, **kwargs):
 
         if self._entity_id is None:
             return None, (None, None)
 
-        return self._sentences, super(LookUpBySurfaceWrapper, self).__call__(*args, **kwargs)
+        return self._sentences, super(LookUpByEmbeddingWrapper, self).__call__(*args, **kwargs)
 
 
 class SentenceLookupWrapper(SentenceLookup):
@@ -236,7 +255,7 @@ class NEDLookup:
 
     def __init__(self, max_seq_length, tokenizer,
                  ned_sql_file, entities_file, embeddings, n_trees, distance_measure,
-                 entity_index_path, search_k, max_dist,
+                 entity_index_path, entity_types, search_k, max_dist, embed_processes=0,
                  lookup_processes=0, pairing_processes=0, feature_processes=0, max_candidates=20,
                  max_pairs=1000, split_parts=True):
 
@@ -251,9 +270,11 @@ class NEDLookup:
         self._n_trees = n_trees
         self._distance_measure = distance_measure
         self._entity_index_path = entity_index_path
+        self._entity_types = entity_types
         self._search_k = search_k
         self._max_dist = max_dist
 
+        self._embed_processes = embed_processes
         self._lookup_processes = lookup_processes
         self._pairing_processes = pairing_processes
         self._feature_processes = feature_processes
@@ -292,19 +313,27 @@ class NEDLookup:
                 # signal entity_id == None
                 yield None, None, None, None
 
-    def get_lookup(self):
+    def get_embed(self):
 
         for entity_id, sentences, surfaces, ent_type in self.get_entity():
 
-            yield LookUpBySurfaceWrapper(entity_id, sentences, page_title=entity_id, entity_surface_parts=surfaces,
-                                         entity_title=entity_id, entity_type=ent_type, split_parts=self._split_parts,
-                                         max_candidates=None)  # return all the candidates - filtering is done below
+            yield EmbedTaskWrapper(entity_id, ent_type, sentences, page_title=entity_id, entity_label=surfaces,
+                                   split_parts=self._split_parts)
+
+    def get_lookup(self):
+
+        for entity_id, ent_type, sentences, (_, embedded) in prun(self.get_embed(), initializer=EmbedTask.initialize,
+                                                                  initargs=(self._embeddings,)):
+
+            yield LookUpByEmbeddingWrapper(entity_id, sentences, page_title=entity_id, entity_embeddings=embedded,
+                                           entity_title=entity_id, entity_type=ent_type, split_parts=self._split_parts,
+                                           max_candidates=None)  # return all the candidates - filtering is done below
 
     def get_sentence_lookup(self):
 
         for sentences, (entity_id, candidates) in \
-                prun(self.get_lookup(), initializer=LookUpBySurface.initialize,
-                     initargs=(self._entities_file, self._embeddings, self._n_trees, self._distance_measure,
+                prun(self.get_lookup(), initializer=LookUpByEmbeddings.initialize,
+                     initargs=(self._entity_types, self._n_trees, self._distance_measure,
                                self._entity_index_path, self._search_k, self._max_dist),
                      processes=self._lookup_processes):
 
