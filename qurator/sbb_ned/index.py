@@ -30,9 +30,11 @@ class LookUpByEmbeddings:
 
     init_sem = None
 
-    def __init__(self, page_title, entity_embeddings, entity_title, entity_type, split_parts, max_candidates=None):
+    def __init__(self, page_title, entity_embeddings, embedding_config,
+                 entity_title, entity_type, split_parts, max_candidates=None):
 
         self._entity_embeddings = entity_embeddings
+        self._embedding_config = embedding_config
         self._entity_title = entity_title
         self._entity_type = entity_type
         self._page_title = page_title
@@ -63,13 +65,12 @@ class LookUpByEmbeddings:
 
         return self._entity_title, ranking
 
-    @staticmethod
-    def init_indices(dims):
+    def init_indices(self, dims):
 
         if LookUpByEmbeddings.index is not None:
             return
 
-            LookUpByEmbeddings.init_sem.acquire()
+        LookUpByEmbeddings.init_sem.acquire()
 
         if LookUpByEmbeddings.index is not None:
             LookUpByEmbeddings.init_sem.release()
@@ -80,11 +81,10 @@ class LookUpByEmbeddings:
 
         for ent_type, emb in LookUpBySurface.embeddings.items():
 
-            config = emb.config()
-            config['dims'] = dims
+            self._embedding_config['dims'] = dims
 
             LookUpByEmbeddings.index[ent_type], LookUpByEmbeddings.mapping[ent_type] = \
-                load(LookUpByEmbeddings.entities_file, config, ent_type, LookUpByEmbeddings.n_trees,
+                load(LookUpByEmbeddings.entities_file, self._embedding_config, ent_type, LookUpByEmbeddings.n_trees,
                      LookUpByEmbeddings.distance_measure, LookUpByEmbeddings.output_path)
 
             LookUpByEmbeddings.init_sem.release()
