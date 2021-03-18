@@ -112,7 +112,9 @@ class EmbedTask:
 
                 emb = emb[~emb.index.duplicated(keep='first')]
 
-            return self._page_title, emb
+                return self._page_title, emb
+            else:
+                return self._page_title, pd.DataFrame()
         else:
             return self._page_title, get_embedding_vectors(EmbedTask.embeddings, self._entity_label, self._split_parts)
 
