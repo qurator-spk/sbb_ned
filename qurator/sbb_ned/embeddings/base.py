@@ -107,9 +107,10 @@ class EmbedTask:
             for el in self._entity_label:
                 emb.extend(get_embedding_vectors(EmbedTask.embeddings, el, self._split_parts))
 
-            emb = pd.concat(emb).sort_index()
+            if len(emb) > 0:
+                emb = pd.concat(emb).sort_index()
 
-            emb = emb[~emb.index.duplicated(keep='first')]
+                emb = emb[~emb.index.duplicated(keep='first')]
 
             return self._page_title, emb
         else:
