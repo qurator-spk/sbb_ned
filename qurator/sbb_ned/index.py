@@ -60,7 +60,7 @@ class LookUpBySurface:
 
         rankings = pd.concat(rankings). \
             drop_duplicates('guessed_title'). \
-            sort_values(['match_uniqueness', 'dist', 'match_coverage' 'len_guessed'],
+            sort_values(['match_uniqueness', 'dist', 'match_coverage', 'len_guessed'],
                         ascending=[False, True, False, True]).reset_index(drop=True)
 
         rankings['on_page'] = self._page_title
