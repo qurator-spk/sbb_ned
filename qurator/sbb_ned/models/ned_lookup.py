@@ -316,7 +316,7 @@ class NEDLookup:
             candidates = candidates.merge(self._entities[['proba']], left_on="guessed_title", right_index=True)
 
             candidates = candidates.\
-                sort_values(['match_uniqueness', 'dist', 'proba', 'match_coverage' 'len_guessed'],
+                sort_values(['match_uniqueness', 'dist', 'proba', 'match_coverage', 'len_guessed'],
                             ascending=[False, True, False, False, True])
 
             candidates = candidates.iloc[0:self._max_candidates]
