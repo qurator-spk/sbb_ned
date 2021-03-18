@@ -45,7 +45,7 @@ class LookUpByEmbeddings:
 
         def get_index_and_mapping(dims):
 
-            LookUpByEmbeddings.init_indices(dims)
+            self.init_indices(dims)
 
             return LookUpByEmbeddings.index[self._entity_type], LookUpByEmbeddings.mapping[self._entity_type]
 
