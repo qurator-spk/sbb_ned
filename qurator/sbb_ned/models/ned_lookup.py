@@ -294,9 +294,9 @@ class NEDLookup:
 
     def get_lookup(self):
 
-        for entity_id, sentences, surface, ent_type in self.get_entity():
+        for entity_id, sentences, surfaces, ent_type in self.get_entity():
 
-            yield LookUpBySurfaceWrapper(entity_id, sentences, page_title=entity_id, entity_surface_parts=[surface],
+            yield LookUpBySurfaceWrapper(entity_id, sentences, page_title=entity_id, entity_surface_parts=surfaces,
                                          entity_title=entity_id, entity_type=ent_type, split_parts=self._split_parts,
                                          max_candidates=None)  # return all the candidates - filtering is done below
 
