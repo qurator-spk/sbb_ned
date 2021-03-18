@@ -123,8 +123,6 @@ class ClassifierDeciderQueue:
 
         ret = next(self._sequence)
 
-        print('\n\n\n\nDone2.\n\n\n\n')
-
         self._threshold, self._return_full = _threshold, _return_full
 
         self._main_sem.release()

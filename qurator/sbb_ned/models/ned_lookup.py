@@ -454,8 +454,6 @@ class NEDLookup:
 
                 yield entity_id, fe, cand
 
-            print('\n\n\n\nDone.\n\n\n\n')
-
         ret = func(job_sequence())
 
         self._main_sem.release()
