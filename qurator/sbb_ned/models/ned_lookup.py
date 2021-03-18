@@ -323,7 +323,8 @@ class NEDLookup:
     def get_lookup(self):
 
         for entity_id, ent_type, sentences, (_, embedded) in prun(self.get_embed(), initializer=EmbedTask.initialize,
-                                                                  initargs=(self._embeddings,)):
+                                                                  initargs=(self._embeddings,),
+                                                                  processes=self._embed_processes):
 
             yield LookUpByEmbeddingWrapper(entity_id, sentences, page_title=entity_id, entity_embeddings=embedded,
                                            entity_title=entity_id, entity_type=ent_type, split_parts=self._split_parts,
