@@ -99,31 +99,31 @@ class ThreadStore:
 
         return self._redirects
 
-    def get_model(self):
-
-        if self.model is not None:
-            return self.model, self.device
-
-        no_cuda = False if not os.environ.get('USE_CUDA') else os.environ.get('USE_CUDA').lower() == 'false'
-
-        self.device, n_gpu = get_device(no_cuda=no_cuda)
-
-        config_file = os.path.join(app.config['MODEL_DIR'], CONFIG_NAME)
-        #
-        model_file = os.path.join(app.config['MODEL_DIR'], app.config['MODEL_FILE'])
-
-        config = BertConfig(config_file)
-
-        self.model = BertForSequenceClassification(config, num_labels=2)
-        # noinspection PyUnresolvedReferences
-        self.model.load_state_dict(torch.load(model_file,
-                                              map_location=lambda storage, loc: storage if no_cuda else None))
-        # noinspection PyUnresolvedReferences
-        self.model.to(self.device)
-        # noinspection PyUnresolvedReferences
-        self.model.eval()
-
-        return self.model, self.device
+    # def get_model(self):
+    #
+    #     if self.model is not None:
+    #         return self.model, self.device
+    #
+    #     no_cuda = False if not os.environ.get('USE_CUDA') else os.environ.get('USE_CUDA').lower() == 'false'
+    #
+    #     self.device, n_gpu = get_device(no_cuda=no_cuda)
+    #
+    #     config_file = os.path.join(app.config['MODEL_DIR'], CONFIG_NAME)
+    #     #
+    #     model_file = os.path.join(app.config['MODEL_DIR'], app.config['MODEL_FILE'])
+    #
+    #     config = BertConfig(config_file)
+    #
+    #     self.model = BertForSequenceClassification(config, num_labels=2)
+    #     # noinspection PyUnresolvedReferences
+    #     self.model.load_state_dict(torch.load(model_file,
+    #                                           map_location=lambda storage, loc: storage if no_cuda else None))
+    #     # noinspection PyUnresolvedReferences
+    #     self.model.to(self.device)
+    #     # noinspection PyUnresolvedReferences
+    #     self.model.eval()
+    #
+    #     return self.model, self.device
 
     def get_decider(self):
 
@@ -143,12 +143,15 @@ class ThreadStore:
         if self.classify_decider_queue is not None:
             return self.classify_decider_queue
 
-        model, device = self.get_model()
-        decider = thread_store.get_decider()
+        no_cuda = False if not os.environ.get('USE_CUDA') else os.environ.get('USE_CUDA').lower() == 'false'
 
         self.classify_decider_queue = \
-            ClassifierDeciderQueue(model, device, decider, app.config['DECISION_THRESHOLD'], self.get_entities(),
-                                   app.config['DECIDER_PROCESSES'], app.config['BATCH_SIZE'])
+            ClassifierDeciderQueue(no_cuda=no_cuda, model_dir=app.config['MODEL_DIR'],
+                                   model_file=app.config['MODEL_FILE'], decider=thread_store.get_decider(),
+                                   threshold=app.config['DECISION_THRESHOLD'],
+                                   entities=self.get_entities(), decider_processes=app.config['DECIDER_PROCESSES'],
+                                   classifier_processes=app.config['EVALUATOR_PROCESSES'],
+                                   batch_size=app.config['BATCH_SIZE'])
 
         return self.classify_decider_queue
 
