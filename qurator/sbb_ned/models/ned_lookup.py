@@ -335,7 +335,7 @@ class NEDLookup:
 
         for sentences, (entity_id, candidates) in \
                 prun(self.get_lookup(), initializer=LookUpByEmbeddings.initialize,
-                     initargs=(self._entity_types, self._n_trees, self._distance_measure,
+                     initargs=(self._entities_file, self._entity_types, self._n_trees, self._distance_measure,
                                self._entity_index_path, self._search_k, self._max_dist),
                      processes=self._lookup_processes):
 

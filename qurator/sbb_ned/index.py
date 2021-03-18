@@ -19,8 +19,7 @@ class LookUpByEmbeddings:
 
     index = None
     entities_file = None
-    embeddings = None
-    embedding_conf = None
+    entity_types = None
     mapping = None
     n_trees = None
     distance_measure = None
@@ -79,7 +78,7 @@ class LookUpByEmbeddings:
         LookUpByEmbeddings.index = dict()
         LookUpByEmbeddings.mapping = dict()
 
-        for ent_type, emb in LookUpBySurface.embeddings.items():
+        for ent_type in LookUpByEmbeddings.entity_types:
 
             self._embedding_config['dims'] = dims
 
@@ -90,8 +89,9 @@ class LookUpByEmbeddings:
             LookUpByEmbeddings.init_sem.release()
 
     @staticmethod
-    def initialize(entity_types, n_trees, distance_measure, output_path, search_k, max_dist):
+    def initialize(entities_file, entity_types, n_trees, distance_measure, output_path, search_k, max_dist):
 
+        LookUpByEmbeddings.entities_file = entities_file
         LookUpByEmbeddings.entity_types = entity_types
 
         LookUpByEmbeddings.n_trees = n_trees
