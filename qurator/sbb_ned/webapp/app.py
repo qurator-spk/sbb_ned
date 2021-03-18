@@ -11,6 +11,7 @@ import pickle
 import re
 import torch
 import sqlite3
+import multiprocessing as mp
 
 from qurator.sbb_ned.models.bert import get_device
 from qurator.sbb_ned.models.classifier_decider_queue import ClassifierDeciderQueue
@@ -21,6 +22,8 @@ from ..embeddings.base import load_embeddings
 from ..models.ned_lookup import NEDLookup
 
 from nltk.stem.snowball import SnowballStemmer
+
+mp.set_start_method('spawn')
 
 app = Flask(__name__)
 
