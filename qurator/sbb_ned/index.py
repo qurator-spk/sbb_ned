@@ -137,6 +137,7 @@ class LookUpBySurface:
         LookUpBySurface.init_sem.acquire()
 
         if LookUpBySurface.index is not None:
+            LookUpBySurface.init_sem.release()
             return
 
         LookUpBySurface.index = dict()
@@ -409,26 +410,29 @@ def best_matches(text_embeddings, get_index_and_mapping, search_k=10, max_dist=0
 
     hits = []
     ranking = []
+    lookup = []
+    mapping = None
 
     for part, e in text_embeddings.iterrows():
-        index, mapping = get_index_and_mapping(len(e))
+
+        if mapping is None:
+            index, mapping = get_index_and_mapping(len(e))
 
         ann_indices, dist = index.get_nns_by_vector(e, search_k, include_distances=True)
 
-        lookup_index = pd.DataFrame({'ann_index': ann_indices, 'dist': dist})
+        lookup.append(pd.DataFrame({'ann_index': ann_indices, 'dist': dist, 'part': len(dist)*[part]}))
 
-        related_pages = mapping.loc[mapping.index.isin(ann_indices)].copy()
+    if len(lookup) > 0:
 
-        related_pages = related_pages.merge(lookup_index, left_on="ann_index", right_on='ann_index')
-        related_pages['part'] = part
+        lookup = pd.concat(lookup).sort_values('ann_index')
 
-        hits.append(related_pages)
+        hits = mapping.loc[mapping.index.isin(lookup.ann_index)].copy()
+
+        hits = hits.merge(lookup, left_on="ann_index", right_on='ann_index')
 
     if len(hits) >= 1:
-        hits = pd.concat(hits)
+
         hits = hits.loc[hits.dist < max_dist]
-
-    if len(hits) >= 1:
 
         hit_counter = hits.part.value_counts()
 
