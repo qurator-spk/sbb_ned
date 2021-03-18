@@ -137,7 +137,7 @@ class ClassifierDeciderQueue:
 
         for eid, result in prun(self.get_decider_tasks(), initializer=DeciderTask.initialize,
                                 initargs=(self._decider, self._entities),
-                                processes=self._decider_processes):
+                                processes=self._decider_processes, method='spawn'):
 
             if eid is None:
                 yield complete_result
@@ -177,7 +177,8 @@ class ClassifierDeciderQueue:
                                                              initializer=ClassifierTask.initialize,
                                                              initargs=(self._no_cuda, self._model_dir, self._model_file,
                                                                        self._batch_size),
-                                                             processes=self._classifier_processes), total=len_sequence):
+                                                             processes=self._classifier_processes, method='spawn'),
+                                                        total=len_sequence):
 
                 yield DeciderTask(entity_id, decision, candidates, self._quantiles, self._rank_intervalls,
                                   self._threshold, self._return_full)

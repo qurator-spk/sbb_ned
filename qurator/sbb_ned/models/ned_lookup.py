@@ -324,7 +324,7 @@ class NEDLookup:
 
         for entity_id, ent_type, sentences, (_, embedded, embedding_config) in \
                 prun(self.get_embed(), initializer=EmbedTask.initialize, initargs=(self._embeddings,),
-                     processes=self._embed_processes):
+                     processes=self._embed_processes, method='spawn'):
 
             yield LookUpByEmbeddingWrapper(entity_id, sentences, page_title=entity_id, entity_embeddings=embedded,
                                            embedding_config=embedding_config, entity_title=entity_id,
@@ -337,7 +337,7 @@ class NEDLookup:
                 prun(self.get_lookup(), initializer=LookUpByEmbeddings.initialize,
                      initargs=(self._entities_file, self._entity_types, self._n_trees, self._distance_measure,
                                self._entity_index_path, self._search_k, self._max_dist),
-                     processes=self._lookup_processes):
+                     processes=self._lookup_processes, method='spawn'):
 
             if entity_id is None:
                 # signal entity_id == None
@@ -360,7 +360,7 @@ class NEDLookup:
 
         for entity_id, candidate, pairs in \
                 prun(self.get_sentence_lookup(), initializer=SentenceLookup.initialize,
-                     initargs=(self._ned_sql_file, ), processes=self._pairing_processes):
+                     initargs=(self._ned_sql_file, ), processes=self._pairing_processes, method='spawn'):
 
             if entity_id is None:
 
@@ -404,7 +404,8 @@ class NEDLookup:
 
         for entity_id, candidate, fe in \
                 prun(self.get_feature_tasks(), initializer=ConvertSamples2Features.initialize,
-                     initargs=(self._tokenizer, self._max_seq_length), processes=self._feature_processes):
+                     initargs=(self._tokenizer, self._max_seq_length), processes=self._feature_processes,
+                     method='spawn'):
 
             if entity_id is None:
                 yield current_entity, features, pd.concat(candidates) if len(candidates) > 0 else []

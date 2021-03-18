@@ -23,8 +23,6 @@ from ..models.ned_lookup import NEDLookup
 
 from nltk.stem.snowball import SnowballStemmer
 
-mp.set_start_method('spawn')
-
 app = Flask(__name__)
 
 app.config.from_json('de-config.json' if not os.environ.get('CONFIG') else os.environ.get('CONFIG'))
