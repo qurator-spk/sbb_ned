@@ -83,7 +83,7 @@ class ClassifierDeciderQueue:
     def __init__(self, no_cuda, model_dir, model_file, decider, threshold, entities, decider_processes,
                  classifier_processes, batch_size):
 
-        logger.info('ClassifierDeciderQueue __init__')
+        # logger.info('ClassifierDeciderQueue __init__')
 
         self._process_queue = []
         self._process_queue_sem = Semaphore(0)
@@ -137,7 +137,7 @@ class ClassifierDeciderQueue:
 
         for eid, result in prun(self.get_decider_tasks(), initializer=DeciderTask.initialize,
                                 initargs=(self._decider, self._entities),
-                                processes=self._decider_processes, method='spawn'):
+                                processes=self._decider_processes):
 
             if eid is None:
                 yield complete_result
@@ -177,7 +177,7 @@ class ClassifierDeciderQueue:
                                                              initializer=ClassifierTask.initialize,
                                                              initargs=(self._no_cuda, self._model_dir, self._model_file,
                                                                        self._batch_size),
-                                                             processes=self._classifier_processes, method='spawn'),
+                                                             processes=self._classifier_processes),
                                                         total=len_sequence):
 
                 yield DeciderTask(entity_id, decision, candidates, self._quantiles, self._rank_intervalls,

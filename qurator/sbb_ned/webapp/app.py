@@ -301,7 +301,7 @@ def parse_entities():
 
                 surfaces = list(surfaces)
 
-                logger.debug(str(surfaces))
+                # logger.debug(str(surfaces))
 
                 try:
                     parsed[entity_id] = {'sentences': [parsed_sent], 'type': ent_type, 'surfaces': surfaces}

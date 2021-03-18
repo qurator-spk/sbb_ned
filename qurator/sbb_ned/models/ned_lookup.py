@@ -55,7 +55,7 @@ class SentenceLookup:
                 SentenceLookup.get_db(), params=(candidate.guessed_title, limit))
 
             if len(s) == 0:
-                logger.debug('1')
+                # logger.debug('1')
                 continue
 
             tmp.append(s)
@@ -125,7 +125,7 @@ class SentenceLookup:
         candidate_sentences = candidate_sentences.loc[SentenceLookup.is_valid_sentence(candidate_sentences)]
 
         if len(candidate_sentences) == 0:
-            logger.debug('No candidate sentences. Number of candidates: {}'.format(len(self._candidates)))
+            # logger.debug('No candidate sentences. Number of candidates: {}'.format(len(self._candidates)))
             return None
 
         self._found_sentences['pos'], self._found_sentences['end'] = \
@@ -162,7 +162,7 @@ class SentenceLookup:
         conn = SentenceLookup.connection_map.get(thid)
 
         if conn is None:
-            logger.info('Create database connection: {}'.format(SentenceLookup.ned_sql_file))
+            # logger.info('Create database connection: {}'.format(SentenceLookup.ned_sql_file))
 
             conn = sqlite3.connect(SentenceLookup.ned_sql_file)
 
@@ -259,7 +259,7 @@ class NEDLookup:
                  lookup_processes=0, pairing_processes=0, feature_processes=0, max_candidates=20,
                  max_pairs=1000, split_parts=True):
 
-        logger.info('NEDLookup __init__')
+        # logger.info('NEDLookup __init__')
 
         self._max_seq_length = max_seq_length
         self._tokenizer = tokenizer
@@ -324,7 +324,7 @@ class NEDLookup:
 
         for entity_id, ent_type, sentences, (_, embedded, embedding_config) in \
                 prun(self.get_embed(), initializer=EmbedTask.initialize, initargs=(self._embeddings,),
-                     processes=self._embed_processes, method='spawn'):
+                     processes=self._embed_processes):
 
             yield LookUpByEmbeddingWrapper(entity_id, sentences, page_title=entity_id, entity_embeddings=embedded,
                                            embedding_config=embedding_config, entity_title=entity_id,
@@ -337,7 +337,7 @@ class NEDLookup:
                 prun(self.get_lookup(), initializer=LookUpByEmbeddings.initialize,
                      initargs=(self._entities_file, self._entity_types, self._n_trees, self._distance_measure,
                                self._entity_index_path, self._search_k, self._max_dist),
-                     processes=self._lookup_processes, method='spawn'):
+                     processes=self._lookup_processes):
 
             if entity_id is None:
                 # signal entity_id == None
@@ -360,7 +360,7 @@ class NEDLookup:
 
         for entity_id, candidate, pairs in \
                 prun(self.get_sentence_lookup(), initializer=SentenceLookup.initialize,
-                     initargs=(self._ned_sql_file, ), processes=self._pairing_processes, method='spawn'):
+                     initargs=(self._ned_sql_file, ), processes=self._pairing_processes):
 
             if entity_id is None:
 
@@ -404,8 +404,7 @@ class NEDLookup:
 
         for entity_id, candidate, fe in \
                 prun(self.get_feature_tasks(), initializer=ConvertSamples2Features.initialize,
-                     initargs=(self._tokenizer, self._max_seq_length), processes=self._feature_processes,
-                     method='spawn'):
+                     initargs=(self._tokenizer, self._max_seq_length), processes=self._feature_processes):
 
             if entity_id is None:
                 yield current_entity, features, pd.concat(candidates) if len(candidates) > 0 else []
