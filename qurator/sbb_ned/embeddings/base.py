@@ -114,10 +114,10 @@ class EmbedTask:
 
                 return self._page_title, emb
             else:
-                return self._page_title, pd.DataFrame()
+                return self._page_title, pd.DataFrame(), EmbedTask.embeddings.config()
         else:
             return self._page_title, get_embedding_vectors(EmbedTask.embeddings, self._entity_label,
-                                                           self._split_parts), EmbedTask.embeddings.config()
+                                                           self._split_parts)
 
     @staticmethod
     def initialize(embeddings):
