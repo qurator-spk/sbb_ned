@@ -116,7 +116,7 @@ class EmbedTask:
 
             if i % 1000 == 0:
                 torch.cuda.empty_cache()
-
+            
             yield EmbedTask(page_title, entity.label, split_parts)
 
     @staticmethod
