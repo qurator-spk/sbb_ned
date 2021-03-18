@@ -184,7 +184,7 @@ class EmbedTaskWrapper(EmbedTask):
     def __call__(self, *args, **kwargs):
 
         if self._entity_id is None:
-            return None, None, None, (None, None)
+            return None, None, None, (None, None, None)
 
         return self._entity_id, self._ent_type, self._sentences, super(EmbedTaskWrapper, self).__call__(*args, **kwargs)
 
