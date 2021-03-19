@@ -40,7 +40,7 @@ class DeciderTask:
             prediction = self._candidates[['surface', 'guessed_title']].merge(prediction, on='guessed_title')
 
             ranking = prediction[(prediction.proba_1 >= self._threshold) |
-                                 (prediction.guessed_title.lower() == prediction.surface.str.lower())].\
+                                 (prediction.guessed_title.str.lower() == prediction.surface.str.lower())].\
                 sort_values(['proba_1', 'case_rank_min'], ascending=[False, True]).\
                 drop_duplicates(['guessed_title']).set_index('guessed_title')
 
