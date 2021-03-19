@@ -32,6 +32,9 @@ class ClassifierTask:
 
     def __call__(self, *args, **kwargs):
 
+        if self._candidates is None:
+            return None, None, None
+
         all_input_ids = torch.tensor([f.input_ids for f in self._features], dtype=torch.long)
         all_input_mask = torch.tensor([f.input_mask for f in self._features], dtype=torch.long)
         all_segment_ids = torch.tensor([f.segment_ids for f in self._features], dtype=torch.long)
@@ -83,8 +86,6 @@ class ClassifierDeciderQueue:
     def __init__(self, no_cuda, model_dir, model_file, decider, threshold, entities, decider_processes,
                  classifier_processes, batch_size):
 
-        # logger.info('ClassifierDeciderQueue __init__')
-
         self._process_queue = []
         self._process_queue_sem = Semaphore(0)
         self._main_sem = Semaphore(1)
@@ -92,9 +93,6 @@ class ClassifierDeciderQueue:
         self._no_cuda = no_cuda
         self._model_dir = model_dir
         self._model_file = model_file
-
-        # self._model = model
-        # self._device = device
 
         self._decider = decider
         self._threshold = threshold
@@ -148,21 +146,7 @@ class ClassifierDeciderQueue:
 
             complete_result[eid] = result
 
-    @staticmethod
-    def get_classifier_tasks(job_sequence):
-
-        for entity_id, features, candidates in tqdm(job_sequence):
-
-            print("get_classifier_tasks: {}".format(entity_id))
-
-            if len(candidates) == 0:
-                continue
-
-            yield ClassifierTask(entity_id, features, candidates)
-
-        print('classifier tasks done')
-
-    def get_decider_tasks(self):
+    def get_classifier_tasks(self):
 
         while True:
 
@@ -171,53 +155,32 @@ class ClassifierDeciderQueue:
 
             job_sequence, len_sequence = self._process_queue.pop()
 
-            for entity_id, decision, candidates in tqdm(prun(self.get_classifier_tasks(job_sequence),
-                                                             initializer=ClassifierTask.initialize,
-                                                             initargs=(self._no_cuda, self._model_dir, self._model_file,
-                                                                       self._batch_size),
-                                                             processes=self._classifier_processes),
-                                                        total=len_sequence):
+            for entity_id, features, candidates in tqdm(job_sequence, total=len_sequence):
 
-                yield DeciderTask(entity_id, decision, candidates, self._quantiles, self._rank_intervalls,
-                                  self._threshold, self._return_full)
+                print("get_classifier_tasks: {}".format(entity_id))
 
-            yield DeciderTask(entity_id=None, decision=None, candidates=None, quantiles=None, rank_intervalls=None,
-                              threshold=None)
+                if len(candidates) == 0:
+                    continue
 
-            # for entity_id, features, candidates in tqdm(job_sequence, total=len_sequence):
-            #
-            #     logger.debug("get_decider_tasks: {}".format(entity_id))
-            #
-            #     if entity_id is None:
-            #         continue
-            #
-            #     if len(candidates) == 0:
-            #         continue
-            #
-            #     all_input_ids = torch.tensor([f.input_ids for f in features], dtype=torch.long)
-            #     all_input_mask = torch.tensor([f.input_mask for f in features], dtype=torch.long)
-            #     all_segment_ids = torch.tensor([f.segment_ids for f in features], dtype=torch.long)
-            #     all_labels = torch.tensor([f.label for f in features], dtype=torch.long)
-            #
-            #     data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_labels)
-            #
-            #     sampler = SequentialSampler(data)
-            #
-            #     data_loader = DataLoader(data, sampler=sampler, batch_size=self._batch_size)
-            #
-            #     decision = model_predict_compare(data_loader, self._device, self._model, disable_output=True)
-            #     decision['guessed_title'] = [f.guid[1] for f in features]
-            #     decision['target'] = [f.guid[0] for f in features]
-            #     decision['scores'] = np.log(decision[1] / decision[0])
-            #
-            #     assert len(decision.target.unique()) == 1
-            #
-            #     yield DeciderTask(entity_id, decision, candidates, self._quantiles, self._rank_intervalls,
-            #                       self._threshold, self._return_full)
-            #
-            # # signal to process_queue to return completed result
-            # yield DeciderTask(entity_id=None, decision=None, candidates=None, quantiles=None, rank_intervalls=None,
-            #                   threshold=None)
+                yield ClassifierTask(entity_id, features, candidates)
+
+            yield ClassifierTask(None, None, None)
+
+            print('classifier tasks done')
+
+    def get_decider_tasks(self):
+
+        for entity_id, decision, candidates in prun(self.get_classifier_tasks(), initializer=ClassifierTask.initialize,
+                                                    initargs=(self._no_cuda, self._model_dir, self._model_file,
+                                                              self._batch_size), processes=self._classifier_processes):
+
+            if candidates is None:
+                yield DeciderTask(entity_id=None, decision=None, candidates=None, quantiles=None, rank_intervalls=None,
+                                  threshold=None)
+                continue
+
+            yield DeciderTask(entity_id, decision, candidates, self._quantiles, self._rank_intervalls,
+                              self._threshold, self._return_full)
 
     @staticmethod
     def wait(sem=None):
