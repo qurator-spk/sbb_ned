@@ -401,7 +401,7 @@ def build(all_entities_file, embeddings, ent_type, n_trees, processes=10, distan
     part_dict = dict()
 
     ann_index = 0
-    for idx, (title, embeded) in enumerate(EmbedTask.run(embeddings, all_entities, split_parts, processes)):
+    for idx, (title, embeded, _) in enumerate(EmbedTask.run(embeddings, all_entities, split_parts, processes)):
 
         if max_iter is not None and idx > max_iter:
             break

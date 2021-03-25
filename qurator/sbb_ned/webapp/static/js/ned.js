@@ -22,7 +22,7 @@ function NED() {
         let post_data = { "text" : input_text };
 
         $.ajax({
-                url:  "../ner/ner" ,
+                url:  "../ner/ner/0" ,
                 data: JSON.stringify(post_data),
                 type: 'POST',
                 contentType: "application/json",

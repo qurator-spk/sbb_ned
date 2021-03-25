@@ -45,12 +45,14 @@ fasttext:	de-fasttext fr-fasttext en-fasttext
 
 # ==================================================================================================================================================================
 
+LAYERS ?="-1 -2 -3 -4"
+
 %-bert-ORG:
-	build-index $(WIKIDATA_PATH)/$*-wikipedia-ner-entities.pkl bert ORG $(N_TREES) $(ENTITY_INDEX_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/BERT/NED/$*-model --scalar-mix --split-parts --pooling=mean
+	build-index $(WIKIDATA_PATH)/$*-wikipedia-ner-entities.pkl bert ORG $(N_TREES) $(ENTITY_INDEX_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/BERT/NED/$*-model --scalar-mix --split-parts --pooling=mean --layers=$(LAYERS)
 %-bert-LOC:
-	build-index $(WIKIDATA_PATH)/$*-wikipedia-ner-entities.pkl bert LOC $(N_TREES) $(ENTITY_INDEX_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/BERT/NED/$*-model --scalar-mix --split-parts --pooling=mean
+	build-index $(WIKIDATA_PATH)/$*-wikipedia-ner-entities.pkl bert LOC $(N_TREES) $(ENTITY_INDEX_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/BERT/NED/$*-model --scalar-mix --split-parts --pooling=mean --layers=$(LAYERS)
 %-bert-PER:
-	build-index $(WIKIDATA_PATH)/$*-wikipedia-ner-entities.pkl bert PER $(N_TREES) $(ENTITY_INDEX_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/BERT/NED/$*-model --scalar-mix --split-parts --pooling=mean
+	build-index $(WIKIDATA_PATH)/$*-wikipedia-ner-entities.pkl bert PER $(N_TREES) $(ENTITY_INDEX_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/BERT/NED/$*-model --scalar-mix --split-parts --pooling=mean --layers=$(LAYERS)
 
 de-bert: de-bert-ORG de-bert-LOC de-bert-PER
 

@@ -165,7 +165,7 @@ class ThreadStore:
         no_cuda = False if not os.environ.get('USE_CUDA') else os.environ.get('USE_CUDA').lower() == 'false'
 
         embeddings = load_embeddings(app.config['EMBEDDING_TYPE'], model_path=app.config["EMBEDDING_MODEL_PATH"],
-                                     pooling_operation=app.config['POOLING'], no_cuda=no_cuda)
+                                     pooling_operation=app.config['POOLING'], layers=app.config["EMBEDDING_LAYERS"], no_cuda=no_cuda)
 
         # embeddings = {'PER': embs, 'LOC': embs, 'ORG': embs}
 

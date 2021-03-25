@@ -1,6 +1,6 @@
 from ..embeddings.base import Embeddings
 
-from flair.embeddings import Sentence
+from flair.data import Sentence
 
 
 class BertEmbeddings(Embeddings):

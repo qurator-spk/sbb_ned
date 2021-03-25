@@ -40,7 +40,9 @@ def get_embedding_vectors(embeddings, surface, split_parts):
     else:
         RuntimeError('Type of surface not supported.')
 
-    parts = [re.sub(r'[\W_]+', '', p) for p in parts]
+    if split_parts:
+        parts = [re.sub(r'[\W_]+', '', p) for p in parts]
+    
     parts = [p.lower() for p in parts if len(p) > 0]
 
     vectors = []
@@ -55,7 +57,7 @@ def get_embedding_vectors(embeddings, surface, split_parts):
     return ret
 
 
-def load_embeddings(embedding_type, **kwargs):
+def load_embeddings(embedding_type, layers="-1, -2, -3, -4", **kwargs):
 
     print("Loading embeddings ...")
 
@@ -72,7 +74,8 @@ def load_embeddings(embedding_type, **kwargs):
         # CUDA does not work with the standard multiprocessing fork method, therefore we have to switch to spawn.
         mp.set_start_method('spawn')
 
-        embeddings = (FlairEmbeddings, {'forward': 'de-forward', 'backward': 'de-backward', 'use_tokenizer': False})
+        embeddings = (FlairEmbeddings, {'forward': 'de-forward', 'backward': 'de-backward', 'use_tokenizer': True})
+        #embeddings = (FlairEmbeddings, {'forward': 'de-historic-rw-forward', 'backward': 'de-historic-rw-backward', 'use_tokenizer': True})
     elif embedding_type == 'bert':
 
         from .bert import BertEmbeddings
@@ -80,6 +83,8 @@ def load_embeddings(embedding_type, **kwargs):
         # bert uses torch and as a consequence CUDA
         # CUDA does not work with the standard multiprocessing fork method, therefore we have to switch to spawn.
         mp.set_start_method('spawn')
+
+        kwargs = dict(kwargs, layers=layers)
 
         embeddings = (BertEmbeddings, kwargs)
 
@@ -105,10 +110,13 @@ class EmbedTask:
 
             emb = []
             for el in self._entity_label:
-                emb.extend(get_embedding_vectors(EmbedTask.embeddings, el, self._split_parts))
+                emb.append(get_embedding_vectors(EmbedTask.embeddings, el, self._split_parts))
 
             if len(emb) > 0:
-                emb = pd.concat(emb).sort_index()
+                try:
+                    emb = pd.concat(emb).sort_index()
+                except:
+                    import ipdb;ipdb.set_trace()
 
                 emb = emb[~emb.index.duplicated(keep='first')]
 

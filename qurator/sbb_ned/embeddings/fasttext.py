@@ -37,7 +37,6 @@ class FastTextEmbeddings(Embeddings):
     def _emb(self):
 
         if self._embeddings is None:
-
             self._embeddings = load_facebook_vectors(self._path)
 
         return self._embeddings

@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 @click.command()
 @click.argument('all-entities-file', type=click.Path(exists=True), required=True, nargs=1)
-@click.argument('embedding-type', type=click.Choice(['fasttext', 'bert']), required=True, nargs=1)
+@click.argument('embedding-type', type=click.Choice(['fasttext', 'bert', 'flair']), required=True, nargs=1)
 @click.argument('entity-type', type=str, required=True, nargs=1)
 @click.argument('n-trees', type=int, required=True, nargs=1)
 @click.argument('output-path', type=click.Path(exists=True), required=True, nargs=1)
