@@ -30,7 +30,7 @@ class LookUpByEmbeddings:
     init_sem = None
 
     def __init__(self, page_title, entity_embeddings, embedding_config,
-                 entity_title, entity_type, split_parts, max_candidates=None):
+                 entity_title, entity_type, split_parts, max_candidates=None, **kwargs):
 
         self._entity_embeddings = entity_embeddings
         self._embedding_config = embedding_config

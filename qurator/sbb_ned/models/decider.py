@@ -16,7 +16,8 @@ class DeciderTask:
     decider = None
     entities = None
 
-    def __init__(self, entity_id, decision, candidates, quantiles, rank_intervalls, threshold, return_full=False):
+    def __init__(self, entity_id, decision, candidates, quantiles, rank_intervalls, threshold, return_full=False,
+                 **kwargs):
 
         self._entity_id = entity_id
         self._decision = decision

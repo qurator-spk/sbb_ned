@@ -6,19 +6,13 @@ import pandas as pd
 
 from ..index import LookUpByEmbeddings
 from ..embeddings.base import EmbedTask
+from .sentence_lookup import SentenceLookup
+from .jobs import JobQueue
 
 from qurator.utils.parallel import run as prun
-from multiprocessing import Semaphore
-
-from math import sqrt, ceil
 
 import sqlite3
-
-import itertools
-
 import json
-
-import threading
 
 from ..ground_truth.data_processor import ConvertSamples2Features, InputExample
 
@@ -28,153 +22,11 @@ logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s -   %(message
 logger = logging.getLogger(__name__)
 
 
-class SentenceLookup:
-    ned_sql_file = None
-    connection_map = None
-
-    def __init__(self, found_sentences, candidates, max_pairs=0):
-
-        self._found_sentences = found_sentences
-
-        self._max_pairs = max_pairs  # number of sentence pair comparisons per candidate
-
-        self._use_found = int(min(ceil(sqrt(self._max_pairs)), len(self._found_sentences)))
-
-        self._candidates = candidates
-
-    def select_sentences(self):
-
-        limit = int(float(self._max_pairs) / float(self._use_found))
-
-        tmp = []
-        for _, candidate in self._candidates.iterrows():
-
-            s = pd.read_sql(
-                "select sentences.id,sentences.page_title, links.target, sentences.text, sentences.entities "
-                "from links join sentences on links.sentence=sentences.id where links.target=? limit ?;",
-                SentenceLookup.get_db(), params=(candidate.guessed_title, limit))
-
-            if len(s) == 0:
-                # logger.debug('1')
-                continue
-
-            tmp.append(s)
-
-        if len(tmp) == 0:
-            return pd.DataFrame([], columns=['page_title', 'target', 'text', 'entities'])
-
-        tmp = pd.concat(tmp)
-
-        tmp = tmp.loc[~tmp.page_title.str.startswith('Liste ')]
-
-        return tmp
-
-    @staticmethod
-    def locate_entities(sent):
-
-        starts = []
-        ends = []
-
-        for _, row in sent.iterrows():
-            ent = json.loads(row.entities)
-            target = row.target
-
-            parts = [(k, len(list(g))) for k, g in itertools.groupby(ent)]
-
-            pos = end_pos = max_len = 0
-            for i, (entity, entity_len) in enumerate(parts):
-
-                if entity != target:
-                    continue
-
-                if entity_len <= max_len:
-                    continue
-
-                max_len = entity_len
-                pos = sum([l for _, l in parts[0:i]])
-                end_pos = pos + entity_len
-
-            starts.append(pos)
-            ends.append(end_pos)
-
-        return starts, ends
-
-    @staticmethod
-    def is_valid_sentence(sent):
-
-        valid = []
-
-        for _, row in sent.iterrows():
-            text = json.loads(row.text)
-
-            if text[0].lower() in {'#redirect', '#weiterleitung'}:
-                valid.append(False)
-                continue
-
-            valid.append(True)
-
-        return valid
-
-    def __call__(self, *args, **kwargs):
-
-        if len(self._found_sentences) == 0:
-            return None
-
-        candidate_sentences = self.select_sentences()
-
-        candidate_sentences = candidate_sentences.loc[SentenceLookup.is_valid_sentence(candidate_sentences)]
-
-        if len(candidate_sentences) == 0:
-            # logger.debug('No candidate sentences. Number of candidates: {}'.format(len(self._candidates)))
-            return None
-
-        self._found_sentences['pos'], self._found_sentences['end'] = \
-            SentenceLookup.locate_entities(self._found_sentences)
-
-        candidate_sentences['pos'], candidate_sentences['end'] = \
-            SentenceLookup.locate_entities(candidate_sentences)
-
-        combis = [(a, b) for a, b in
-                  itertools.product(range(self._use_found), range(len(candidate_sentences)))]
-
-        check_pairs = [(self._found_sentences.iloc[a].target, candidate_sentences.iloc[b].target,
-                        self._found_sentences.iloc[a].text, candidate_sentences.iloc[b].text,
-                        self._found_sentences.iloc[a].pos, candidate_sentences.iloc[b].pos,
-                        self._found_sentences.iloc[a].end, candidate_sentences.iloc[b].end, 0) for a, b in combis]
-
-        check_pairs = pd.DataFrame(check_pairs,
-                                   columns=['id_a', 'id_b', 'sen_a', 'sen_b', 'pos_a', 'pos_b', 'end_a', 'end_b',
-                                            'label'])
-
-        return check_pairs
-
-    @staticmethod
-    def initialize(ned_sql_file):
-
-        SentenceLookup.ned_sql_file = ned_sql_file
-        SentenceLookup.connection_map = dict()
-
-    @staticmethod
-    def get_db():
-
-        thid = threading.current_thread().ident
-
-        conn = SentenceLookup.connection_map.get(thid)
-
-        if conn is None:
-            # logger.info('Create database connection: {}'.format(SentenceLookup.ned_sql_file))
-
-            conn = sqlite3.connect(SentenceLookup.ned_sql_file)
-
-            SentenceLookup.connection_map[thid] = conn
-
-        return conn
-
-
 class EmbedTaskWrapper(EmbedTask):
 
-    def __init__(self, entity_id, ent_type, sentences, *args, **kwargs):
+    def __init__(self, job_id, entity_id, ent_type, sentences, *args, **kwargs):
 
+        self._job_id = job_id
         self._entity_id = entity_id
         self._ent_type = ent_type
         self._sentences = sentences
@@ -184,15 +36,16 @@ class EmbedTaskWrapper(EmbedTask):
     def __call__(self, *args, **kwargs):
 
         if self._entity_id is None:
-            return None, None, None, (None, None, None)
+            return self._job_id, None, None, None, (None, None, None)
 
-        return self._entity_id, self._ent_type, self._sentences, super(EmbedTaskWrapper, self).__call__(*args, **kwargs)
+        return self._job_id, self._entity_id, self._ent_type, self._sentences, super(EmbedTaskWrapper, self).__call__(*args, **kwargs)
 
 
 class LookUpByEmbeddingWrapper(LookUpByEmbeddings):
 
-    def __init__(self, entity_id, sentences, *args, **kwargs):
+    def __init__(self, job_id, entity_id, sentences, *args, **kwargs):
 
+        self._job_id = job_id
         self._entity_id = entity_id
         self._sentences = sentences
 
@@ -201,14 +54,14 @@ class LookUpByEmbeddingWrapper(LookUpByEmbeddings):
     def __call__(self, *args, **kwargs):
 
         if self._entity_id is None:
-            return None, (None, None)
+            return self._job_id, None, (None, None)
 
-        return self._sentences, super(LookUpByEmbeddingWrapper, self).__call__(*args, **kwargs)
+        return self._job_id, self._sentences, super(LookUpByEmbeddingWrapper, self).__call__(*args, **kwargs)
 
 
 class SentenceLookupWrapper(SentenceLookup):
 
-    def __init__(self, entity_id, sentences=None, candidates=None, **kwargs):
+    def __init__(self, job_id, entity_id, sentences=None, candidates=None, **kwargs):
 
         if candidates is None:
             candidates = []
@@ -216,6 +69,7 @@ class SentenceLookupWrapper(SentenceLookup):
         if sentences is None:
             sentences = []
 
+        self._job_id = job_id
         self._entity_id = entity_id
         self._candidates = candidates
 
@@ -224,15 +78,17 @@ class SentenceLookupWrapper(SentenceLookup):
     def __call__(self, *args, **kwargs):
 
         if self._entity_id is None:
-            return None, None, None
+            return self._job_id, None, None, None
 
-        return self._entity_id, self._candidates, super(SentenceLookupWrapper, self).__call__(*args, **kwargs)
+        return self._job_id, self._entity_id, self._candidates, \
+               super(SentenceLookupWrapper, self).__call__(*args, **kwargs)
 
 
 class ConvertSamples2FeaturesWrapper(ConvertSamples2Features):
 
-    def __init__(self, entity_id, candidate=None, *args, **kwargs):
+    def __init__(self, job_id, entity_id, candidate=None, *args, **kwargs):
 
+        self._job_id = job_id
         self._entity_id = entity_id
         self._candidate = candidate
 
@@ -242,9 +98,10 @@ class ConvertSamples2FeaturesWrapper(ConvertSamples2Features):
 
         if self._entity_id is None:
 
-            return None, None, None
+            return self._job_id, None, None, None
 
-        return self._entity_id, self._candidate, super(ConvertSamples2FeaturesWrapper, self).__call__(*args, **kwargs)
+        return self._job_id, self._entity_id, self._candidate, \
+               super(ConvertSamples2FeaturesWrapper, self).__call__(*args, **kwargs)
 
 
 class NEDLookup:
@@ -279,13 +136,6 @@ class NEDLookup:
         self._pairing_processes = pairing_processes
         self._feature_processes = feature_processes
 
-        self._process_queue = []
-        self._process_queue_sem = Semaphore(0)
-
-        self._main_sem = Semaphore(1)
-
-        self._sequence = self.infinite_feature_sequence()
-
         self._max_candidates = max_candidates
         self._max_pairs = max_pairs
         self._split_parts = split_parts
@@ -295,169 +145,269 @@ class NEDLookup:
                 set_index('page_title').\
                 sort_index()
 
+        self._queue_entities = JobQueue(result_sequence=self.infinite_feature_sequence(),
+                                        name="NEDLookup_entities", min_level=2, verbose=True)
+
+        self._queue_embed = JobQueue(name="NEDLookup_embed", min_level=2, feeder_queue=self._queue_entities)
+
+        self._queue_lookup = JobQueue(name="NEDLookup_lookup", min_level=2, feeder_queue=self._queue_embed)
+
+        self._queue_sentences = JobQueue(name="NEDLookup_sentences", min_level=2, feeder_queue=self._queue_lookup)
+
+        self._queue_pairs = JobQueue(name="NEDLookup_pairs", min_level=2, feeder_queue=self._queue_sentences)
+
+        self._queue_features = JobQueue(name="NEDLookup_features", min_level=2, feeder_queue=self._queue_pairs)
+
+        self._queue_final_output = JobQueue(name="NEDLookup_final_output", min_level=2,
+                                            feeder_queue=self._queue_features)
+
     def get_entity(self):
 
         while True:
 
-            if not self.wait(self._process_queue_sem):
+            job_id, task_info, iter_quit = self._queue_entities.get_next_task()
+
+            if iter_quit:
                 return
 
-            entities = self._process_queue.pop()
+            if job_id is None or task_info is None:
+                continue
 
-            for entity_id, entity_info in entities.items():
+            entity_id, entity_info, params = task_info
 
-                print("get_entity: {} / {}".format(entity_id, entity_info['surfaces']))
+            print("get_entity:{}:{} / {}".format(job_id, entity_id, entity_info['surfaces']))
 
-                yield entity_id, pd.DataFrame(entity_info['sentences']), entity_info['surfaces'], entity_info['type']
+            yield job_id, entity_id, pd.DataFrame(entity_info['sentences']), entity_info['surfaces'], entity_info['type']
 
-                # signal entity_id == None
-                yield None, None, None, None
+            # signal entity_id == None <- This is required in order to emit the final result for the entity!!
+            yield job_id, None, None, None, None
 
     def get_embed(self):
 
-        for entity_id, sentences, surfaces, ent_type in self.get_entity():
+        for job_id, entity_id, sentences, surfaces, ent_type in self.get_entity():
 
-            yield EmbedTaskWrapper(entity_id, ent_type, sentences, page_title=entity_id, entity_label=surfaces,
-                                   split_parts=self._split_parts)
+            self._queue_embed.add_to_job(job_id, (entity_id, sentences, surfaces, ent_type))
+
+            while True:
+                _, task_info, iter_quit = self._queue_embed.get_next_task()
+
+                if iter_quit:
+                    return
+
+                if task_info is None:
+                    break
+
+                entity_id, sentences, surfaces, ent_type, params = task_info
+
+                yield EmbedTaskWrapper(job_id, entity_id, ent_type, sentences, page_title=entity_id, entity_label=surfaces,
+                                       split_parts=self._split_parts, **params)
 
     def get_lookup(self):
 
-        for entity_id, ent_type, sentences, (_, embedded, embedding_config) in \
+        for job_id, entity_id, ent_type, sentences, (_, embedded, embedding_config) in \
                 prun(self.get_embed(), initializer=EmbedTask.initialize, initargs=(self._embeddings,),
                      processes=self._embed_processes):
 
-            yield LookUpByEmbeddingWrapper(entity_id, sentences, page_title=entity_id, entity_embeddings=embedded,
-                                           embedding_config=embedding_config, entity_title=entity_id,
-                                           entity_type=ent_type, split_parts=self._split_parts,
-                                           max_candidates=None)  # return all the candidates - filtering is done below
+            self._queue_lookup.add_to_job(job_id, (entity_id, ent_type, sentences))
+
+            while True:
+                _, task_info, iter_quit = self._queue_lookup.get_next_task()
+
+                if iter_quit:
+                    return
+
+                if task_info is None:
+                    break
+
+                entity_id, ent_type, sentences, params = task_info
+
+                # return all the candidates - filtering is done below
+                yield LookUpByEmbeddingWrapper(job_id, entity_id, sentences, page_title=entity_id,
+                                               entity_embeddings=embedded, embedding_config=embedding_config,
+                                               entity_title=entity_id, entity_type=ent_type,
+                                               split_parts=self._split_parts, max_candidates=None, **params)
 
     def get_sentence_lookup(self):
 
-        for sentences, (entity_id, candidates) in \
+        for job_id, sentences, (entity_id, candidates) in \
                 prun(self.get_lookup(), initializer=LookUpByEmbeddings.initialize,
                      initargs=(self._entities_file, self._entity_types, self._n_trees, self._distance_measure,
                                self._entity_index_path, self._search_k, self._max_dist),
                      processes=self._lookup_processes):
 
-            if entity_id is None:
-                # signal entity_id == None
-                yield SentenceLookupWrapper(entity_id=None)
-                continue
+            self._queue_sentences.add_to_job(job_id, (sentences, entity_id, candidates))
 
-            candidates = candidates.merge(self._entities[['proba']], left_on="guessed_title", right_index=True)
+            while True:
+                _, task_info, iter_quit = self._queue_sentences.get_next_task()
 
-            candidates = candidates.\
-                sort_values(['match_uniqueness', 'dist', 'proba', 'match_coverage', 'len_guessed'],
-                            ascending=[False, True, False, False, True])
+                if iter_quit:
+                    return
 
-            candidates = candidates.iloc[0:self._max_candidates]
+                if task_info is None:
+                    break
 
-            for idx in range(0, len(candidates)):
-                yield SentenceLookupWrapper(entity_id, sentences=sentences, candidates=candidates.iloc[[idx]],
-                                            max_pairs=self._max_pairs)
+                sentences, entity_id, candidates, params = task_info
+
+                if entity_id is None:
+                    # signal entity_id == None
+                    yield SentenceLookupWrapper(job_id, entity_id=None)
+                    continue
+
+                candidates = candidates.merge(self._entities[['proba']], left_on="guessed_title", right_index=True)
+
+                candidates = candidates.\
+                    sort_values(['match_uniqueness', 'dist', 'proba', 'match_coverage', 'len_guessed'],
+                                ascending=[False, True, False, False, True])
+
+                candidates = candidates.iloc[0:self._max_candidates]
+
+                for idx in range(0, len(candidates)):
+                    yield SentenceLookupWrapper(job_id, entity_id, sentences=sentences, candidates=candidates.iloc[[idx]],
+                                                max_pairs=self._max_pairs, **params)
 
     def get_sentence_pairs(self):
 
-        for entity_id, candidate, pairs in \
+        for job_id, entity_id, candidate, pairs in \
                 prun(self.get_sentence_lookup(), initializer=SentenceLookup.initialize,
                      initargs=(self._ned_sql_file, ), processes=self._pairing_processes):
 
-            if entity_id is None:
+            self._queue_pairs.add_to_job(job_id, (entity_id, candidate, pairs))
 
-                # signal entity_id == None
-                yield None, None,  None
-                continue
+            while True:
+                _, task_info, iter_quit = self._queue_pairs.get_next_task()
 
-            if pairs is None:
-                continue
+                if iter_quit:
+                    return
 
-            for idx, row in pairs.iterrows():
+                if task_info is None:
+                    break
 
-                pair = (row.id_a, row.id_b, json.loads(row.sen_a), json.loads(row.sen_b),
-                        row.pos_a, row.pos_b, row.end_a, row.end_b, row.label)
+                entity_id, candidate, pairs, params = task_info
 
-                yield entity_id, candidate, pair
+                if entity_id is None:
 
-                candidate = None
+                    # signal entity_id == None
+                    yield job_id, None, None,  None
+                    continue
+
+                if pairs is None:
+                    yield job_id, entity_id, candidate, None
+                    continue
+
+                for idx, row in pairs.iterrows():
+
+                    pair = (row.id_a, row.id_b, json.loads(row.sen_a), json.loads(row.sen_b),
+                            row.pos_a, row.pos_b, row.end_a, row.end_b, row.label)
+
+                    yield job_id, entity_id, candidate, pair
+
+                    candidate = None
 
     def get_feature_tasks(self):
 
-        for entity_id, candidate, pair in self.get_sentence_pairs():
+        for job_id, entity_id, candidate, pair in self.get_sentence_pairs():
 
-            if entity_id is None:
-                # signal entity_id == None
-                yield ConvertSamples2FeaturesWrapper(entity_id=None)
-                continue
+            self._queue_features.add_to_job(job_id, (entity_id, candidate, pair))
 
-            id_a, id_b, sen_a, sen_b, pos_a, pos_b, end_a, end_b, label = pair
+            while True:
+                _, task_info, iter_quit = self._queue_features.get_next_task()
 
-            sample = InputExample(guid=(id_a, id_b), text_a=sen_a, text_b=sen_b, pos_a=pos_a, pos_b=pos_b,
-                                  end_a=end_a, end_b=end_b, label=label)
+                if iter_quit:
+                    return
 
-            yield ConvertSamples2FeaturesWrapper(entity_id, candidate=candidate, sample=sample)
+                if task_info is None:
+                    break
+
+                entity_id, candidate, pair, params = task_info
+
+                if entity_id is None:
+                    # signal entity_id == None
+                    yield ConvertSamples2FeaturesWrapper(job_id, entity_id=None, **params)
+                    continue
+
+                if pair is None:
+                    yield ConvertSamples2FeaturesWrapper(job_id, entity_id, candidate=candidate, sample=None, **params)
+                    continue
+
+                id_a, id_b, sen_a, sen_b, pos_a, pos_b, end_a, end_b, label = pair
+
+                sample = InputExample(guid=(id_a, id_b), text_a=sen_a, text_b=sen_b, pos_a=pos_a, pos_b=pos_b,
+                                      end_a=end_a, end_b=end_b, label=label)
+
+                yield ConvertSamples2FeaturesWrapper(job_id, entity_id, candidate=candidate, sample=sample)
 
     def infinite_feature_sequence(self):
 
-        features = []
-        candidates = []
-        current_entity = None
+        results = dict()
 
-        for entity_id, candidate, fe in \
+        for job_id, entity_id, candidate, fe in \
                 prun(self.get_feature_tasks(), initializer=ConvertSamples2Features.initialize,
                      initargs=(self._tokenizer, self._max_seq_length), processes=self._feature_processes):
 
-            if entity_id is None:
-                yield current_entity, features, pd.concat(candidates) if len(candidates) > 0 else []
+            self._queue_final_output.add_to_job(job_id, (entity_id, candidate, fe))
 
-                features = []
-                candidates = []
-                current_entity = None
-                continue
+            while True:
+                _, task_info, iter_quit = self._queue_final_output.get_next_task()
 
-            if current_entity is None:
-                current_entity = entity_id
+                if iter_quit:
+                    return
 
-            if fe is not None:
-                features.append(fe)
+                if task_info is None:
+                    break
 
-            if candidate is not None:
-                candidates.append(candidate)
+                entity_id, candidate, fe, params = task_info
 
-    @staticmethod
-    def wait(sem=None):
+                if job_id not in results:
+                    results[job_id] = {'features': [], 'candidates': [], 'entity_id': entity_id}
 
-        while True:
-            if sem is not None and sem.acquire(timeout=10):
-                return True
+                if entity_id is None:
 
-            if NEDLookup.quit:
-                return False
+                    result = results.pop(job_id)
 
-            if sem is None:
-                return True
+                    yield job_id, (result['entity_id'], result['features'],
+                                   (pd.concat(result['candidates']) if len(result['candidates']) > 0 else []))
 
-    def run_on_features(self, ner_info, func):
+                    continue
 
-        self._main_sem.acquire()
+                if fe is not None:
+                    results[job_id]['features'].append(fe)
 
-        self._process_queue.append(ner_info)
+                if candidate is not None:
+                    results[job_id]['candidates'].append(candidate)
 
-        self._process_queue_sem.release()
+    def run_on_features(self, ner_info, func, priority, params=None):
 
-        def job_sequence():
+        if params is None:
+            params = dict()
 
-            for _ in range(len(ner_info)):
+        job_main = self._queue_entities.add_job([i for i in ner_info.items()], priority=priority, params=params)
 
-                entity_id, fe, cand = next(self._sequence)
+        job_embed = self._queue_embed.add_job([], priority=priority, params=params)
 
-                print('job_sequence: {} ({},{})'.format(entity_id, len(fe), len(cand)))
+        job_lookup = self._queue_lookup.add_job([], priority=priority, params=params)
 
-                yield entity_id, fe, cand
+        job_sentences = self._queue_sentences.add_job([], priority=priority, params=params)
 
-            print('job sequence done')
+        job_pairs = self._queue_pairs.add_job([], priority=priority, params=params)
 
-        ret = func(job_sequence())
+        job_features = self._queue_features.add_job([], priority=priority, params=params)
 
-        self._main_sem.release()
+        job_final_output = self._queue_final_output.add_job([], priority=priority, params=params)
+
+        ret = func(job_main.sequence())
+
+        job_main.remove()
+
+        job_embed.remove()
+
+        job_lookup.remove()
+
+        job_sentences.remove()
+
+        job_pairs.remove()
+
+        job_features.remove()
+
+        job_final_output.remove()
 
         return ret
