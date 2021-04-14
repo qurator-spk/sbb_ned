@@ -10,12 +10,26 @@ from qurator.sbb_ned.models.bert import model_predict_compare
 from qurator.sbb_ned.models.decider import DeciderTask
 from qurator.utils.parallel import run as prun
 
-from tqdm import tqdm as tqdm
-from multiprocessing import Semaphore
+from .jobs import JobQueue
 from qurator.sbb_ned.models.bert import get_device
 from pytorch_pretrained_bert.modeling import (CONFIG_NAME, BertConfig, BertForSequenceClassification)
 
 logger = logging.getLogger(__name__)
+
+
+class DeciderTaskWrapper(DeciderTask):
+
+    def __init__(self, job_id, **kwargs):
+
+        self._job_id = job_id
+
+        super(DeciderTaskWrapper, self).__init__(**kwargs)
+
+    def __call__(self, *args, **kwargs):
+
+        ret = self._job_id, super(DeciderTaskWrapper, self).__call__(*args, **kwargs)
+
+        return ret
 
 
 class ClassifierTask:
@@ -24,8 +38,9 @@ class ClassifierTask:
     device = None
     batch_size = None
 
-    def __init__(self, entity_id, features, candidates):
+    def __init__(self, job_id, entity_id, features, candidates, **kwargs):
 
+        self._job_id = job_id
         self._entity_id = entity_id
         self._features = features
         self._candidates = candidates
@@ -33,7 +48,7 @@ class ClassifierTask:
     def __call__(self, *args, **kwargs):
 
         if self._candidates is None:
-            return None, None, None
+            return self._job_id, None, None, None
 
         all_input_ids = torch.tensor([f.input_ids for f in self._features], dtype=torch.long)
         all_input_mask = torch.tensor([f.input_mask for f in self._features], dtype=torch.long)
@@ -54,7 +69,7 @@ class ClassifierTask:
 
         assert len(decision.target.unique()) == 1
 
-        return self._entity_id, decision, self._candidates
+        return self._job_id, self._entity_id, decision, self._candidates
 
     @staticmethod
     def initialize(no_cuda, model_dir, model_file, batch_size):
@@ -83,19 +98,14 @@ class ClassifierDeciderQueue:
 
     quit = False
 
-    def __init__(self, no_cuda, model_dir, model_file, decider, threshold, entities, decider_processes,
+    def __init__(self, no_cuda, model_dir, model_file, decider, entities, decider_processes,
                  classifier_processes, batch_size):
-
-        self._process_queue = []
-        self._process_queue_sem = Semaphore(0)
-        self._main_sem = Semaphore(1)
 
         self._no_cuda = no_cuda
         self._model_dir = model_dir
         self._model_file = model_file
 
         self._decider = decider
-        self._threshold = threshold
 
         self._entities = entities
         self._decider_processes = decider_processes
@@ -104,93 +114,107 @@ class ClassifierDeciderQueue:
 
         self._rank_intervalls = np.linspace(0.001, 0.1, 100)
         self._quantiles = np.linspace(0.1, 1, 10)
-        self._return_full = False
 
-        self._sequence = self.process_sequence()
+        self._queue_classifier = JobQueue(result_sequence=self.infinite_process_sequence(),
+                                          name="ClassifierDeciderQueue_classifier", min_level=2, verbose=True)
 
-    def run(self, job_sequence, len_sequence, return_full, threshold):
+        self._queue_decider = JobQueue(name="ClassifierDeciderQueue_decider", min_level=2,
+                                       feeder_queue=self._queue_classifier)
 
-        self._main_sem.acquire()
+        self._queue_final_output = JobQueue(name="ClassifierDeciderQueue_final_output", min_level=2,
+                                            feeder_queue=self._queue_decider)
 
-        _threshold, self._threshold = self._threshold, threshold
-        _return_full, self._return_full = self._return_full, return_full
+    def run(self, job_sequence, len_sequence, return_full, threshold, priority):
 
-        self._process_queue.append((job_sequence, len_sequence))
+        params = {'threshold': threshold, 'return_full': return_full}
 
-        self._process_queue_sem.release()
+        job_main = self._queue_classifier.add_job(task_info=job_sequence, task_len=len_sequence, priority=priority,
+                                                  params=params)
 
-        ret = next(self._sequence)
+        job_decider = self._queue_decider.add_job([], priority=priority, params=params)
 
-        self._threshold, self._return_full = _threshold, _return_full
-
-        self._main_sem.release()
-
-        return ret
-
-    def process_sequence(self):
+        job_final_output = self._queue_final_output.add_job([], priority=priority, params=params)
 
         complete_result = OrderedDict()
 
-        for eid, result in prun(self.get_decider_tasks(), initializer=DeciderTask.initialize,
-                                initargs=(self._decider, self._entities),
-                                processes=self._decider_processes):
+        for job_id, eid, result in job_main.sequence():
 
-            if eid is None:
-                print('process_sequence done.')
-                yield complete_result
-                complete_result = OrderedDict()
-                continue
-
-            if result is None:
-                continue
+            print('ClassifierDeciderQueue.run: {}:{}'.format(job_id, eid))
 
             complete_result[eid] = result
+
+        job_main.remove()
+
+        job_decider.remove()
+
+        job_final_output.remove()
+
+        return complete_result
+
+    def infinite_process_sequence(self):
+
+        for job_id, (eid, result) in \
+                prun(self.get_decider_tasks(), initializer=DeciderTask.initialize,
+                     initargs=(self._decider, self._entities), processes=self._decider_processes):
+
+                self._queue_final_output.add_to_job(job_id, (eid, result))
+
+                while True:
+                    _, task_info, iter_quit = self._queue_final_output.get_next_task()
+
+                    if iter_quit:
+                        return
+
+                    if task_info is None:
+                        break
+
+                    eid, result, params = task_info
+
+                    yield job_id, (eid, result)
 
     def get_classifier_tasks(self):
 
         while True:
 
-            if not self.wait(self._process_queue_sem):
+            job_id, task_info, iter_quit = self._queue_classifier.get_next_task()
+
+            if iter_quit:
                 return
 
-            job_sequence, len_sequence = self._process_queue.pop()
+            if job_id is None or task_info is None:
+                continue
 
-            for entity_id, features, candidates in tqdm(job_sequence, total=len_sequence):
+            _, entity_id, features, candidates, params = task_info
 
-                print("get_classifier_tasks: {}".format(entity_id))
+            print("get_classifier_tasks: {}:{}".format(job_id, entity_id))
 
-                if len(candidates) == 0:
-                    continue
-
-                yield ClassifierTask(entity_id, features, candidates)
-
-            yield ClassifierTask(None, None, None)
-
-            print('classifier tasks done')
+            yield ClassifierTask(job_id, entity_id, features, candidates, **params)
 
     def get_decider_tasks(self):
 
-        for entity_id, decision, candidates in prun(self.get_classifier_tasks(), initializer=ClassifierTask.initialize,
-                                                    initargs=(self._no_cuda, self._model_dir, self._model_file,
-                                                              self._batch_size), processes=self._classifier_processes):
+        for job_id, entity_id, decision, candidates in \
+                prun(self.get_classifier_tasks(), initializer=ClassifierTask.initialize,
+                     initargs=(self._no_cuda, self._model_dir, self._model_file, self._batch_size),
+                     processes=self._classifier_processes):
 
-            if candidates is None:
-                yield DeciderTask(entity_id=None, decision=None, candidates=None, quantiles=None, rank_intervalls=None,
-                                  threshold=None)
-                continue
+            self._queue_decider.add_to_job(job_id, (entity_id, decision, candidates))
 
-            yield DeciderTask(entity_id, decision, candidates, self._quantiles, self._rank_intervalls,
-                              self._threshold, self._return_full)
+            while True:
+                _, task_info, iter_quit = self._queue_decider.get_next_task()
 
-    @staticmethod
-    def wait(sem=None):
+                if iter_quit:
+                    return
 
-        while True:
-            if sem is not None and sem.acquire(timeout=10):
-                return True
+                if task_info is None:
+                    break
 
-            if ClassifierDeciderQueue.quit:
-                return False
+                entity_id, decision, candidates, params = task_info
 
-            if sem is None:
-                return True
+                if entity_id is None:
+                    continue
+                if candidates is None:
+                    continue
+
+                yield DeciderTaskWrapper(job_id, entity_id=entity_id, decision=decision, candidates=candidates,
+                                         quantiles=self._quantiles, rank_intervalls=self._rank_intervalls,
+                                         **params)
