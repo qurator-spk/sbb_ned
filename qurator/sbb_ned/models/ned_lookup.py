@@ -416,8 +416,6 @@ class NEDLookup:
 
         job_pairs.remove()
 
-        ret = func(job_sequence())
-
         job_features.remove()
 
         job_final_output.remove()
