@@ -204,7 +204,7 @@ class ClassifierDeciderQueue:
             self._queue_decider.add_to_job(job_id, (entity_id, decision, candidates))
 
             while True:
-                _, task_info, iter_quit = self._queue_decider.get_next_task()
+                job_id, task_info, iter_quit = self._queue_decider.get_next_task()
 
                 if iter_quit:
                     return
