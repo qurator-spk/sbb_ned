@@ -104,6 +104,9 @@ class SentenceLookup:
         if len(self._found_sentences) == 0:
             return None
 
+        if len(self._candidates) == 0:
+            return None
+
         candidate_sentences = self.select_sentences()
 
         candidate_sentences = candidate_sentences.loc[SentenceLookup.is_valid_sentence(candidate_sentences)]

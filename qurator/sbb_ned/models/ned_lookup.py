@@ -264,9 +264,13 @@ class NEDLookup:
 
                 candidates = candidates.iloc[0:self._max_candidates]
 
-                for idx in range(0, len(candidates)):
-                    yield SentenceLookupWrapper(job_id, entity_id, sentences=sentences, candidates=candidates.iloc[[idx]],
+                if len(candidates) == 0:
+                    yield SentenceLookupWrapper(job_id, entity_id, sentences=sentences,
                                                 max_pairs=self._max_pairs, **params)
+
+                for idx in range(0, len(candidates)):
+                    yield SentenceLookupWrapper(job_id, entity_id, sentences=sentences,
+                                                candidates=candidates.iloc[[idx]], max_pairs=self._max_pairs, **params)
 
     def get_sentence_pairs(self):
 
