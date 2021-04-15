@@ -335,7 +335,7 @@ class NEDLookup:
                     continue
 
                 if pair is None:
-                    yield ConvertSamples2FeaturesWrapper(job_id, entity_id, candidate=candidate, sample=None, **params)
+                    yield ConvertSamples2FeaturesWrapper(job_id, entity_id, sample=None, **params)
                     continue
 
                 id_a, id_b, sen_a, sen_b, pos_a, pos_b, end_a, end_b, label = pair
