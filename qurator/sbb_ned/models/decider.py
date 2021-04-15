@@ -30,10 +30,10 @@ class DeciderTask:
     def __call__(self, *args, **kwargs):
 
         if self._candidates is None:
-            return self._entity_id, None
+            return self._entity_id, {}
 
         if self._decision is None or len(self._decision)==0:
-            return self._entity_id, None
+            return self._entity_id, {}
 
         decider_features = features(self._decision, self._candidates, self._quantiles, self._rank_intervalls)
 
