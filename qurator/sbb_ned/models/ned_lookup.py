@@ -189,7 +189,7 @@ class NEDLookup:
             self._queue_embed.add_to_job(job_id, (entity_id, sentences, surfaces, ent_type))
 
             while True:
-                _, task_info, iter_quit = self._queue_embed.get_next_task()
+                job_id, task_info, iter_quit = self._queue_embed.get_next_task()
 
                 if iter_quit:
                     return
@@ -198,6 +198,7 @@ class NEDLookup:
                     break
 
                 entity_id, sentences, surfaces, ent_type, params = task_info
+                print("get_embed: {}:{}".format(job_id, entity_id))
 
                 yield EmbedTaskWrapper(job_id, entity_id, ent_type, sentences, page_title=entity_id, entity_label=surfaces,
                                        split_parts=self._split_parts, **params)
@@ -211,7 +212,7 @@ class NEDLookup:
             self._queue_lookup.add_to_job(job_id, (entity_id, ent_type, sentences))
 
             while True:
-                _, task_info, iter_quit = self._queue_lookup.get_next_task()
+                job_id, task_info, iter_quit = self._queue_lookup.get_next_task()
 
                 if iter_quit:
                     return
@@ -220,6 +221,7 @@ class NEDLookup:
                     break
 
                 entity_id, ent_type, sentences, params = task_info
+                print("get_lookup: {}:{}".format(job_id, entity_id))
 
                 # return all the candidates - filtering is done below
                 yield LookUpByEmbeddingWrapper(job_id, entity_id, sentences, page_title=entity_id,
@@ -238,7 +240,7 @@ class NEDLookup:
             self._queue_sentences.add_to_job(job_id, (sentences, entity_id, candidates))
 
             while True:
-                _, task_info, iter_quit = self._queue_sentences.get_next_task()
+                job_id, task_info, iter_quit = self._queue_sentences.get_next_task()
 
                 if iter_quit:
                     return
@@ -247,6 +249,7 @@ class NEDLookup:
                     break
 
                 sentences, entity_id, candidates, params = task_info
+                print("get_sentence_lookup: {}:{}".format(job_id, entity_id))
 
                 if entity_id is None:
                     # signal entity_id == None
@@ -274,7 +277,7 @@ class NEDLookup:
             self._queue_pairs.add_to_job(job_id, (entity_id, candidate, pairs))
 
             while True:
-                _, task_info, iter_quit = self._queue_pairs.get_next_task()
+                job_id, task_info, iter_quit = self._queue_pairs.get_next_task()
 
                 if iter_quit:
                     return
@@ -283,6 +286,7 @@ class NEDLookup:
                     break
 
                 entity_id, candidate, pairs, params = task_info
+                print("get_sentence_pairs: {}:{}".format(job_id, entity_id))
 
                 if entity_id is None:
 
@@ -310,7 +314,7 @@ class NEDLookup:
             self._queue_features.add_to_job(job_id, (entity_id, candidate, pair))
 
             while True:
-                _, task_info, iter_quit = self._queue_features.get_next_task()
+                job_id, task_info, iter_quit = self._queue_features.get_next_task()
 
                 if iter_quit:
                     return
@@ -319,6 +323,7 @@ class NEDLookup:
                     break
 
                 entity_id, candidate, pair, params = task_info
+                print("get_feature_tasks: {}:{}".format(job_id, entity_id))
 
                 if entity_id is None:
                     # signal entity_id == None
@@ -347,7 +352,7 @@ class NEDLookup:
             self._queue_final_output.add_to_job(job_id, (entity_id, candidate, fe))
 
             while True:
-                _, task_info, iter_quit = self._queue_final_output.get_next_task()
+                job_id, task_info, iter_quit = self._queue_final_output.get_next_task()
 
                 if iter_quit:
                     return
@@ -356,6 +361,7 @@ class NEDLookup:
                     break
 
                 entity_id, candidate, fe, params = task_info
+                print("infinite_feature_sequence: {}:{}".format(job_id, entity_id))
 
                 if job_id not in results:
                     results[job_id] = {'features': [], 'candidates': [], 'entity_id': entity_id}

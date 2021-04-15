@@ -160,7 +160,7 @@ class ClassifierDeciderQueue:
                 self._queue_final_output.add_to_job(job_id, (eid, result))
 
                 while True:
-                    _, task_info, iter_quit = self._queue_final_output.get_next_task()
+                    job_id, task_info, iter_quit = self._queue_final_output.get_next_task()
 
                     if iter_quit:
                         return
@@ -184,7 +184,7 @@ class ClassifierDeciderQueue:
             if job_id is None or task_info is None:
                 continue
 
-            _, entity_id, features, candidates, params = task_info
+            job_id, entity_id, features, candidates, params = task_info
 
             print("get_classifier_tasks: {}:{}".format(job_id, entity_id))
 
@@ -209,6 +209,8 @@ class ClassifierDeciderQueue:
                     break
 
                 entity_id, decision, candidates, params = task_info
+
+                print("get_decider_tasks: {}:{}".format(job_id, entity_id))
 
                 if entity_id is None:
                     continue
