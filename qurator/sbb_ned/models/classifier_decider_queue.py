@@ -1,4 +1,5 @@
 import os
+import pandas as pd
 import logging
 import numpy as np
 import torch
@@ -49,6 +50,9 @@ class ClassifierTask:
 
         if self._candidates is None:
             return self._job_id, None, None, None
+
+        if len(self._features) <= 0:
+            return self._job_id, self._entity_id, pd.DataFrame(), pd.DataFrame()
 
         all_input_ids = torch.tensor([f.input_ids for f in self._features], dtype=torch.long)
         all_input_mask = torch.tensor([f.input_mask for f in self._features], dtype=torch.long)
