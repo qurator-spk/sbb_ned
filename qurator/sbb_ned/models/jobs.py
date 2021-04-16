@@ -79,7 +79,8 @@ class JobQueue:
 
     quit = False
 
-    def __init__(self, result_sequence=None, min_level=2, name="JobQueue", verbose=False, feeder_queue=None):
+    def __init__(self, result_sequence=None, min_level=2, name="JobQueue", verbose=False, feeder_queue=None,
+                 limit=None):
 
         self._verbose = verbose
         self._result_sequence = result_sequence
@@ -96,6 +97,7 @@ class JobQueue:
         self._process_queue_sem = Semaphore(0)
 
         self._feeder_queue = feeder_queue
+        self._limit_sem = Semaphore(limit) if limit is not None else None
 
     def has(self, job_id):
 
@@ -190,6 +192,9 @@ class JobQueue:
 
             self._process_queue[job_id].add_result(result)
 
+            if self._limit_sem is not None:
+                self._limit_sem.release()
+
     def get_next_task(self):
 
         if self._feeder_queue is not None:
@@ -198,6 +203,10 @@ class JobQueue:
                 return None, None, JobQueue.quit
         else:
             if not self.wait(self._process_queue_sem):
+                return None, None, JobQueue.quit
+
+        if self._limit_sem is not None:
+            if not self.wait(self._limit_sem):
                 return None, None, JobQueue.quit
 
         with self._main_sem:

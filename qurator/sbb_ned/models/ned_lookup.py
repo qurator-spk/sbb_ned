@@ -144,7 +144,7 @@ class NEDLookup:
                 sort_index()
 
         self._queue_entities = JobQueue(result_sequence=self.infinite_feature_sequence(),
-                                        name="NEDLookup_entities", min_level=2, verbose=True)
+                                        name="NEDLookup_entities", min_level=2, verbose=True, limit=10)
 
         self._queue_embed = JobQueue(name="NEDLookup_embed", min_level=2, feeder_queue=self._queue_entities)
 
