@@ -207,7 +207,8 @@ class JobQueue:
                 order = np.random.permutation(len(self._priorities[prio]))
 
                 if self._verbose:
-                    print("{}: prio:{} order: {}".format(self._name, prio, order))
+                    print("{}: prio:{} order: {}".format(self._name, prio, [self._priorities[prio][pos]
+                                                                            for pos in order]))
 
                 for pos in order:
 
