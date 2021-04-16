@@ -175,6 +175,9 @@ class NEDLookup:
 
             entity_id, entity_info, params = task_info
 
+            if entity_id is None:
+                raise RuntimeError("entity-id is None!!!")
+
             if self._verbose:
                 print("get_entity:{}:{} / {}".format(job_id, entity_id, entity_info['surfaces']))
 
@@ -224,7 +227,8 @@ class NEDLookup:
                     break
 
                 entity_id, ent_type, sentences, params = task_info
-                print("get_lookup: {}:{}".format(job_id, entity_id))
+                if self._verbose:
+                    print("get_lookup: {}:{}".format(job_id, entity_id))
 
                 # return all the candidates - filtering is done below
                 yield LookUpByEmbeddingWrapper(job_id, entity_id, sentences, page_title=entity_id,
