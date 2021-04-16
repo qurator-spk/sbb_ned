@@ -95,9 +95,7 @@ class ConvertSamples2FeaturesWrapper(ConvertSamples2Features):
         super(ConvertSamples2FeaturesWrapper, self).__init__(*args, **kwargs)
 
     def __call__(self, *args, **kwargs):
-
         if self._entity_id is None:
-
             return self._job_id, None, None, None
 
         return self._job_id, self._entity_id, self._candidate, \
@@ -114,7 +112,7 @@ class NEDLookup:
                  ned_sql_file, entities_file, embeddings, n_trees, distance_measure,
                  entity_index_path, entity_types, search_k, max_dist, embed_processes=0,
                  lookup_processes=0, pairing_processes=0, feature_processes=0, max_candidates=20,
-                 max_pairs=1000, split_parts=True):
+                 max_pairs=1000, split_parts=True, verbose=False):
 
         # logger.info('NEDLookup __init__')
 
@@ -161,6 +159,8 @@ class NEDLookup:
         self._queue_final_output = JobQueue(name="NEDLookup_final_output", min_level=2,
                                             feeder_queue=self._queue_features)
 
+        self._verbose = verbose
+
     def get_entity(self):
 
         while True:
@@ -175,7 +175,8 @@ class NEDLookup:
 
             entity_id, entity_info, params = task_info
 
-            print("get_entity:{}:{} / {}".format(job_id, entity_id, entity_info['surfaces']))
+            if self._verbose:
+                print("get_entity:{}:{} / {}".format(job_id, entity_id, entity_info['surfaces']))
 
             yield job_id, entity_id, pd.DataFrame(entity_info['sentences']), entity_info['surfaces'], entity_info['type']
 
@@ -198,7 +199,9 @@ class NEDLookup:
                     break
 
                 entity_id, sentences, surfaces, ent_type, params = task_info
-                print("get_embed: {}:{}".format(job_id, entity_id))
+
+                if self._verbose:
+                    print("get_embed: {}:{}".format(job_id, entity_id))
 
                 yield EmbedTaskWrapper(job_id, entity_id, ent_type, sentences, page_title=entity_id, entity_label=surfaces,
                                        split_parts=self._split_parts, **params)
@@ -249,7 +252,9 @@ class NEDLookup:
                     break
 
                 sentences, entity_id, candidates, params = task_info
-                print("get_sentence_lookup: {}:{}".format(job_id, entity_id))
+
+                if self._verbose:
+                    print("get_sentence_lookup: {}:{}".format(job_id, entity_id))
 
                 if entity_id is None:
                     # signal entity_id == None
@@ -290,7 +295,9 @@ class NEDLookup:
                     break
 
                 entity_id, candidate, pairs, params = task_info
-                print("get_sentence_pairs: {}:{}".format(job_id, entity_id))
+
+                if self._verbose:
+                    print("get_sentence_pairs: {}:{}".format(job_id, entity_id))
 
                 if entity_id is None:
 
@@ -327,7 +334,9 @@ class NEDLookup:
                     break
 
                 entity_id, candidate, pair, params = task_info
-                print("get_feature_tasks: {}:{}".format(job_id, entity_id))
+
+                if self._verbose:
+                    print("get_feature_tasks: {}:{}".format(job_id, entity_id))
 
                 if entity_id is None:
                     # signal entity_id == None
@@ -365,7 +374,9 @@ class NEDLookup:
                     break
 
                 entity_id, candidate, fe, params = task_info
-                print("infinite_feature_sequence: {}:{}".format(job_id, entity_id))
+
+                if self._verbose:
+                    print("infinite_feature_sequence: {}:{}".format(job_id, entity_id))
 
                 if job_id not in results:
                     results[job_id] = {'features': [], 'candidates': [], 'entity_id': entity_id}
