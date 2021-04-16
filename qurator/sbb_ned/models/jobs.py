@@ -228,7 +228,7 @@ class JobQueue:
                     if task_info is not None:
 
                         if self._verbose:
-                            print("{}: job_id: {} with prio: {}".format(self._name, prio, job_id))
+                            print("{}: job_id: {} with prio: {} #jobs in that prio: {}".format(self._name, job_id, prio, len(self._priorities[prio])))
 
                         return job_id, task_info, JobQueue.quit
 

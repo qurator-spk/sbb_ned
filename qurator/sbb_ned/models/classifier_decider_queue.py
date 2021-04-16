@@ -120,7 +120,7 @@ class ClassifierDeciderQueue:
         self._quantiles = np.linspace(0.1, 1, 10)
 
         self._queue_classifier = JobQueue(result_sequence=self.infinite_process_sequence(),
-                                          name="ClassifierDeciderQueue_classifier", min_level=2, verbose=True)
+                                          name="ClassifierDeciderQueue_classifier", min_level=2, verbose=True, limit=6)
 
         self._queue_decider = JobQueue(name="ClassifierDeciderQueue_decider", min_level=2,
                                        feeder_queue=self._queue_classifier)
