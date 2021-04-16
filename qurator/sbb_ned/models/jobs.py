@@ -206,9 +206,9 @@ class JobQueue:
 
                 order = np.random.permutation(len(self._priorities[prio]))
 
-                if self._verbose:
-                    print("{}: prio:{} order: {}".format(self._name, prio, [self._priorities[prio][pos]
-                                                                            for pos in order]))
+                # if self._verbose:
+                #   print("{}: prio:{} order: {}".format(self._name, prio, [self._priorities[prio][pos]
+                #                                                          for pos in order]))
 
                 for pos in order:
 
@@ -217,6 +217,10 @@ class JobQueue:
                     task_info = self._process_queue[job_id].get()
 
                     if task_info is not None:
+
+                        if self._verbose:
+                            print("{}: job_id: {} with prio: {}".format(self._name, prio, job_id))
+
                         return job_id, task_info, JobQueue.quit
 
         return None, None, JobQueue.quit
