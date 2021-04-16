@@ -188,7 +188,7 @@ class ClassifierDeciderQueue:
             if job_id is None or task_info is None:
                 continue
 
-            job_id, entity_id, features, candidates, params = task_info
+            _, entity_id, features, candidates, params = task_info
 
             print("get_classifier_tasks: {}:{}".format(job_id, entity_id))
 
