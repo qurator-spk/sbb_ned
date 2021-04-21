@@ -49,6 +49,7 @@ class Job:
             if type(self._task_info) == list:
                 self._task_info.append(task_info)
                 self._task_len += 1
+                self._num_pending += 1
             else:
                 raise RuntimeError('Generator job does not support put!')
 
