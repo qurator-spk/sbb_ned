@@ -236,17 +236,20 @@ class JobQueue:
             job_id, prio, task_info = _gn()
 
         if self._limit_sem is not None and job_id is not None:
-            if not self.wait(self._limit_sem[prio]):
+            if not self.wait(self._limit_sem[prio], "_limit_sem[{}]".format(prio)):
                 return None, None, JobQueue.quit
 
         return job_id, task_info, JobQueue.quit
 
     @staticmethod
-    def wait(sem=None):
+    def wait(sem=None, msg=None):
 
         while True:
             if sem is not None and sem.acquire(timeout=10):
                 return True
+
+            if msg is not None:
+                print(msg)
 
             if JobQueue.quit:
                 return False
