@@ -204,7 +204,7 @@ class JobQueue:
 
     def get_next_task(self):
 
-        def _gn():
+        def _n():
             for _prio in self._prio_levels:
 
                 order = np.random.permutation(len(self._priorities[_prio]))
@@ -215,16 +215,6 @@ class JobQueue:
 
                     if self._process_queue[_job_id].num_pending() > 0:
                         return _job_id, _prio
-
-                    _task_info = self._process_queue[_job_id].get()
-
-                    if _task_info is not None:
-
-                        if self._verbose:
-                            print("{}: job_id: {} #prio {} jobs: {}".
-                                  format(self._name, _job_id, _prio, len(self._priorities[_prio])))
-
-                        return _job_id, _prio, _task_info
 
             return None, None
 
@@ -238,11 +228,14 @@ class JobQueue:
         with self._main_sem:
 
             while True:
-                job_id, prio = _gn()
+                job_id, prio = _n()
 
                 if self._limit_sem is not None and job_id is not None:
                     if not self._limit_sem[prio].acquire(timeout=10):
                         continue
+
+                if job_id is None:
+                    return None, None, JobQueue.quit
 
                 task_info = self._process_queue[job_id].get()
 
