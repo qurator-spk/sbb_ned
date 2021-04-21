@@ -98,7 +98,7 @@ class JobQueue:
         self._process_queue_sem = Semaphore(0)
 
         self._feeder_queue = feeder_queue
-        self._limit_sem = Semaphore(limit) if limit is not None else None
+        self._limit_sem = [Semaphore(limit) for _ in range(0, min_level)] if limit is not None else None
 
     def has(self, job_id):
 
@@ -146,11 +146,11 @@ class JobQueue:
             else:
                 self._process_queue_sem.release()
 
-        if self._limit_sem is not None:
-            if self._limit_sem.acquire(block=False):
-                self._limit_sem.release()
-            else:
-                return False  # nothing to process ...
+        # if self._limit_sem is not None:
+        #     if self._limit_sem.acquire(block=False):
+        #         self._limit_sem.release()
+        #     else:
+        #         return False  # nothing to process ...
 
         with self._main_sem:
             prio -= 1
@@ -200,46 +200,46 @@ class JobQueue:
             self._process_queue[job_id].add_result(result)
 
             if self._limit_sem is not None:
-                self._limit_sem.release()
+                self._limit_sem[self._process_queue[job_id].priority].release()
 
     def get_next_task(self):
 
-        if self._feeder_queue is not None:
+        def _gn():
+            for _prio in self._prio_levels:
 
+                order = np.random.permutation(len(self._priorities[_prio]))
+
+                for pos in order:
+
+                    _job_id = self._priorities[_prio][pos]
+
+                    _task_info = self._process_queue[_job_id].get()
+
+                    if _task_info is not None:
+
+                        if self._verbose:
+                            print("{}: job_id: {} #prio {} jobs: {}".
+                                  format(self._name, _job_id, _prio, len(self._priorities[_prio])))
+
+                        return _job_id, _prio, _task_info
+
+            return None, None, None
+
+        if self._feeder_queue is not None:
             if self._feeder_queue.prio_above_pending(self.max_prio()):
                 return None, None, JobQueue.quit
         else:
             if not self.wait(self._process_queue_sem):
                 return None, None, JobQueue.quit
 
-        if self._limit_sem is not None:
-            if not self.wait(self._limit_sem):
+        with self._main_sem:
+            job_id, prio, task_info = _gn()
+
+        if self._limit_sem is not None and job_id is not None:
+            if not self.wait(self._limit_sem[prio]):
                 return None, None, JobQueue.quit
 
-        with self._main_sem:
-
-            for prio in self._prio_levels:
-
-                order = np.random.permutation(len(self._priorities[prio]))
-
-                # if self._verbose:
-                #   print("{}: prio:{} order: {}".format(self._name, prio, [self._priorities[prio][pos]
-                #                                                          for pos in order]))
-
-                for pos in order:
-
-                    job_id = self._priorities[prio][pos]
-
-                    task_info = self._process_queue[job_id].get()
-
-                    if task_info is not None:
-
-                        if self._verbose:
-                            print("{}: job_id: {} with prio: {} #jobs in that prio: {}".format(self._name, job_id, prio, len(self._priorities[prio])))
-
-                        return job_id, task_info, JobQueue.quit
-
-        return None, None, JobQueue.quit
+        return job_id, task_info, JobQueue.quit
 
     @staticmethod
     def wait(sem=None):
