@@ -236,7 +236,7 @@ class JobQueue:
             job_id, prio, task_info = _gn()
 
         if self._limit_sem is not None and job_id is not None:
-            if not self.wait(self._limit_sem[prio], "_limit_sem[{}]".format(prio)):
+            if not self.wait(self._limit_sem[prio], "{}:_limit_sem[{}]".format(self._name, prio)):
                 return None, None, JobQueue.quit
 
         return job_id, task_info, JobQueue.quit
