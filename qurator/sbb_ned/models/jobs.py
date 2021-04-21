@@ -138,7 +138,7 @@ class JobQueue:
     def prio_above_pending(self, prio):
 
         if self._feeder_queue is not None and self._feeder_queue.prio_above_pending(prio):
-            print('Above pending prio: {}'.format(prio))
+            print('{}: Above pending prio: {}'.format(self._name, prio))
             return True
         else:
             if not self._process_queue_sem.acquire(block=False):
