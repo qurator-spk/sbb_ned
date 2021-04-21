@@ -205,16 +205,17 @@ class JobQueue:
     def get_next_task(self):
 
         def _n():
-            for _prio in self._prio_levels:
+            with self._main_sem:
+                for _prio in self._prio_levels:
 
-                order = np.random.permutation(len(self._priorities[_prio]))
+                    order = np.random.permutation(len(self._priorities[_prio]))
 
-                for pos in order:
+                    for pos in order:
 
-                    _job_id = self._priorities[_prio][pos]
+                        _job_id = self._priorities[_prio][pos]
 
-                    if self._process_queue[_job_id].num_pending() > 0:
-                        return _job_id, _prio
+                        if self._process_queue[_job_id].num_pending() > 0:
+                            return _job_id, _prio
 
             return None, None
 
@@ -225,27 +226,25 @@ class JobQueue:
             if not self.wait(self._process_queue_sem, msg="{}:_process_queue_sem".format(self._name)):
                 return None, None, JobQueue.quit
 
-        with self._main_sem:
+        while True:
+            job_id, prio = _n()
 
-            while True:
-                job_id, prio = _n()
+            if self._limit_sem is not None and job_id is not None:
+                if not self._limit_sem[prio].acquire(timeout=10):
+                    continue
 
-                if self._limit_sem is not None and job_id is not None:
-                    if not self._limit_sem[prio].acquire(timeout=10):
-                        continue
+            if job_id is None:
+                return None, None, JobQueue.quit
 
-                if job_id is None:
-                    return None, None, JobQueue.quit
-
+            with self._main_sem:
                 task_info = self._process_queue[job_id].get()
 
-                if task_info is not None:
+            if task_info is not None:
+                if self._verbose:
+                    print("{}: job_id: {} #prio {} jobs: {}".
+                          format(self._name, job_id, prio, len(self._priorities[prio])))
 
-                    if self._verbose:
-                        print("{}: job_id: {} #prio {} jobs: {}".
-                              format(self._name, job_id, prio, len(self._priorities[prio])))
-
-                    return job_id, task_info, JobQueue.quit
+                return job_id, task_info, JobQueue.quit
 
     @staticmethod
     def wait(sem=None, msg=None):
