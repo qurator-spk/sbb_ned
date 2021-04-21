@@ -213,6 +213,9 @@ class JobQueue:
 
                     _job_id = self._priorities[_prio][pos]
 
+                    if self._process_queue[_job_id].num_pending() > 0:
+                        return _job_id, _prio
+
                     _task_info = self._process_queue[_job_id].get()
 
                     if _task_info is not None:
@@ -223,7 +226,7 @@ class JobQueue:
 
                         return _job_id, _prio, _task_info
 
-            return None, None, None
+            return None, None
 
         if self._feeder_queue is not None:
             if self._feeder_queue.prio_above_pending(self.max_prio()):
@@ -233,13 +236,23 @@ class JobQueue:
                 return None, None, JobQueue.quit
 
         with self._main_sem:
-            job_id, prio, task_info = _gn()
 
-        if self._limit_sem is not None and job_id is not None:
-            if not self.wait(self._limit_sem[prio], msg="{}:_limit_sem[{}]".format(self._name, prio)):
-                return None, None, JobQueue.quit
+            while True:
+                job_id, prio = _gn()
 
-        return job_id, task_info, JobQueue.quit
+                if self._limit_sem is not None and job_id is not None:
+                    if not self._limit_sem[prio].acquire(timeout=10):
+                        continue
+
+                task_info = self._process_queue[job_id].get()
+
+                if task_info is not None:
+
+                    if self._verbose:
+                        print("{}: job_id: {} #prio {} jobs: {}".
+                              format(self._name, job_id, prio, len(self._priorities[prio])))
+
+                    return job_id, task_info, JobQueue.quit
 
     @staticmethod
     def wait(sem=None, msg=None):
