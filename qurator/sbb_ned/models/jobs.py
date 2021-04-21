@@ -229,14 +229,14 @@ class JobQueue:
             if self._feeder_queue.prio_above_pending(self.max_prio()):
                 return None, None, JobQueue.quit
         else:
-            if not self.wait(self._process_queue_sem):
+            if not self.wait(self._process_queue_sem, msg="{}:_process_queue_sem".format(self._name)):
                 return None, None, JobQueue.quit
 
         with self._main_sem:
             job_id, prio, task_info = _gn()
 
         if self._limit_sem is not None and job_id is not None:
-            if not self.wait(self._limit_sem[prio], "{}:_limit_sem[{}]".format(self._name, prio)):
+            if not self.wait(self._limit_sem[prio], msg="{}:_limit_sem[{}]".format(self._name, prio)):
                 return None, None, JobQueue.quit
 
         return job_id, task_info, JobQueue.quit
