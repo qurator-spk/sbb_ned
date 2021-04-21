@@ -192,7 +192,7 @@ class JobQueue:
         if self._result_sequence is None:
             raise RuntimeError('JobQueue does not have result sequence!')
 
-        if self._next_call_sem.acquire(timeout=10):
+        if self._next_call_sem.acquire(timeout=1):
 
             with self._execution_sem:
                 job_id, result = next(self._result_sequence)
@@ -230,7 +230,7 @@ class JobQueue:
             job_id, prio = _n()
 
             if self._limit_sem is not None and job_id is not None:
-                if not self._limit_sem[prio].acquire(timeout=10):
+                if not self._limit_sem[prio].acquire(timeout=1):
                     continue
 
             if job_id is None:
@@ -250,7 +250,7 @@ class JobQueue:
     def wait(sem=None, msg=None):
 
         while True:
-            if sem is not None and sem.acquire(timeout=10):
+            if sem is not None and sem.acquire(timeout=1):
                 return True
 
             if msg is not None:
