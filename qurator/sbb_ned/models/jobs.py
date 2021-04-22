@@ -176,8 +176,11 @@ class JobQueue:
         with self._main_sem:
 
             if job_id in self._process_queue:
-                self._process_queue.pop(job_id)
+                job = self._process_queue.pop(job_id)
                 self._priorities[priority].remove(job_id)
+
+                if job.num_pending() > 0:
+                    raise RuntimeError('num_pending > 0 !!!')
             else:
                 print('Warning: attempt to remove non-existent job!!!')
 
