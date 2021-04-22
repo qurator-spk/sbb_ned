@@ -286,18 +286,18 @@ class NEDLookup:
 
             if entity_id is None:
                 # signal entity_id == None
-                self._queue_pairs.add_to_job(job_id, (job_id, None, None, None))
+                self._queue_pairs.add_to_job(job_id, (entity_id, None, None))
             else:
 
                 if pairs is None:
-                    self._queue_pairs.add_to_job(job_id, (job_id, entity_id, candidate, None))
+                    self._queue_pairs.add_to_job(job_id, (entity_id, candidate, None))
                 else:
 
                     for idx, row in pairs.iterrows():
                         pair = (row.id_a, row.id_b, json.loads(row.sen_a), json.loads(row.sen_b),
                                 row.pos_a, row.pos_b, row.end_a, row.end_b, row.label)
 
-                        self._queue_pairs.add_to_job(job_id, (job_id, entity_id, candidate, pair))
+                        self._queue_pairs.add_to_job(job_id, (entity_id, candidate, pair))
 
                         candidate = None
 
