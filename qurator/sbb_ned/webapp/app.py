@@ -120,6 +120,8 @@ class ThreadStore:
 
     def get_classify_decider_queue(self):
 
+        lookup = self.get_lookup_queue()
+
         with self._sem:
             if self.classify_decider_queue is not None:
                 return self.classify_decider_queue
@@ -131,7 +133,8 @@ class ThreadStore:
                                        model_file=app.config['MODEL_FILE'], decider=thread_store.get_decider(),
                                        entities=self.get_entities(), decider_processes=app.config['DECIDER_PROCESSES'],
                                        classifier_processes=app.config['EVALUATOR_PROCESSES'],
-                                       batch_size=app.config['BATCH_SIZE'])
+                                       batch_size=app.config['BATCH_SIZE'],
+                                       feeder_queue=lookup.feeder_queue())
 
             return self.classify_decider_queue
 

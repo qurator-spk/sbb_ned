@@ -161,6 +161,9 @@ class NEDLookup:
 
         self._verbose = verbose
 
+    def feeder_queue(self):
+        return self._queue_final_output
+
     def get_entity(self):
 
         while True:
@@ -316,41 +319,6 @@ class NEDLookup:
                     print("get_sentence_pairs: {}:{}".format(job_id, entity_id))
 
                 yield job_id, entity_id, candidate, pair
-
-            # self._queue_pairs.add_to_job(job_id, (entity_id, candidate, pairs))
-            #
-            # while True:
-            #     job_id, task_info, iter_quit = self._queue_pairs.get_next_task()
-            #
-            #     if iter_quit:
-            #         return
-            #
-            #     if task_info is None:
-            #         break
-            #
-            #     entity_id, candidate, pairs, params = task_info
-            #
-            #     if self._verbose:
-            #         print("get_sentence_pairs: {}:{}".format(job_id, entity_id))
-            #
-            #     if entity_id is None:
-            #
-            #         # signal entity_id == None
-            #         yield job_id, None, None,  None
-            #         continue
-            #
-            #     if pairs is None:
-            #         yield job_id, entity_id, candidate, None
-            #         continue
-            #
-            #     for idx, row in pairs.iterrows():
-            #
-            #         pair = (row.id_a, row.id_b, json.loads(row.sen_a), json.loads(row.sen_b),
-            #                 row.pos_a, row.pos_b, row.end_a, row.end_b, row.label)
-            #
-            #         yield job_id, entity_id, candidate, pair
-            #
-            #         candidate = None
 
     def get_feature_tasks(self):
 

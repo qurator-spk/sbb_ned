@@ -146,12 +146,6 @@ class JobQueue:
             else:
                 self._process_queue_sem.release()
 
-        # if self._limit_sem is not None:
-        #     if self._limit_sem.acquire(block=False):
-        #         self._limit_sem.release()
-        #     else:
-        #         return False  # nothing to process ...
-
         with self._main_sem:
             prio -= 1
             while prio >= 0:

@@ -103,7 +103,7 @@ class ClassifierDeciderQueue:
     quit = False
 
     def __init__(self, no_cuda, model_dir, model_file, decider, entities, decider_processes,
-                 classifier_processes, batch_size):
+                 classifier_processes, batch_size, feeder_queue=None):
 
         self._no_cuda = no_cuda
         self._model_dir = model_dir
@@ -120,7 +120,8 @@ class ClassifierDeciderQueue:
         self._quantiles = np.linspace(0.1, 1, 10)
 
         self._queue_classifier = JobQueue(result_sequence=self.infinite_process_sequence(),
-                                          name="ClassifierDeciderQueue_classifier", min_level=2, verbose=True, limit=6)
+                                          name="ClassifierDeciderQueue_classifier", min_level=2,
+                                          feeder_queue=feeder_queue, verbose=True, limit=6)
 
         self._queue_decider = JobQueue(name="ClassifierDeciderQueue_decider", min_level=2,
                                        feeder_queue=self._queue_classifier)
