@@ -201,7 +201,7 @@ class JobQueue:
 
     def get_next_task(self):
 
-        def _n():
+        def _next():
             with self._main_sem:
                 for _prio in self._prio_levels:
 
@@ -216,6 +216,13 @@ class JobQueue:
 
             return None, None
 
+        def _get(_job_id):
+            with self._main_sem:
+                if self.has(_job_id):
+                    return self._process_queue[_job_id].get()
+                else:
+                    return None
+
         if self._feeder_queue is not None:
             if self._feeder_queue.prio_above_pending(self.max_prio()):
                 return None, None, JobQueue.quit
@@ -224,24 +231,34 @@ class JobQueue:
                 return None, None, JobQueue.quit
 
         while True:
-            job_id, prio = _n()
-
-            if self._limit_sem is not None and job_id is not None:
-                if not self._limit_sem[prio].acquire(timeout=1):
-                    continue
+            job_id, prio = _next()
 
             if job_id is None:
                 return None, None, JobQueue.quit
 
-            with self._main_sem:
-                task_info = self._process_queue[job_id].get()
+            if self._limit_sem is None:
 
-            if task_info is not None:
-                if self._verbose:
-                    print("{}: job_id: {} #prio {} jobs: {}".
-                          format(self._name, job_id, prio, len(self._priorities[prio])))
+                task_info = _get(job_id)
 
-                return job_id, task_info, JobQueue.quit
+                if task_info is not None:
+
+                    if self._verbose:
+                        print("{}: job_id: {} #prio {} jobs: {}".
+                              format(self._name, job_id, prio, len(self._priorities[prio])))
+
+                    return job_id, task_info, JobQueue.quit
+
+            elif self._limit_sem[prio].acquire(timeout=1):
+                task_info = _get(job_id)
+
+                if task_info is None:
+                    self._limit_sem[prio].release()
+                else:
+                    if self._verbose:
+                        print("{}: job_id: {} #prio {} jobs: {}".
+                              format(self._name, job_id, prio, len(self._priorities[prio])))
+
+                    return job_id, task_info, JobQueue.quit
 
     @staticmethod
     def wait(sem=None, msg=None):
