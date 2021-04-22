@@ -244,7 +244,22 @@ class NEDLookup:
                                self._entity_index_path, self._search_k, self._max_dist),
                      processes=self._lookup_processes):
 
-            self._queue_sentences.add_to_job(job_id, (sentences, entity_id, candidates))
+            if entity_id is None:
+                self._queue_sentences.add_to_job(job_id, (sentences, entity_id, None))
+            else:
+                candidates = candidates.merge(self._entities[['proba']], left_on="guessed_title", right_index=True)
+
+                candidates = candidates. \
+                    sort_values(['match_uniqueness', 'dist', 'proba', 'match_coverage', 'len_guessed'],
+                                ascending=[False, True, False, False, True])
+
+                candidates = candidates.iloc[0:self._max_candidates]
+
+                if len(candidates) == 0:
+                    self._queue_sentences.add_to_job(job_id, (sentences, entity_id, None))
+                else:
+                    for idx in range(0, len(candidates)):
+                        self._queue_sentences.add_to_job(job_id, (sentences, entity_id, candidates.iloc[[idx]]))
 
             while True:
                 job_id, task_info, iter_quit = self._queue_sentences.get_next_task()
@@ -260,26 +275,45 @@ class NEDLookup:
                 if self._verbose:
                     print("get_sentence_lookup: {}:{}".format(job_id, entity_id))
 
-                if entity_id is None:
-                    # signal entity_id == None
-                    yield SentenceLookupWrapper(job_id, entity_id=None)
-                    continue
+                yield SentenceLookupWrapper(job_id, entity_id, sentences=sentences, candidates=candidates,
+                                            max_pairs=self._max_pairs, **params)
 
-                candidates = candidates.merge(self._entities[['proba']], left_on="guessed_title", right_index=True)
-
-                candidates = candidates.\
-                    sort_values(['match_uniqueness', 'dist', 'proba', 'match_coverage', 'len_guessed'],
-                                ascending=[False, True, False, False, True])
-
-                candidates = candidates.iloc[0:self._max_candidates]
-
-                if len(candidates) == 0:
-                    yield SentenceLookupWrapper(job_id, entity_id, sentences=sentences,
-                                                max_pairs=self._max_pairs, **params)
-
-                for idx in range(0, len(candidates)):
-                    yield SentenceLookupWrapper(job_id, entity_id, sentences=sentences,
-                                                candidates=candidates.iloc[[idx]], max_pairs=self._max_pairs, **params)
+            # self._queue_sentences.add_to_job(job_id, (sentences, entity_id, candidates))
+            #
+            # while True:
+            #     job_id, task_info, iter_quit = self._queue_sentences.get_next_task()
+            #
+            #     if iter_quit:
+            #         return
+            #
+            #     if task_info is None:
+            #         break
+            #
+            #     sentences, entity_id, candidates, params = task_info
+            #
+            #     if self._verbose:
+            #         print("get_sentence_lookup: {}:{}".format(job_id, entity_id))
+            #
+            #     if entity_id is None:
+            #         # signal entity_id == None
+            #         yield SentenceLookupWrapper(job_id, entity_id=None)
+            #         continue
+            #
+            #     candidates = candidates.merge(self._entities[['proba']], left_on="guessed_title", right_index=True)
+            #
+            #     candidates = candidates.\
+            #         sort_values(['match_uniqueness', 'dist', 'proba', 'match_coverage', 'len_guessed'],
+            #                     ascending=[False, True, False, False, True])
+            #
+            #     candidates = candidates.iloc[0:self._max_candidates]
+            #
+            #     if len(candidates) == 0:
+            #         yield SentenceLookupWrapper(job_id, entity_id, sentences=sentences,
+            #                                     max_pairs=self._max_pairs, **params)
+            #
+            #     for idx in range(0, len(candidates)):
+            #         yield SentenceLookupWrapper(job_id, entity_id, sentences=sentences,
+            #                                    candidates=candidates.iloc[[idx]], max_pairs=self._max_pairs, **params)
 
     def get_sentence_pairs(self):
 
