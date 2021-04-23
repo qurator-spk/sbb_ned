@@ -21,6 +21,7 @@ class LookUpByEmbeddings:
     entities_file = None
     entity_types = None
     mapping = None
+    frequency = None
     n_trees = None
     distance_measure = None
     output_path = None
@@ -46,7 +47,8 @@ class LookUpByEmbeddings:
 
             self.init_indices(dims)
 
-            return LookUpByEmbeddings.index[self._entity_type], LookUpByEmbeddings.mapping[self._entity_type]
+            return LookUpByEmbeddings.index[self._entity_type], LookUpByEmbeddings.mapping[self._entity_type], \
+                LookUpByEmbeddings.frequency[self._entity_type]
 
         ranking, _ = best_matches(self._entity_embeddings, get_index_and_mapping,
                                   LookUpByEmbeddings.search_k, LookUpByEmbeddings.max_dist)
@@ -69,24 +71,23 @@ class LookUpByEmbeddings:
         if LookUpByEmbeddings.index is not None:
             return
 
-        LookUpByEmbeddings.init_sem.acquire()
+        with LookUpByEmbeddings.init_sem:
 
-        if LookUpByEmbeddings.index is not None:
-            LookUpByEmbeddings.init_sem.release()
-            return
+            if LookUpByEmbeddings.index is not None:
+                return
 
-        LookUpByEmbeddings.index = dict()
-        LookUpByEmbeddings.mapping = dict()
+            LookUpByEmbeddings.index = dict()
+            LookUpByEmbeddings.mapping = dict()
+            LookUpByEmbeddings.frequency = dict()
 
-        for ent_type in LookUpByEmbeddings.entity_types:
+            for ent_type in LookUpByEmbeddings.entity_types:
 
-            self._embedding_config['dims'] = dims
+                self._embedding_config['dims'] = dims
 
-            LookUpByEmbeddings.index[ent_type], LookUpByEmbeddings.mapping[ent_type] = \
-                load(LookUpByEmbeddings.entities_file, self._embedding_config, ent_type, LookUpByEmbeddings.n_trees,
-                     LookUpByEmbeddings.distance_measure, LookUpByEmbeddings.output_path)
-
-            LookUpByEmbeddings.init_sem.release()
+                LookUpByEmbeddings.index[ent_type], LookUpByEmbeddings.mapping[ent_type], \
+                    LookUpByEmbeddings.frequency[ent_type] = \
+                    load(LookUpByEmbeddings.entities_file, self._embedding_config, ent_type, LookUpByEmbeddings.n_trees,
+                         LookUpByEmbeddings.distance_measure, LookUpByEmbeddings.output_path)
 
     @staticmethod
     def initialize(entities_file, entity_types, n_trees, distance_measure, output_path, search_k, max_dist):
@@ -110,6 +111,7 @@ class LookUpBySurface:
     embeddings = None
     embedding_conf = None
     mapping = None
+    frequency = None
     n_trees = None
     distance_measure = None
     output_path = None
@@ -133,7 +135,8 @@ class LookUpBySurface:
 
             LookUpBySurface.init_indices(dims)
 
-            return LookUpBySurface.index[self._entity_type], LookUpBySurface.mapping[self._entity_type]
+            return LookUpBySurface.index[self._entity_type], LookUpBySurface.mapping[self._entity_type], \
+                LookUpBySurface.frequency[self._entity_type]
 
         rankings = []
         for surface in self._entity_surface_parts:
@@ -222,25 +225,23 @@ class LookUpBySurface:
         if LookUpBySurface.index is not None:
             return
 
-        LookUpBySurface.init_sem.acquire()
+        with LookUpBySurface.init_sem:
 
-        if LookUpBySurface.index is not None:
-            LookUpBySurface.init_sem.release()
-            return
+            if LookUpBySurface.index is not None:
+                return
 
-        LookUpBySurface.index = dict()
-        LookUpBySurface.mapping = dict()
+            LookUpBySurface.index = dict()
+            LookUpBySurface.mapping = dict()
+            LookUpBySurface.frequency = dict()
 
-        for ent_type, emb in LookUpBySurface.embeddings.items():
+            for ent_type, emb in LookUpBySurface.embeddings.items():
 
-            config = emb.config()
-            config['dims'] = dims
+                config = emb.config()
+                config['dims'] = dims
 
-            LookUpBySurface.index[ent_type], LookUpBySurface.mapping[ent_type] = \
-                load(LookUpBySurface.entities_file, config, ent_type, LookUpBySurface.n_trees,
-                     LookUpBySurface.distance_measure, LookUpBySurface.output_path)
-
-        LookUpBySurface.init_sem.release()
+                LookUpBySurface.index[ent_type], LookUpBySurface.mapping[ent_type], LookUpBySurface.frequency[ent_type] = \
+                    load(LookUpBySurface.entities_file, config, ent_type, LookUpBySurface.n_trees,
+                         LookUpBySurface.distance_measure, LookUpBySurface.output_path)
 
     @staticmethod
     def initialize(entities_file, embeddings, n_trees, distance_measure, output_path, search_k, max_dist):
@@ -469,8 +470,7 @@ def build_from_matrix(context_matrix_file, distance_measure, n_trees):
     index.save(result_file)
 
 
-def load(entities_file, embedding_config, ent_type, n_trees, distance_measure='angular', path='.',
-         max_occurences=100000):
+def load(entities_file, embedding_config, ent_type, n_trees, distance_measure='angular', path='.'):
 
     prefix = ".".join(os.path.basename(entities_file).split('.')[:-1])
 
@@ -489,26 +489,36 @@ def load(entities_file, embedding_config, ent_type, n_trees, distance_measure='a
     # filter out those index entries that link to more than max_occurences different entities
     vc = mapping.ann_index.value_counts()
 
-    mapping = mapping.loc[~mapping.ann_index.isin(vc.loc[vc > max_occurences].index)]
+    # mapping = mapping.loc[~mapping.ann_index.isin(vc.loc[vc > max_occurences].index)]
 
     mapping = mapping.set_index('ann_index').sort_index()
 
-    return index, mapping
+    return index, mapping, vc
 
 
-def best_matches(text_embeddings, get_index_and_mapping, search_k=10, max_dist=0.25, summarizer='max'):
+def best_matches(text_embeddings, get_index_and_mapping, search_k=10, max_dist=0.25, summarizer='max', min_part_len=4,
+                 max_frequency=1000):
 
     hits = []
     ranking = []
     lookup = []
     mapping = None
+    frequency = None
+    index = None
 
     for part, e in text_embeddings.iterrows():
 
         if mapping is None:
-            index, mapping = get_index_and_mapping(len(e))
+            index, mapping, frequency = get_index_and_mapping(len(e))
 
         ann_indices, dist = index.get_nns_by_vector(e, search_k, include_distances=True)
+
+        if len(part) < min_part_len:
+
+            valid = [i for i in range(0, len(ann_indices)) if frequency[ann_indices[i]] <= max_frequency]
+
+            ann_indices = [ann_indices[i] for i in valid]
+            dist = [dist[i] for i in valid]
 
         lookup.append(pd.DataFrame({'ann_index': ann_indices, 'dist': dist, 'part': len(dist)*[part]}))
 

@@ -43,9 +43,8 @@ class BertEmbeddings(Embeddings):
             for t_idx, token in enumerate(sentence):
 
                 emb = token.embedding.cpu().numpy()
-                tok = str(token)
 
-                yield tok, emb
+                yield token.text, emb
 
                 del token
 
