@@ -469,7 +469,8 @@ def build_from_matrix(context_matrix_file, distance_measure, n_trees):
     index.save(result_file)
 
 
-def load(entities_file, embedding_config, ent_type, n_trees, distance_measure='angular', path='.', max_occurences=1000):
+def load(entities_file, embedding_config, ent_type, n_trees, distance_measure='angular', path='.',
+         max_occurences=100000):
 
     prefix = ".".join(os.path.basename(entities_file).split('.')[:-1])
 
@@ -487,6 +488,7 @@ def load(entities_file, embedding_config, ent_type, n_trees, distance_measure='a
 
     # filter out those index entries that link to more than max_occurences different entities
     vc = mapping.ann_index.value_counts()
+
     mapping = mapping.loc[~mapping.ann_index.isin(vc.loc[vc > max_occurences].index)]
 
     mapping = mapping.set_index('ann_index').sort_index()
@@ -543,7 +545,7 @@ def best_matches(text_embeddings, get_index_and_mapping, search_k=10, max_dist=0
         ranking['len_guessed'] = ranking.guessed_title.str.len()
 
         ranking = ranking.sort_values(['match_uniqueness', 'dist', 'match_coverage', 'len_guessed'],
-                                      ascending=[False, True, False, True]).reset_index(drop=True)
+                                      ascending=[False, True, True, True]).reset_index(drop=True)
 
     if len(ranking) == 0:
         ranking = \

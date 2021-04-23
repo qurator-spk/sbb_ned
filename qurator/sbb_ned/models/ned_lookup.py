@@ -254,7 +254,7 @@ class NEDLookup:
 
                 candidates = candidates. \
                     sort_values(['match_uniqueness', 'dist', 'proba', 'match_coverage', 'len_guessed'],
-                                ascending=[False, True, False, False, True])
+                                ascending=[False, True, False, True, True])
 
                 candidates = candidates.iloc[0:self._max_candidates]
 
