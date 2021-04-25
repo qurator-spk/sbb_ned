@@ -207,8 +207,11 @@ def parse_sentence(sent, normalization_map):
     entity_types = []
     entity = []
     ent_type = None
+    valid_tags = {'O', 'B-PER', 'B-LOC', 'B-ORG', 'I-PER', 'I-LOC', 'I-ORG'}
 
     for p in sent:
+
+        p['prediction'] = p['prediction'] if p['prediction'] in valid_tags else "O"
 
         if len(entity) > 0 and (p['prediction'] == 'O' or p['prediction'].startswith('B-')
                                 or p['prediction'][2:] != ent_type):
