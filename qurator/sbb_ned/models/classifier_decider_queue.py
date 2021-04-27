@@ -9,7 +9,7 @@ from collections import OrderedDict
 
 from qurator.sbb_ned.models.bert import model_predict_compare
 from qurator.sbb_ned.models.decider import DeciderTask
-from qurator.utils.parallel import run as prun
+from qurator.utils.parallel import run_unordered as prun
 
 from .jobs import JobQueue
 from qurator.sbb_ned.models.bert import get_device

@@ -10,6 +10,7 @@ from .sentence_lookup import SentenceLookup
 from .jobs import JobQueue
 
 from qurator.utils.parallel import run as prun
+from qurator.utils.parallel import run_unordered as prun_unordered
 
 import json
 
@@ -181,7 +182,7 @@ class NEDLookup:
             yield job_id, entity_id, pd.DataFrame(entity_info['sentences']), entity_info['surfaces'], entity_info['type']
 
             # signal entity_id == None <- This is required in order to emit the final result for the entity!!
-            yield job_id, None, None, None, None
+            # yield job_id, None, None, None, None
 
     def get_embed(self):
 
@@ -209,8 +210,8 @@ class NEDLookup:
     def get_lookup(self):
 
         for job_id, entity_id, ent_type, sentences, (_, embedded, embedding_config) in \
-                prun(self.get_embed(), initializer=EmbedTask.initialize, initargs=(self._embeddings,),
-                     processes=self._embed_processes):
+                prun_unordered(self.get_embed(), initializer=EmbedTask.initialize, initargs=(self._embeddings,),
+                               processes=self._embed_processes):
 
             self._queue_lookup.add_to_job(job_id, (entity_id, ent_type, sentences))
 
@@ -237,19 +238,18 @@ class NEDLookup:
     def get_sentence_lookup(self):
 
         for job_id, sentences, (entity_id, candidates) in \
-                prun(self.get_lookup(), initializer=LookUpByEmbeddings.initialize,
-                     initargs=(self._entities_file, self._entity_types, self._n_trees, self._distance_measure,
-                               self._entity_index_path, self._search_k, self._max_dist, self._ned_sql_file),
-                     processes=self._lookup_processes):
+                prun_unordered(self.get_lookup(), initializer=LookUpByEmbeddings.initialize,
+                               initargs=(self._entities_file, self._entity_types, self._n_trees, self._distance_measure,
+                                         self._entity_index_path, self._search_k, self._max_dist, self._ned_sql_file),
+                               processes=self._lookup_processes):
 
-            if entity_id is None:
+            if len(candidates) == 0:
                 self._queue_sentences.add_to_job(job_id, (sentences, entity_id, None))
             else:
-                if len(candidates) == 0:
-                    self._queue_sentences.add_to_job(job_id, (sentences, entity_id, None))
-                else:
-                    for idx in range(0, len(candidates)):
-                        self._queue_sentences.add_to_job(job_id, (sentences, entity_id, candidates.iloc[[idx]]))
+                for idx in range(0, len(candidates)):
+                    self._queue_sentences.add_to_job(job_id, (sentences, entity_id, candidates.iloc[[idx]]))
+
+            self._queue_sentences.add_to_job(job_id, (sentences, None, None))
 
             while True:
                 job_id, task_info, iter_quit = self._queue_sentences.get_next_task()
