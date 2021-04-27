@@ -3,6 +3,7 @@ import numpy as np
 import os
 import torch
 import logging
+import sqlite3
 from multiprocessing import Semaphore
 
 from tqdm import tqdm as tqdm
@@ -18,6 +19,7 @@ logger = logging.getLogger(__name__)
 class LookUpByEmbeddings:
 
     index = None
+    entities = None
     entities_file = None
     entity_types = None
     mapping = None
@@ -53,14 +55,23 @@ class LookUpByEmbeddings:
         ranking, _ = best_matches(self._entity_embeddings, get_index_and_mapping,
                                   LookUpByEmbeddings.search_k, LookUpByEmbeddings.max_dist)
 
-        ranking = ranking. \
-            drop_duplicates('guessed_title'). \
-            sort_values(['match_uniqueness', 'dist', 'match_coverage', 'len_guessed'],
-                        ascending=[False, True, False, True]).reset_index(drop=True)
+        ranking = ranking.drop_duplicates('guessed_title')
 
         ranking['on_page'] = self._page_title
 
-        if self._max_candidates is not None:
+        if LookUpByEmbeddings.entities is not None and self._max_candidates is not None:
+            ranking = ranking.merge(LookUpByEmbeddings.entities[['proba']], left_on="guessed_title", right_index=True)
+
+            ranking = ranking. \
+                sort_values(['match_uniqueness', 'dist', 'proba', 'match_coverage', 'len_guessed'],
+                            ascending=[False, True, False, True, True])
+
+            ranking = ranking.iloc[0:self._max_candidates]
+
+        elif self._max_candidates is not None:
+
+            ranking = ranking.sort_values(['match_uniqueness', 'dist', 'match_coverage', 'len_guessed'],
+                                          ascending=[False, True, False, True]).reset_index(drop=True)
 
             ranking = ranking.iloc[0:self._max_candidates]
 
@@ -90,7 +101,14 @@ class LookUpByEmbeddings:
                          LookUpByEmbeddings.distance_measure, LookUpByEmbeddings.output_path)
 
     @staticmethod
-    def initialize(entities_file, entity_types, n_trees, distance_measure, output_path, search_k, max_dist):
+    def initialize(entities_file, entity_types, n_trees, distance_measure, output_path, search_k, max_dist,
+                   ned_sql_file=None):
+
+        if ned_sql_file is not None:
+            with sqlite3.connect(ned_sql_file) as con:
+                LookUpByEmbeddings.entities = pd.read_sql('select * from entities', con=con).\
+                    set_index('page_title').\
+                    sort_index()
 
         LookUpByEmbeddings.entities_file = entities_file
         LookUpByEmbeddings.entity_types = entity_types

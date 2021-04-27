@@ -11,7 +11,6 @@ from .jobs import JobQueue
 
 from qurator.utils.parallel import run as prun
 
-import sqlite3
 import json
 
 from ..ground_truth.data_processor import ConvertSamples2Features, InputExample
@@ -54,7 +53,7 @@ class LookUpByEmbeddingWrapper(LookUpByEmbeddings):
     def __call__(self, *args, **kwargs):
 
         if self._entity_id is None:
-            return self._job_id, None, (None, None)
+            return self._job_id, self._sentences, (None, None)
 
         return self._job_id, self._sentences, super(LookUpByEmbeddingWrapper, self).__call__(*args, **kwargs)
 
@@ -137,11 +136,6 @@ class NEDLookup:
         self._max_candidates = max_candidates
         self._max_pairs = max_pairs
         self._split_parts = split_parts
-
-        with sqlite3.connect(self._ned_sql_file) as con:
-            self._entities = pd.read_sql('select * from entities', con=con).\
-                set_index('page_title').\
-                sort_index()
 
         self._queue_entities = JobQueue(result_sequence=self.infinite_feature_sequence(),
                                         name="NEDLookup_entities", min_level=2, verbose=True, limit=3)
@@ -237,27 +231,20 @@ class NEDLookup:
                 yield LookUpByEmbeddingWrapper(job_id, entity_id, sentences, page_title=entity_id,
                                                entity_embeddings=embedded, embedding_config=embedding_config,
                                                entity_title=entity_id, entity_type=ent_type,
-                                               split_parts=self._split_parts, max_candidates=None, **params)
+                                               split_parts=self._split_parts, max_candidates=self._max_candidates,
+                                               **params)
 
     def get_sentence_lookup(self):
 
         for job_id, sentences, (entity_id, candidates) in \
                 prun(self.get_lookup(), initializer=LookUpByEmbeddings.initialize,
                      initargs=(self._entities_file, self._entity_types, self._n_trees, self._distance_measure,
-                               self._entity_index_path, self._search_k, self._max_dist),
+                               self._entity_index_path, self._search_k, self._max_dist, self._ned_sql_file),
                      processes=self._lookup_processes):
 
             if entity_id is None:
                 self._queue_sentences.add_to_job(job_id, (sentences, entity_id, None))
             else:
-                candidates = candidates.merge(self._entities[['proba']], left_on="guessed_title", right_index=True)
-
-                candidates = candidates. \
-                    sort_values(['match_uniqueness', 'dist', 'proba', 'match_coverage', 'len_guessed'],
-                                ascending=[False, True, False, True, True])
-
-                candidates = candidates.iloc[0:self._max_candidates]
-
                 if len(candidates) == 0:
                     self._queue_sentences.add_to_job(job_id, (sentences, entity_id, None))
                 else:

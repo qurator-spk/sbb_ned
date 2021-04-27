@@ -325,6 +325,12 @@ def ned():
     return jsonify(ned_result)
 
 
+@app.route('/toporesolver', methods=['GET', 'POST'])
+@cache.cached(key_prefix=key_prefix)
+def topo_resolver():
+    pass
+
+
 @app.route('/<path:path>')
 def send_js(path):
     return send_from_directory('static', path)
