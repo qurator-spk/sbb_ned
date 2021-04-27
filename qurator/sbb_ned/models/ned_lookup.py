@@ -111,7 +111,7 @@ class NEDLookup:
                  ned_sql_file, entities_file, embeddings, n_trees, distance_measure,
                  entity_index_path, entity_types, search_k, max_dist, embed_processes=0,
                  lookup_processes=0, pairing_processes=0, feature_processes=0, max_candidates=20,
-                 max_pairs=1000, split_parts=True, verbose=False):
+                 max_pairs=1000, split_parts=True, verbose=False, limit=3):
 
         # logger.info('NEDLookup __init__')
 
@@ -138,7 +138,7 @@ class NEDLookup:
         self._split_parts = split_parts
 
         self._queue_entities = JobQueue(result_sequence=self.infinite_feature_sequence(),
-                                        name="NEDLookup_entities", min_level=2, verbose=True, limit=3)
+                                        name="NEDLookup_entities", min_level=2, verbose=True, limit=limit)
 
         self._queue_embed = JobQueue(name="NEDLookup_embed", min_level=2, feeder_queue=self._queue_entities)
 

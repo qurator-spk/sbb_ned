@@ -134,7 +134,8 @@ class ThreadStore:
                                        entities=self.get_entities(), decider_processes=app.config['DECIDER_PROCESSES'],
                                        classifier_processes=app.config['EVALUATOR_PROCESSES'],
                                        batch_size=app.config['BATCH_SIZE'],
-                                       feeder_queue=lookup.feeder_queue())
+                                       feeder_queue=lookup.feeder_queue(),
+                                       limit=int(app.config['EVALUATOR_PROCESSES']))
 
             return self.classify_decider_queue
 
@@ -176,7 +177,8 @@ class ThreadStore:
                           feature_processes=app.config['FEATURE_PROCESSES'],
                           max_candidates=app.config['MAX_CANDIDATES'],
                           max_pairs=app.config['MAX_PAIRS'],
-                          split_parts=app.config['SPLIT_PARTS'])
+                          split_parts=app.config['SPLIT_PARTS'],
+                          limit=int(app.config['LOOKUP_PROCESSES']/2 + 1))
 
             return self.ned_lookup
 
