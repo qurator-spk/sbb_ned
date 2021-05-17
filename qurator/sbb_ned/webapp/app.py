@@ -206,8 +206,12 @@ def entry():
 
 def parse_sentence(sent, normalization_map):
     entities = []
+    entity_gt = []
+
     entity_types = []
-    entity = []
+    entity_parts = []
+    entity_parts_gt = set()
+
     ent_type = None
     valid_tags = {'O', 'B-PER', 'B-LOC', 'B-ORG', 'I-PER', 'I-LOC', 'I-ORG'}
 
@@ -215,25 +219,34 @@ def parse_sentence(sent, normalization_map):
 
         p['prediction'] = p['prediction'] if p['prediction'] in valid_tags else "O"
 
-        if len(entity) > 0 and (p['prediction'] == 'O' or p['prediction'].startswith('B-')
-                                or p['prediction'][2:] != ent_type):
-            entities += len(entity) * [" ".join(entity)]
-            entity_types += len(entity) * [ent_type]
-            entity = []
+        if len(entity_parts) > 0 and (p['prediction'] == 'O' or p['prediction'].startswith('B-')
+                                      or p['prediction'][2:] != ent_type):
+            entities += len(entity_parts) * [" ".join(entity_parts)]
+            entity_types += len(entity_parts) * [ent_type]
+
+            entity_gt += len(entity_parts) * [entity_parts_gt]
+
+            entity_parts = []
+            entity_parts_gt = set()
             ent_type = None
 
         if p['prediction'] != 'O':
-            entity.append(p['word'])
+            entity_parts.append(p['word'])
+
+            if 'gt' in p and p['gt'] is not None and len(p['gt']) > 0:
+                entity_parts_gt.add(p['gt'])
 
             if ent_type is None:
                 ent_type = p['prediction'][2:]
         else:
             entities.append("")
             entity_types.append("")
+            entity_gt.append({})
 
-    if len(entity) > 0:
-        entities += len(entity) * [" ".join(entity)]
-        entity_types += len(entity) * [ent_type]
+    if len(entity_parts) > 0:
+        entities += len(entity_parts) * [" ".join(entity_parts)]
+        entity_types += len(entity_parts) * [ent_type]
+        entity_gt += len(entity_parts) * [entity_parts_gt]
 
     entity_ids = ["{}-{}".format(entity, ent_type) for entity, ent_type in zip(entities, entity_types)]
 
@@ -244,7 +257,13 @@ def parse_sentence(sent, normalization_map):
 
     entities_json = json.dumps(entity_ids)
 
-    return entity_ids, entities, entity_types, text_json, tags_json, entities_json
+    try:
+        assert len(entity_ids) == len(entity_types)
+        assert len(entity_ids) == len(entity_gt)
+    except AssertionError:
+        print("ERROR(parse_sentence): {} {} {}".format(str(entity_ids), str(entity_types), str(entity_gt)))
+
+    return entity_ids, entities, entity_types, text_json, tags_json, entities_json, entity_gt
 
 
 def key_prefix():
@@ -266,12 +285,12 @@ def parse_entities():
 
     for sent in ner:
 
-        entity_ids, entities, entity_types, text_json, tags_json, entities_json = \
+        entity_ids, entities, entity_types, text_json, tags_json, entities_json, entity_gt = \
             parse_sentence(sent, normalization_map)
 
         already_processed = set()
 
-        for entity_id, entity, ent_type in zip(entity_ids, entities, entity_types):
+        for entity_id, entity, ent_type, ent_gt in zip(entity_ids, entities, entity_types, entity_gt):
 
             if len(entity) == 0:
                 continue
@@ -285,6 +304,7 @@ def parse_entities():
 
             if entity_id in parsed:
                 parsed[entity_id]['sentences'].append(parsed_sent)
+                parsed[entity_id]['gt'] = list(set(parsed[entity_id]['gt']) | ent_gt)
             else:
                 normalized = "".join([normalization_map[c] if c in normalization_map else c for c in entity])
                 stem = " ".join([stemmer.stem(p) for p in re.split(' |-|_', normalized)])
@@ -296,7 +316,8 @@ def parse_entities():
                 surfaces = list(surfaces)
 
                 try:
-                    parsed[entity_id] = {'sentences': [parsed_sent], 'type': ent_type, 'surfaces': surfaces}
+                    parsed[entity_id] = {'sentences': [parsed_sent], 'type': ent_type, 'surfaces': surfaces,
+                                         'gt': list(ent_gt)}
                 except KeyError as e:
                     logger.error(str(e))
 
