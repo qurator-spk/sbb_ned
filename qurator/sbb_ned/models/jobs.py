@@ -83,6 +83,8 @@ class JobQueue:
     def __init__(self, result_sequence=None, min_level=2, name="JobQueue", verbose=False, feeder_queue=None,
                  limit=None):
 
+        limit = max(1, limit) if limit is not None else None
+
         self._verbose = verbose
         self._result_sequence = result_sequence
         self._next_call_sem = Semaphore(0) if result_sequence is not None else None
