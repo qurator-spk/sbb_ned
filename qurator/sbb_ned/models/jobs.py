@@ -182,7 +182,7 @@ class JobQueue:
                 self._priorities[priority].remove(job_id)
 
                 if job.num_pending() > 0:
-                    raise RuntimeError('num_pending > 0 !!!')
+                    print('Warning job_id: {} num_pending > 0 !!!'.format(job_id))
             else:
                 print('Warning: attempt to remove non-existent job!!!')
 
