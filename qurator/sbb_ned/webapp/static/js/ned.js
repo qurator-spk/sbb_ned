@@ -14,7 +14,7 @@ function NED() {
                 </div>
              </div>`;
 
-    function runNER (input_text, onSuccess) {
+    function runNER (ner_url, input_text, onSuccess) {
 
         $("#result-entities").html("");
         $("#result-text").html(spinner_html);
@@ -22,7 +22,7 @@ function NED() {
         let post_data = { "text" : input_text };
 
         $.ajax({
-                url:  "../ner/ner/0" ,
+                url:  ner_url,
                 data: JSON.stringify(post_data),
                 type: 'POST',
                 contentType: "application/json",
@@ -41,12 +41,12 @@ function NED() {
         );
     }
 
-    function parseNER (input, onSuccess) {
+    function parseNER (parse_url, input, onSuccess) {
 
         let post_data = input;
 
         $.ajax({
-                url:  "parse" ,
+                url:  parse_url,
                 data: JSON.stringify(post_data),
                 type: 'POST',
                 contentType: "application/json",
@@ -86,7 +86,7 @@ function NED() {
         (function(current_counter) {
             $.ajax(
                 {
-                    url:  "ned?return_full=0&priority=0" ,
+                    url:  that.ned_url,
                     data: JSON.stringify(post_data),
                     type: 'POST',
                     contentType: "application/json",
@@ -286,19 +286,22 @@ function NED() {
     }
 
     that = {
+        ned_url: null,
         init:
-            function(input_text) {
+            function(ner_url, parse_url, ned_url, input_text) {
+
+                that.ned_url = ned_url;
 
                 $("#result-text").empty();
                 $("#ner-text").empty();
 
-                runNER(input_text,
+                runNER(ner_url, input_text,
                     function (ner_result) {
                         showNERText(ner_result);
 
                         console.log(ner_result);
 
-                        parseNER(ner_result,
+                        parseNER(parse_url, ner_result,
                             function(ned_result) {
                                 console.log(ned_result);
                             });
