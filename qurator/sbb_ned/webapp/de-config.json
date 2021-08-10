@@ -9,7 +9,7 @@
   "MAX_SEQ_LENGTH": 128,
   "MODEL_DIR": "data/BERT/NED/de-model",
   "MODEL_FILE": "pytorch_model.bin",
-  "BATCH_SIZE": 8,
+  "BATCH_SIZE": 128,
   "EPOCH": "",
   "NED_SQL_FILE": "data/wikipedia/de-ned.sqlite",
   "ENTITIES_FILE": "data/wikidata/de-wikipedia-ner-entities.pkl",
