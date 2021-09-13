@@ -86,7 +86,7 @@ function NED() {
         (function(current_counter) {
             $.ajax(
                 {
-                    url:  "ned?return_full=0" ,
+                    url:  "ned?return_full=0&priority=0" ,
                     data: JSON.stringify(post_data),
                     type: 'POST',
                     contentType: "application/json",

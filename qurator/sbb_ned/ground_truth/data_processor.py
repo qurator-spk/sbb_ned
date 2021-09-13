@@ -483,7 +483,7 @@ class ConvertSamples2Features:
     tokenizer = None
     max_seq_len = 0
 
-    def __init__(self, sample=None):
+    def __init__(self, sample=None, **kwargs):
 
         self._sample = sample
 

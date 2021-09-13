@@ -99,7 +99,7 @@ def load_embeddings(embedding_type, layers="-1, -2, -3, -4", **kwargs):
 class EmbedTask:
     embeddings = None
 
-    def __init__(self, page_title, entity_label, split_parts):
+    def __init__(self, page_title, entity_label, split_parts, **kwargs):
         self._page_title = page_title
         self._entity_label = entity_label
         self._split_parts = split_parts

@@ -16,7 +16,8 @@ class DeciderTask:
     decider = None
     entities = None
 
-    def __init__(self, entity_id, decision, candidates, quantiles, rank_intervalls, threshold, return_full=False):
+    def __init__(self, entity_id, decision, candidates, quantiles, rank_intervalls, threshold, return_full=False,
+                 **kwargs):
 
         self._entity_id = entity_id
         self._decision = decision
@@ -29,12 +30,15 @@ class DeciderTask:
     def __call__(self, *args, **kwargs):
 
         if self._candidates is None:
-            return self._entity_id, None
+            return self._entity_id, {}
+
+        if self._decision is None or len(self._decision) == 0:
+            return self._entity_id, {}
 
         decider_features = features(self._decision, self._candidates, self._quantiles, self._rank_intervalls)
 
         ranking = pd.DataFrame()
-        if DeciderTask.decider is not None:
+        if DeciderTask.decider is not None and len(decider_features) > 0:
             prediction = predict(decider_features, DeciderTask.decider)
 
             prediction = self._candidates[['surface', 'guessed_title']].merge(prediction, on='guessed_title')
@@ -73,6 +77,9 @@ class DeciderTask:
 
 def features(dec, cand, quantiles, rank_intervalls, min_pairs=np.inf, max_pairs=np.inf,
              wikidata_gt=None, stat_funcs=None):
+
+    if dec is None or len(dec) == 0:
+        return pd.DataFrame()
 
     if stat_funcs is None:
         stat_funcs = ['min', 'max', 'mean', 'std', 'median']
