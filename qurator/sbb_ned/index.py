@@ -59,20 +59,17 @@ class LookUpByEmbeddings:
 
         ranking['on_page'] = self._page_title
 
-        if LookUpByEmbeddings.entities is not None and self._max_candidates is not None:
+        if LookUpByEmbeddings.entities is not None:
             ranking = ranking.merge(LookUpByEmbeddings.entities[['proba']], left_on="guessed_title", right_index=True)
 
             ranking = ranking. \
                 sort_values(['match_uniqueness', 'dist', 'proba', 'match_coverage', 'len_guessed'],
-                            ascending=[False, True, False, True, True])
-
-            ranking = ranking.iloc[0:self._max_candidates]
-
-        elif self._max_candidates is not None:
-
+                            ascending=[False, True, False, True, True]).reset_index(drop=True)
+        else:
             ranking = ranking.sort_values(['match_uniqueness', 'dist', 'match_coverage', 'len_guessed'],
                                           ascending=[False, True, False, True]).reset_index(drop=True)
 
+        if self._max_candidates is not None:
             ranking = ranking.iloc[0:self._max_candidates]
 
         return self._entity_title, ranking
