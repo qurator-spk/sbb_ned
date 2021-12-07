@@ -698,11 +698,13 @@ def ned_sentence_data(tagged_sqlite_file, ned_sqlite_file, processes, writequeue
 @click.option('--lookup-processes', type=int, default=2)
 @click.option('--pairing-processes', type=int, default=10)
 @click.option('--embedding-model', type=click.Path(exists=True), default=None)
-def ned_pairing(pairing_sql_file,
-                ned_sql_file, entities_file,
-                embedding_type, n_trees, distance_measure, entity_index_path,
-                subset_file, nsamples, bad_count,
-                lookup_processes, pairing_processes, embedding_model, search_k=50, max_dist=0.25):
+@click.option('--layers', type=str, default="-1,-2,-3,-4", help="Which layers to use. default -1,-2,-3,-4")
+@click.option('--pooling', type=str, default="first", help="How to pool the output for different tokens/words. "
+                                                           "default: first.")
+@click.option('--scalar-mix', type=bool, is_flag=True, help="Use scalar mix of layers.")
+def ned_pairing(pairing_sql_file, ned_sql_file, entities_file, embedding_type, n_trees, distance_measure,
+                entity_index_path, subset_file, nsamples, bad_count, lookup_processes, pairing_processes,
+                embedding_model, layers, pooling, scalar_mix, search_k=50, max_dist=0.25):
 
     if nsamples is None:
         nsamples = np.inf
@@ -715,7 +717,9 @@ def ned_pairing(pairing_sql_file,
     if subset_file is not None:
         sen_subset = pd.read_pickle(subset_file)
 
-    embs = load_embeddings(embedding_type, model_path=embedding_model)
+    # embs = load_embeddings(embedding_type, model_path=embedding_model)
+    embs = load_embeddings(embedding_type, model_path=embedding_model, layers=layers, pooling_operation=pooling,
+                           use_scalar_mix=scalar_mix)
 
     embeddings = {'PER': embs, 'LOC': embs, 'ORG': embs}
 
