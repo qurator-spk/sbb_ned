@@ -160,7 +160,7 @@ ned-train-test-split:	$(WIKIPEDIA_PATH)/de-ned-train-subset.pkl $(WIKIPEDIA_PATH
 # ==============================================================================================================================================================
 
 ned-pairing-train:
-	ned-pairing --subset-file ned-train-subset.pkl --nsamples=3000000 ned-train.sqlite $(NED_FILE) $(ENTITIES_FILE) fasttext $(N_TREES) $(DIST) $(ENTITY_INDEX_PATH)
+	ned-pairing --subset-file $(WIKIPEDIA_PATH)/de-ned-train-subset.pkl --nsamples=3000000 ned-train.sqlite $(NED_FILE) $(ENTITIES_FILE) fasttext $(N_TREES) $(DIST) $(ENTITY_INDEX_PATH)
 
 ned-pairing-examples:
 	ned-pairing-examples --nsamples=20000 ned-train.sqlite data/digisam/BERT_de_finetuned > ned-pairing-examples.txt
