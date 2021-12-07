@@ -11,7 +11,7 @@ WINDOW_SIZE ?=10
 
 OUTPUT_PATH ?=$(DATA_PATH)/entity_index
 
-ENTITIES_FILE ?=$(DATA_PATH)/wikipedia/wikipedia-ner-entities-no-redirects.pkl
+ENTITIES_FILE ?=$(WIKIDATA_PATH)/de-wikipedia-ner-entities.pkl
 
 ENTITY_INDEX_PATH ?=$(DATA_PATH)/entity_index
 
