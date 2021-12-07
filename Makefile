@@ -159,13 +159,16 @@ ned-train-test-split:	$(WIKIPEDIA_PATH)/de-ned-train-subset.pkl $(WIKIPEDIA_PATH
 
 # ==============================================================================================================================================================
 
-ned-pairing-eval:
-	ned-pairing --subset-file $(WIKIPEDIA_PATH)/de-ned-train-subset.pkl --nsamples=3000000 ned-train.sqlite $(NED_FILE) $(ENTITIES_FILE) bert $(N_TREES) $(DIST) $(ENTITY_INDEX_PATH) --embedding-model=data/BERT/NED/de-model --scalar-mix --pooling=mean --layers=$(LAYERS)
-ned-pairing-train:
-	ned-pairing --subset-file $(WIKIPEDIA_PATH)/de-ned-train-subset.pkl --nsamples=3000000 ned-train.sqlite $(NED_FILE) $(ENTITIES_FILE) fasttext $(N_TREES) $(DIST) $(ENTITY_INDEX_PATH) --embedding-model=$(FASTTEXT_PATH)/cc.de.300.bin --lookup-processes 0 --pairing-processes 0
+NSAMPLES ?=100000
 
-ned-pairing-examples:
-	ned-pairing-examples --nsamples=20000 ned-train.sqlite data/digisam/BERT_de_finetuned > ned-pairing-examples.txt
+ned-train-bert.sqlite:
+	ned-pairing --subset-file $(WIKIPEDIA_PATH)/de-ned-train-subset.pkl --nsamples=$(NSAMPLES) $@ $(NED_FILE) $(ENTITIES_FILE) bert $(N_TREES) $(DIST) $(ENTITY_INDEX_PATH) --embedding-model=data/BERT/NED/de-model --scalar-mix --pooling=mean --layers=$(LAYERS)
+
+ned-train-fasttext.sqlite:
+	ned-pairing --subset-file $(WIKIPEDIA_PATH)/de-ned-train-subset.pkl --nsamples=$(NSAMPLES) $@ $(NED_FILE) $(ENTITIES_FILE) fasttext $(N_TREES) $(DIST) $(ENTITY_INDEX_PATH) --embedding-model=$(FASTTEXT_PATH)/cc.de.300.bin --lookup-processes 0 --pairing-processes 0
+
+ned-pairing-bert-examples: ned-train-bert.sqlite
+	ned-pairing-examples --nsamples=$(NSAMPLES) $^ data/digisam/BERT_de_finetuned > ned-pairing-bert-examples.txt
 
 ned-train-test:
 	ned-bert --learning-rate=3e-5 --seed=42 --train-batch-size=128 --train-size=100000 --num-train-epochs=1 --ned-sql-file $(NED_FILE) --train-set-file $(NED_TRAIN_SUBSET_FILE) --dev-set-file $(NED_TEST_SUBSET_FILE) --test-set-file $(NED_TEST_SUBSET_FILE) data/digisam/BERT_de_finetuned ./ned-model-test --model-file pytorch_model.bin --entity-index-path $(ENTITY_INDEX_PATH) --entities-file $(ENTITIES_FILE)
