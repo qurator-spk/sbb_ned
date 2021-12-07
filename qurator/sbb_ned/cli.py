@@ -697,11 +697,12 @@ def ned_sentence_data(tagged_sqlite_file, ned_sqlite_file, processes, writequeue
 @click.option('--bad-count', type=int, default=10)
 @click.option('--lookup-processes', type=int, default=2)
 @click.option('--pairing-processes', type=int, default=10)
+@click.option('--embedding-model', type=click.Path(exists=True), default=None)
 def ned_pairing(pairing_sql_file,
                 ned_sql_file, entities_file,
                 embedding_type, n_trees, distance_measure, entity_index_path,
-                search_k=50, max_dist=0.25, subset_file=None, nsamples=None, bad_count=10,
-                lookup_processes=2, pairing_processes=10):
+                subset_file, nsamples, bad_count,
+                lookup_processes, pairing_processes, embedding_model, search_k=50, max_dist=0.25):
 
     all_entities = pd.read_pickle(entities_file)
 
@@ -716,7 +717,7 @@ def ned_pairing(pairing_sql_file,
     if subset_file is not None:
         sen_subset = pd.read_pickle(subset_file)
 
-    embs = load_embeddings(embedding_type)
+    embs = load_embeddings(embedding_type, model_path=embedding_model)
 
     embeddings = {'PER': embs, 'LOC': embs, 'ORG': embs}
 
