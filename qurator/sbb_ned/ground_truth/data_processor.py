@@ -293,6 +293,7 @@ class WikipediaDataset(Dataset):
             if WikipediaDataset.quit:
                 break
 
+            ranking['rank']=ranking.index
             good = ranking.loc[ranking.guessed_title == entity_title].copy()
             bad = ranking.loc[ranking.guessed_title != entity_title].copy()
 
