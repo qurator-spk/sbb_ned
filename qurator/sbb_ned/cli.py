@@ -704,8 +704,6 @@ def ned_pairing(pairing_sql_file,
                 subset_file, nsamples, bad_count,
                 lookup_processes, pairing_processes, embedding_model, search_k=50, max_dist=0.25):
 
-    all_entities = pd.read_pickle(entities_file)
-
     if nsamples is None:
         nsamples = np.inf
 
@@ -726,7 +724,7 @@ def ned_pairing(pairing_sql_file,
         write_conn.execute('pragma journal_mode=wal')
 
         for count, (id_a, id_b, sen_a, sen_b, pos_a, pos_b, end_a, end_b, label) in\
-            enumerate(tqdm(WikipediaDataset(epoch_size, max_seq_length, tokenizer, ned_sql_file, all_entities,
+            enumerate(tqdm(WikipediaDataset(epoch_size, max_seq_length, tokenizer, ned_sql_file, entities_file,
                                             embeddings, n_trees, distance_measure, entity_index_path, search_k,
                                             max_dist, sen_subset, bad_count, lookup_processes,
                                             pairing_processes).get_sentence_pairs(), total=nsamples)):
