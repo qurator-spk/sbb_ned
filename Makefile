@@ -15,7 +15,7 @@ ENTITIES_FILE ?=$(DATA_PATH)/wikipedia/wikipedia-ner-entities-no-redirects.pkl
 
 ENTITY_INDEX_PATH ?=$(DATA_PATH)/entity_index
 
-NED_FILE ?=$(DATA_PATH)/wikipedia/ned.sqlite
+NED_FILE ?=$(DATA_PATH)/wikipedia/de-ned.sqlite
 NED_TRAIN_SUBSET_FILE ?=$(DATA_PATH)/wikipedia/ned-train-subset.pkl
 NED_TEST_SUBSET_FILE ?=$(DATA_PATH)/wikipedia/ned-test-subset.pkl
 
