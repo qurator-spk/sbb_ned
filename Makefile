@@ -45,7 +45,7 @@ fasttext:	de-fasttext fr-fasttext en-fasttext
 
 # ==================================================================================================================================================================
 
-LAYERS ?="-1 -2 -3 -4"
+LAYERS ?="-1,-2,-3,-4"
 
 %-bert-ORG:
 	build-index $(WIKIDATA_PATH)/$*-wikipedia-ner-entities.pkl bert ORG $(N_TREES) $(ENTITY_INDEX_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST) --model-path=data/BERT/NED/$*-model --scalar-mix --split-parts --pooling=mean --layers=$(LAYERS)
@@ -160,10 +160,10 @@ ned-train-test-split:	$(WIKIPEDIA_PATH)/de-ned-train-subset.pkl $(WIKIPEDIA_PATH
 # ==============================================================================================================================================================
 
 ned-pairing-eval:
-	ned-pairing --subset-file $(WIKIPEDIA_PATH)/de-ned-train-subset.pkl --nsamples=3000000 ned-train.sqlite $(NED_FILE) $(ENTITIES_FILE) bert $(N_TREES) $(DIST) $(ENTITY_INDEX_PATH) --embedding-model=data/BERT/NED/$*-model --scalar-mix --split-parts --pooling=mean --layers=$(LAYERS)
+	ned-pairing --subset-file $(WIKIPEDIA_PATH)/de-ned-train-subset.pkl --nsamples=3000000 ned-train.sqlite $(NED_FILE) $(ENTITIES_FILE) bert $(N_TREES) $(DIST) $(ENTITY_INDEX_PATH) --embedding-model=data/BERT/NED/de-model --scalar-mix --pooling=mean --layers=$(LAYERS)  --lookup-processes 0 --pairing-processes 0
 
 ned-pairing-train:
-	ned-pairing --subset-file $(WIKIPEDIA_PATH)/de-ned-train-subset.pkl --nsamples=3000000 ned-train.sqlite $(NED_FILE) $(ENTITIES_FILE) fasttext $(N_TREES) $(DIST) $(ENTITY_INDEX_PATH) --embedding-model=$(FASTTEXT_PATH)/cc.de.300.bin
+	ned-pairing --subset-file $(WIKIPEDIA_PATH)/de-ned-train-subset.pkl --nsamples=3000000 ned-train.sqlite $(NED_FILE) $(ENTITIES_FILE) fasttext $(N_TREES) $(DIST) $(ENTITY_INDEX_PATH) --embedding-model=$(FASTTEXT_PATH)/cc.de.300.bin --lookup-processes 0 --pairing-processes 0
 
 ned-pairing-examples:
 	ned-pairing-examples --nsamples=20000 ned-train.sqlite data/digisam/BERT_de_finetuned > ned-pairing-examples.txt

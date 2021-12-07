@@ -688,7 +688,7 @@ def ned_sentence_data(tagged_sqlite_file, ned_sqlite_file, processes, writequeue
 @click.argument('pairing-sql-file', type=click.Path(exists=False), required=True, nargs=1)
 @click.argument('ned-sql-file', type=click.Path(exists=True), required=True, nargs=1)
 @click.argument('entities-file', type=click.Path(exists=True), required=True, nargs=1)
-@click.argument('embedding-type', type=click.Choice(['fasttext']), required=True, nargs=1)
+@click.argument('embedding-type', type=click.Choice(['fasttext', 'bert']), required=True, nargs=1)
 @click.argument('n-trees', type=int, required=True, nargs=1)
 @click.argument('distance-measure', type=click.Choice(['angular', 'euclidean']), required=True, nargs=1)
 @click.argument('entity-index-path', type=click.Path(exists=True), required=True, nargs=1)
