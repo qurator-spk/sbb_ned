@@ -47,5 +47,5 @@ function update() {
 
     var ned = NED();
 
-    ned.init("../ner/ner/0", "parse", "ned?return_full=0&priority=0", input_text);
+    ned.init("../ner/ner", "parse", "ned?return_full=0&priority=0", input_text);
 }
