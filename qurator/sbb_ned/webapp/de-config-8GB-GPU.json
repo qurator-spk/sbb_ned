@@ -1,37 +1,47 @@
 {
   "LOG_LEVEL": "DEBUG",
+
   "CACHE_TYPE": "null",
   "CACHE_DIR": "de-cache",
   "CACHE_IGNORE_ERRORS": true,
   "CACHE_THRESHOLD": 100000,
   "CACHE_OPTIONS": { "mode": 511},
   "CACHE_DEFAULT_TIMEOUT": 3153600000,
+
   "MAX_SEQ_LENGTH": 128,
   "MODEL_DIR": "data/BERT/NED/de-model",
   "MODEL_FILE": "pytorch_model.bin",
   "BATCH_SIZE": 8,
   "EPOCH": "",
+
   "NED_SQL_FILE": "data/wikipedia/de-ned.sqlite",
   "ENTITIES_FILE": "data/wikidata/de-wikipedia-ner-entities.pkl",
+
+  "ENTITY_INDEX_PATH": "data/entity_index",
   "EMBEDDING_TYPE": "bert",
   "EMBEDDING_LAYERS": "-1,-2,-3,-4",
   "POOLING": "mean",
   "EMBEDDING_MODEL_PATH": "data/BERT/NED/de-model",
+
   "SPLIT_PARTS": true,
   "N_TREES": 100,
   "DISTANCE_MEASURE": "angular",
-  "ENTITY_INDEX_PATH": "data/entity_index",
+
   "SEARCH_K": 1000,
   "MAX_DIST":0.05,
+  "MAX_CANDIDATES": 25,
+
   "EMBED_PROCESSES": 1,
   "LOOKUP_PROCESSES": 7,
   "PAIRING_PROCESSES": 7,
   "FEATURE_PROCESSES": 7,
   "EVALUATOR_PROCESSES" : 3,
   "DECIDER_PROCESSES": 3,
-  "MAX_CANDIDATES": 25,
+
   "MAX_PAIRS": 50,
+
   "DECIDER_MODEL": "clef2020-mk25-md0.05/de-decider.pkl",
   "DECISION_THRESHOLD": 0.1,
+
   "STEMMER": "german"
 }

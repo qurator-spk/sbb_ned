@@ -12,6 +12,7 @@ from annoy import AnnoyIndex
 from .embeddings.base import EmbedTask, EmbedWithContext, get_embedding_vectors
 import json
 from qurator.utils.parallel import run as prun
+import haversine as hs
 
 logger = logging.getLogger(__name__)
 
@@ -27,13 +28,11 @@ class LookUpByEmbeddings:
     n_trees = None
     distance_measure = None
     output_path = None
-    search_k = None
-    max_dist = None
 
     init_sem = None
 
     def __init__(self, page_title, entity_embeddings, embedding_config,
-                 entity_title, entity_type, split_parts, max_candidates=None, **kwargs):
+                 entity_title, entity_type, split_parts, max_candidates, search_k, max_dist, context, **kwargs):
 
         self._entity_embeddings = entity_embeddings
         self._embedding_config = embedding_config
@@ -42,6 +41,9 @@ class LookUpByEmbeddings:
         self._page_title = page_title
         self._split_parts = split_parts
         self._max_candidates = max_candidates
+        self._search_k = search_k
+        self._max_dist = max_dist
+        self._context = context
 
     def __call__(self, *args, **kwargs):
 
@@ -52,19 +54,56 @@ class LookUpByEmbeddings:
             return LookUpByEmbeddings.index[self._entity_type], LookUpByEmbeddings.mapping[self._entity_type], \
                 LookUpByEmbeddings.frequency[self._entity_type]
 
-        ranking, _ = best_matches(self._entity_embeddings, get_index_and_mapping,
-                                  LookUpByEmbeddings.search_k, LookUpByEmbeddings.max_dist)
+        ranking, _ = best_matches(self._entity_embeddings, get_index_and_mapping, self._search_k, self._max_dist)
 
         ranking = ranking.drop_duplicates('guessed_title')
 
         ranking['on_page'] = self._page_title
 
         if LookUpByEmbeddings.entities is not None:
-            ranking = ranking.merge(LookUpByEmbeddings.entities[['proba']], left_on="guessed_title", right_index=True)
 
-            ranking = ranking. \
-                sort_values(['match_uniqueness', 'dist', 'proba', 'match_coverage', 'len_guessed'],
-                            ascending=[False, True, False, True, True]).reset_index(drop=True)
+            if self._context is not None and self._entity_type in ['LOC', 'ORG'] and "geographic" in self._context:
+
+                ranking = ranking.merge(LookUpByEmbeddings.entities[['proba', 'longitude', 'latitude']],
+                                        left_on="guessed_title", right_index=True)
+
+                geo_context = \
+                    LookUpByEmbeddings.entities.loc[LookUpByEmbeddings.entities.QID.isin(self._context["geographic"])]
+
+                def make_position(x):
+                    try:
+                        return float(x.longitude), float(x.latitude)
+                    except TypeError:
+                        return np.nan
+
+                geo_context['position'] = 0
+                geo_context['position'] = geo_context.apply(make_position, axis=1)
+
+                ranking['position'] = 0
+                ranking['position'] = ranking.apply(make_position, axis=1)
+
+                def haver(a, b):
+                    try:
+                        return hs.haversine(a, b)
+                    except TypeError:
+                        return np.nan
+
+                def geo_dist(r):
+
+                    return geo_context.apply(lambda g: haver(r.position, g.position), axis=1).min()
+
+                ranking['geo_dist'] = ranking.apply(lambda r: geo_dist(r), axis=1)
+
+                ranking.sort_values(['match_uniqueness', 'dist', 'geo_dist', 'proba', 'match_coverage', 'len_guessed'],
+                                    ascending=[False, True, True, False, True, True]).reset_index(drop=True)
+
+                ranking = ranking.drop(columns=['position', 'longitude', 'latitude', 'geo_dist'])
+            else:
+                ranking = ranking.merge(LookUpByEmbeddings.entities[['proba']], left_on="guessed_title",
+                                        right_index=True)
+                ranking = ranking. \
+                    sort_values(['match_uniqueness', 'dist', 'proba', 'match_coverage', 'len_guessed'],
+                                ascending=[False, True, False, True, True]).reset_index(drop=True)
         else:
             ranking = ranking.sort_values(['match_uniqueness', 'dist', 'match_coverage', 'len_guessed'],
                                           ascending=[False, True, False, True]).reset_index(drop=True)
@@ -98,7 +137,7 @@ class LookUpByEmbeddings:
                          LookUpByEmbeddings.distance_measure, LookUpByEmbeddings.output_path)
 
     @staticmethod
-    def initialize(entities_file, entity_types, n_trees, distance_measure, output_path, search_k, max_dist,
+    def initialize(entities_file, entity_types, n_trees, distance_measure, output_path,
                    ned_sql_file=None):
 
         if ned_sql_file is not None:
@@ -113,8 +152,6 @@ class LookUpByEmbeddings:
         LookUpByEmbeddings.n_trees = n_trees
         LookUpByEmbeddings.distance_measure = distance_measure
         LookUpByEmbeddings.output_path = output_path
-        LookUpByEmbeddings.search_k = search_k
-        LookUpByEmbeddings.max_dist = max_dist
 
         LookUpByEmbeddings.init_sem = Semaphore(1)
 
@@ -511,7 +548,7 @@ def load(entities_file, embedding_config, ent_type, n_trees, distance_measure='a
     return index, mapping, vc
 
 
-def best_matches(text_embeddings, get_index_and_mapping, search_k=10, max_dist=0.25, summarizer='max', min_part_len=4,
+def best_matches(text_embeddings, get_index_and_mapping, search_k, max_dist=0.25, summarizer='max', min_part_len=4,
                  max_frequency=1000):
 
     hits = []

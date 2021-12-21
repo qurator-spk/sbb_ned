@@ -169,13 +169,10 @@ class ThreadStore:
                           distance_measure=app.config['DISTANCE_MEASURE'],
                           entity_index_path=app.config['ENTITY_INDEX_PATH'],
                           entity_types=['PER', 'LOC', 'ORG'],
-                          search_k=app.config['SEARCH_K'],
-                          max_dist=app.config['MAX_DIST'],
                           embed_processes=app.config['EMBED_PROCESSES'],
                           lookup_processes=app.config['LOOKUP_PROCESSES'],
                           pairing_processes=app.config['PAIRING_PROCESSES'],
                           feature_processes=app.config['FEATURE_PROCESSES'],
-                          max_candidates=app.config['MAX_CANDIDATES'],
                           max_pairs=app.config['MAX_PAIRS'],
                           split_parts=app.config['SPLIT_PARTS'],
                           limit=int(app.config['LOOKUP_PROCESSES']/2 + 1))
@@ -328,7 +325,14 @@ def parse_entities():
 @cache.cached(key_prefix=key_prefix)
 def ned():
     return_full = bool(request.args.get('return_full', type=int))
+
     priority = request.args.get('priority', type=int, default=1)
+
+    max_candidates = request.args.get('max_candidates', type=int, default=app.config['MAX_CANDIDATES'])
+
+    search_k = request.args.get('search_k', type=int, default=app.config['SEARCH_K'])
+
+    max_dist = request.args.get('max_dist', type=float, default=app.config['MAX_DIST'])
 
     threshold = request.args.get('threshold', default=app.config['DECISION_THRESHOLD'], type=float)
 
@@ -338,10 +342,16 @@ def ned():
 
     classify_decider_queue = thread_store.get_classify_decider_queue()
 
+    context = None
+    if "__CONTEXT__" in parsed:
+        context = parsed.pop("__CONTEXT__")
+
     def classify_and_decide_on_lookup_results(job_sequence):
         return classify_decider_queue.run(job_sequence, len(parsed), return_full, threshold, priority=priority)
 
-    ned_result = ned_lookup_queue.run_on_features(parsed, classify_and_decide_on_lookup_results, priority=priority)
+    ned_result = ned_lookup_queue.run_on_features(parsed, classify_and_decide_on_lookup_results, priority=priority,
+                                                  params={'max_candidates': max_candidates, 'search_k': search_k,
+                                                          'max_dist': max_dist, 'context': context})
 
     torch.cuda.empty_cache()
 

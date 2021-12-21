@@ -110,8 +110,8 @@ class NEDLookup:
 
     def __init__(self, max_seq_length, tokenizer,
                  ned_sql_file, entities_file, embeddings, n_trees, distance_measure,
-                 entity_index_path, entity_types, search_k, max_dist, embed_processes=0,
-                 lookup_processes=0, pairing_processes=0, feature_processes=0, max_candidates=20,
+                 entity_index_path, entity_types, embed_processes=0,
+                 lookup_processes=0, pairing_processes=0, feature_processes=0,
                  max_pairs=1000, split_parts=True, verbose=False, limit=3):
 
         # logger.info('NEDLookup __init__')
@@ -126,15 +126,12 @@ class NEDLookup:
         self._distance_measure = distance_measure
         self._entity_index_path = entity_index_path
         self._entity_types = entity_types
-        self._search_k = search_k
-        self._max_dist = max_dist
 
         self._embed_processes = embed_processes
         self._lookup_processes = lookup_processes
         self._pairing_processes = pairing_processes
         self._feature_processes = feature_processes
 
-        self._max_candidates = max_candidates
         self._max_pairs = max_pairs
         self._split_parts = split_parts
 
@@ -226,21 +223,20 @@ class NEDLookup:
 
                 entity_id, ent_type, sentences, params = task_info
                 if self._verbose:
-                    print("get_lookup: {}:{}".format(job_id, entity_id))
+                    print("get_lookup: {}:{}({})".format(job_id, entity_id, params))
 
                 # return all the candidates - filtering is done below
                 yield LookUpByEmbeddingWrapper(job_id, entity_id, sentences, page_title=entity_id,
                                                entity_embeddings=embedded, embedding_config=embedding_config,
                                                entity_title=entity_id, entity_type=ent_type,
-                                               split_parts=self._split_parts, max_candidates=self._max_candidates,
-                                               **params)
+                                               split_parts=self._split_parts, **params)
 
     def get_sentence_lookup(self):
 
         for job_id, sentences, (entity_id, candidates) in \
                 prun_unordered(self.get_lookup(), initializer=LookUpByEmbeddings.initialize,
                                initargs=(self._entities_file, self._entity_types, self._n_trees, self._distance_measure,
-                                         self._entity_index_path, self._search_k, self._max_dist, self._ned_sql_file),
+                                         self._entity_index_path, self._ned_sql_file),
                                processes=self._lookup_processes):
 
             if len(candidates) == 0:
