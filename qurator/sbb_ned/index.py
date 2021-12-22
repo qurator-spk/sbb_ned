@@ -62,9 +62,11 @@ class LookUpByEmbeddings:
 
         if LookUpByEmbeddings.entities is not None:
 
+            ranking = ranking.merge(LookUpByEmbeddings.entities[['proba']], left_on="guessed_title", right_index=True)
+
             if self._context is not None and self._entity_type in ['LOC', 'ORG'] and "geographic" in self._context:
 
-                ranking = ranking.merge(LookUpByEmbeddings.entities[['proba', 'longitude', 'latitude']],
+                ranking = ranking.merge(LookUpByEmbeddings.entities[['longitude', 'latitude']],
                                         left_on="guessed_title", right_index=True)
 
                 geo_context = \
@@ -95,18 +97,33 @@ class LookUpByEmbeddings:
                 ranking['geo_dist'] = ranking.apply(lambda r: geo_dist(r), axis=1)
 
                 ranking.sort_values(['match_uniqueness', 'dist', 'geo_dist', 'proba', 'match_coverage', 'len_guessed'],
-                                    ascending=[False, True, True, False, True, True]).reset_index(drop=True)
+                                    ascending=[False, True, True, False, True, True])
 
                 ranking = ranking.drop(columns=['position', 'longitude', 'latitude', 'geo_dist'])
             else:
-                ranking = ranking.merge(LookUpByEmbeddings.entities[['proba']], left_on="guessed_title",
-                                        right_index=True)
                 ranking = ranking. \
                     sort_values(['match_uniqueness', 'dist', 'proba', 'match_coverage', 'len_guessed'],
-                                ascending=[False, True, False, True, True]).reset_index(drop=True)
+                                ascending=[False, True, False, True, True])
         else:
             ranking = ranking.sort_values(['match_uniqueness', 'dist', 'match_coverage', 'len_guessed'],
-                                          ascending=[False, True, False, True]).reset_index(drop=True)
+                                          ascending=[False, True, False, True])
+
+        if self._context is not None and "time" in self._context and 'not_after' in self._context['time']:
+
+            ranking = ranking.merge(LookUpByEmbeddings.entities[['dateofbirth', 'inception']],
+                                    left_on="guessed_title", right_index=True)
+
+            ranking['dateofbirth'] = pd.to_datetime(ranking.dateofbirth, yearfirst=True, errors="coerce", utc=True)
+            ranking['inception'] = pd.to_datetime(ranking.inception, yearfirst=True, errors="coerce", utc=True)
+
+            not_after = pd.to_datetime(self._context['time']['not_after'], utc=True)
+
+            ranking = ranking.loc[(ranking.inception.isnull() & ranking.dateofbirth.isnull()) |
+                                  (ranking.inception < not_after) | (ranking.dateofbirth < not_after)]
+
+            ranking = ranking.drop(columns=['dateofbirth', 'inception'])
+
+        ranking = ranking.reset_index(drop=True)
 
         if self._max_candidates is not None:
             ranking = ranking.iloc[0:self._max_candidates]

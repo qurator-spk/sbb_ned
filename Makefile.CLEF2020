@@ -10,11 +10,12 @@ MAX_DIST ?= 0.05
 MAX_CANDIDATES ?= 25
 MAX_FREQUENCY ?= 1000
 NED_THRESHOLD ?= 0.2
+NOT_AFTER ?=1970
 
 NED_PARAMS ?=md$(MAX_DIST)_mc$(MAX_CANDIDATES)_mf$(MAX_FREQUENCY)_nthr$(NED_THRESHOLD)
 NED_JSON_PARAMS ?=md$(MAX_DIST)_mc$(MAX_CANDIDATES)_mf$(MAX_FREQUENCY)
 
-FIND_ENTITY_PARAMS ?=--ned-threshold=$(NED_THRESHOLD) --max-candidates=$(MAX_CANDIDATES) --max-dist=$(MAX_DIST)
+FIND_ENTITY_PARAMS ?=--ned-threshold=$(NED_THRESHOLD) --max-candidates=$(MAX_CANDIDATES) --max-dist=$(MAX_DIST) --not-after=$(NOT_AFTER)
 
 DE_NER_URL ?=http://b-lx0053.sbb.spk-berlin.de/sbb-tools/ner/ner/0
 FR_NER_URL ?=http://b-lx0053.sbb.spk-berlin.de/sbb-tools/ner/ner/1
