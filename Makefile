@@ -45,6 +45,19 @@ fasttext:	de-fasttext fr-fasttext en-fasttext
 
 # ==================================================================================================================================================================
 
+%-anagram-ORG:
+	build-index $(WIKIDATA_PATH)/$*-wikipedia-ner-entities.pkl anagram ORG $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST)  --split-parts
+
+%-anagram-LOC:
+	build-index $(WIKIDATA_PATH)/$*-wikipedia-ner-entities.pkl anagram LOC $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST)  --split-parts
+
+%-anagram-PER:
+	build-index $(WIKIDATA_PATH)/$*-wikipedia-ner-entities.pkl anagram PER $(N_TREES) $(OUTPUT_PATH) --n-processes=$(PROCESSES) --distance-measure=$(DIST)  --split-parts
+
+de-anagram:	de-anagram-ORG de-anagram-LOC de-anagram-PER
+
+# ==================================================================================================================================================================
+
 LAYERS ?="-1,-2,-3,-4"
 
 %-bert-ORG:

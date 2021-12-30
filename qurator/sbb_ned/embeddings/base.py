@@ -75,7 +75,9 @@ def load_embeddings(embedding_type, layers="-1, -2, -3, -4", **kwargs):
         mp.set_start_method('spawn')
 
         embeddings = (FlairEmbeddings, {'forward': 'de-forward', 'backward': 'de-backward', 'use_tokenizer': True})
-        #embeddings = (FlairEmbeddings, {'forward': 'de-historic-rw-forward', 'backward': 'de-historic-rw-backward', 'use_tokenizer': True})
+        # embeddings = (FlairEmbeddings, {'forward': 'de-historic-rw-forward', 'backward': 'de-historic-rw-backward',
+        # 'use_tokenizer': True})
+
     elif embedding_type == 'bert':
 
         from .bert import BertEmbeddings
@@ -87,6 +89,12 @@ def load_embeddings(embedding_type, layers="-1, -2, -3, -4", **kwargs):
         kwargs = dict(kwargs, layers=layers)
 
         embeddings = (BertEmbeddings, kwargs)
+
+    elif embedding_type == 'anagram':
+
+        from .anagram import AnagramEmbeddings
+
+        embeddings = (AnagramEmbeddings, kwargs)
 
     else:
         raise RuntimeError('Unknown embedding type: {}'.format(embedding_type))

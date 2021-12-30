@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 @click.command()
 @click.argument('all-entities-file', type=click.Path(exists=True), required=True, nargs=1)
-@click.argument('embedding-type', type=click.Choice(['fasttext', 'bert', 'flair']), required=True, nargs=1)
+@click.argument('embedding-type', type=click.Choice(['fasttext', 'bert', 'flair', 'anagram']), required=True, nargs=1)
 @click.argument('entity-type', type=str, required=True, nargs=1)
 @click.argument('n-trees', type=int, required=True, nargs=1)
 @click.argument('output-path', type=click.Path(exists=True), required=True, nargs=1)
@@ -57,7 +57,7 @@ def build(all_entities_file, embedding_type, entity_type, n_trees, output_path,
 
     ALL_ENTITIES_FILE: Pandas DataFrame pickle that contains all entites.
 
-    EMBEDDING_TYPE: Type of embedding [ fasttext, bert ]
+    EMBEDDING_TYPE: Type of embedding [ fasttext, bert, flair, anagram ]
 
     ENTITY_TYPE: Type of entities, for instance ORG, LOC, PER ...
 
