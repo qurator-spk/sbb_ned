@@ -1,3 +1,4 @@
+PROCESSES=8
 
 CLEF_SCORER_PATH ?=~/qurator/CLEF-HIPE-2020-scorer
 CLEF_PATH ?=/home/kai.labusch/qurator/CLEF-HIPE-2020
@@ -10,12 +11,13 @@ MAX_DIST ?= 0.05
 MAX_CANDIDATES ?= 25
 MAX_FREQUENCY ?= 1000
 NED_THRESHOLD ?= 0.2
-NOT_AFTER ?=1970
+# NOT_AFTER ?=--not-after=1970
+NOT_AFTER ?=
 
 NED_PARAMS ?=md$(MAX_DIST)_mc$(MAX_CANDIDATES)_mf$(MAX_FREQUENCY)_nthr$(NED_THRESHOLD)
 NED_JSON_PARAMS ?=md$(MAX_DIST)_mc$(MAX_CANDIDATES)_mf$(MAX_FREQUENCY)
 
-FIND_ENTITY_PARAMS ?=--ned-threshold=$(NED_THRESHOLD) --max-candidates=$(MAX_CANDIDATES) --max-dist=$(MAX_DIST) --not-after=$(NOT_AFTER)
+FIND_ENTITY_PARAMS ?=--ned-threshold=$(NED_THRESHOLD) --max-candidates=$(MAX_CANDIDATES) --max-dist=$(MAX_DIST) $(NOT_AFTER)
 
 DE_NER_URL ?=http://b-lx0053.sbb.spk-berlin.de/sbb-tools/ner/ner/0
 FR_NER_URL ?=http://b-lx0053.sbb.spk-berlin.de/sbb-tools/ner/ner/1
@@ -72,7 +74,7 @@ $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-%-fr-$(NED_PARAMS).tsv $(CLEF_TARGET
 	find-entities $(FIND_ENTITY_PARAMS) --noproxy $^ $(basename $@).tsv --ned-json-file=$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-$*-fr-$(NED_JSON_PARAMS).json --ner-rest-endpoint=$(FR_NER_URL) --ned-rest-endpoint=$(FR_NED_URL)
 
 .PRECIOUS:	$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-%-en-$(NED_PARAMS).tsv $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-%-en-$(NED_JSON_PARAMS).json
-$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-%-en-$(NED_PARAMS).tsv $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-%-en-$(NED_PARAMS).json:	$(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-%-en.tsv
+$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-%-en-$(NED_PARAMS).tsv $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-%-en-$(NED_JSON_PARAMS).json:	$(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-%-en.tsv
 	find-entities $(FIND_ENTITY_PARAMS) --noproxy $^ $(basename $@).tsv --ned-json-file=$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-$*-en-$(NED_JSON_PARAMS).json --ner-rest-endpoint=$(EN_NER_URL) --ned-rest-endpoint=$(EN_NED_URL)
 
 
@@ -173,29 +175,35 @@ CLEF2020-bundle5:	$(CLEF_TARGET_PATH) $(CLEF_TARGET_PATH)/SBB_bundle5_de_$(RUNNU
 # ===============================================================================================================================================
 # extract training data for decider ...
 
-$(CLEF_TARGET_PATH)/%-decider-train-dataset.pkl: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-train-%.json $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-train-%.tsv
-	sentence-stat $(basename $<).tsv $^ $@
+.PRECIOUS:	$(CLEF_TARGET_PATH)/%-decider-train-dataset-$(NED_JSON_PARAMS).pkl
+$(CLEF_TARGET_PATH)/%-decider-train-dataset-$(NED_JSON_PARAMS).pkl:  $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-train-%-$(NED_JSON_PARAMS).json $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-train-%.tsv
+	sentence-stat --processes=$(PROCESSES) $(basename $<).tsv $^ $@
 
-$(CLEF_TARGET_PATH)/en-decider-train-dataset.pkl: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-dev-en.json $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-dev-en.tsv
-	sentence-stat $(basename $<).tsv $^ $@
+.PRECIOUS:	$(CLEF_TARGET_PATH)/en-decider-train-dataset-$(NED_JSON_PARAMS).pkl
+$(CLEF_TARGET_PATH)/en-decider-train-dataset-$(NED_JSON_PARAMS).pkl: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-dev-en-$(NED_JSON_PARAMS).json $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-dev-en-$(NED_PARAMS).tsv
+	sentence-stat --processes=$(PROCESSES) $(basename $<).tsv $^ $@
 
-CLEF2020-decider-train-data: $(CLEF_TARGET_PATH)/de-decider-train-dataset.pkl $(CLEF_TARGET_PATH)/fr-decider-train-dataset.pkl $(CLEF_TARGET_PATH)/en-decider-train-dataset.pkl
+CLEF2020-%-decider-train-data: $(CLEF_TARGET_PATH) $(CLEF_TARGET_PATH)/%-decider-train-dataset-$(NED_JSON_PARAMS).pkl ;
 
-CLEF2020-%-decider-train-data: $(CLEF_TARGET_PATH)/%-decider-train-dataset.pkl ;
+CLEF2020-decider-train-data: CLEF2020-de-decider-train-data CLEF2020-fr-decider-train-data CLEF2020-fr-decider-train-data
+
 
 
 $(CLEF_TARGET_PATH)/de-decider-dev-dataset.pkl: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-dev-de.tsv $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-dev-de.json $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-dev-de.tsv
-	sentence-stat $^ $@
+	sentence-stat --processes=$(PROCESSES) $^ $@
 
 CLEF2020-decider-dev-data: $(CLEF_TARGET_PATH)/de-decider-dev-dataset.pkl
 
 # =====================================
 # train decider ...
 
-$(CLEF_TARGET_PATH)/%-decider.pkl:	$(CLEF_TARGET_PATH)/%-decider-train-dataset.pkl
+.PRECIOUS:	$(CLEF_TARGET_PATH)/%-decider-$(NED_JSON_PARAMS).pkl
+$(CLEF_TARGET_PATH)/%-decider-$(NED_JSON_PARAMS).pkl:	$(CLEF_TARGET_PATH)/%-decider-train-dataset-$(NED_JSON_PARAMS).pkl
 	train-decider $^ $@
 
-CLEF2020-decider: $(CLEF_TARGET_PATH) $(CLEF_TARGET_PATH)/de-decider.pkl $(CLEF_TARGET_PATH)/fr-decider.pkl $(CLEF_TARGET_PATH)/en-decider.pkl
+CLEF2020-%-decider: $(CLEF_TARGET_PATH)/%-decider-$(NED_JSON_PARAMS).pkl ;
+
+CLEF2020-decider: CLEF2020-de-decider CLEF2020-fr-decider CLEF2020-en-decider
 
 # =====================================
 

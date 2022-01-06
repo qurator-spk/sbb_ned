@@ -24,6 +24,7 @@ class Embeddings:
 def get_embedding_vectors(embeddings, surface, split_parts):
 
     parts = []
+
     if type(surface) == str:
 
         if split_parts:
@@ -32,6 +33,8 @@ def get_embedding_vectors(embeddings, surface, split_parts):
             parts = [surface]
 
     elif type(surface) == list:
+
+        # "¬"
 
         if split_parts:
             parts = [p for s in surface for p in re.split(r'[ \-_]', s)]

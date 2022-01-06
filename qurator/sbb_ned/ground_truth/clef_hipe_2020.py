@@ -297,7 +297,8 @@ def sentence_stat(tsv_file, json_file, clef_gs_file, data_set_file, min_pairs, m
 
     ned_result = add_ground_truth(ned_result, tsv, tsv_gs)
 
-    results_with_gt = sum(['gt' in entity_result for _, entity_result in ned_result.items()])
+    applicable_results = sum(['gt' in entity_result and 'decision' in entity_result
+                              for _, entity_result in ned_result.items()])
 
     rank_intervalls = np.linspace(0.001, 0.1, 100)
     quantiles = np.linspace(0.1, 1, 10)
@@ -311,9 +312,12 @@ def sentence_stat(tsv_file, json_file, clef_gs_file, data_set_file, min_pairs, m
             if 'gt' not in entity_result:
                 continue
 
+            if 'decision' not in entity_result:
+                continue
+
             yield SentenceStatTask(entity_result, quantiles, rank_intervalls, min_pairs, max_pairs)
 
-    progress = tqdm(prun(get_tasks(), processes=processes), total=results_with_gt)
+    progress = tqdm(prun(get_tasks(), processes=processes), total=applicable_results)
 
     data = list()
     data_len = 0
