@@ -31,8 +31,13 @@ setup(
         "evaluate-index=qurator.sbb_ned.cli:evaluate",
         "evaluate-with-context=qurator.sbb_ned.cli:evaluate_with_context",
         "evaluate-combined=qurator.sbb_ned.cli:evaluate_combined",
-        "clef2tsv=qurator.sbb_ned.ground_truth.clef_hipe_2020:cli_clef2tsv",
-        "tsv2clef=qurator.sbb_ned.ground_truth.clef_hipe_2020:cli_tsv2clef",
+
+        "clef2tsv-2020=qurator.sbb_ned.ground_truth.clef_hipe_2020:cli_clef2tsv",
+        "tsv2clef-2020=qurator.sbb_ned.ground_truth.clef_hipe_2020:cli_tsv2clef",
+
+        "clef2tsv-2022=qurator.sbb_ned.ground_truth.clef_hipe_2022:cli_clef2tsv",
+        "tsv2clef-2022=qurator.sbb_ned.ground_truth.clef_hipe_2022:cli_tsv2clef",
+
         "compute-knb-coverage=qurator.sbb_ned.ground_truth.clef_hipe_2020:compute_knb_coverage",
         "sentence-stat=qurator.sbb_ned.ground_truth.clef_hipe_2020:sentence_stat",
         "train-decider=qurator.sbb_ned.models.decider:train",

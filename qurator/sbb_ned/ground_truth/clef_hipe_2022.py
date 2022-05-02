@@ -12,103 +12,94 @@ import glob
 from qurator.utils.parallel import run as prun
 from ..models.decider import features
 
-from somajo import Tokenizer, SentenceSplitter
-import sqlite3
-
 logger = logging.getLogger(__name__)
 
 
 def read_clef(clef_file):
-
     with open(clef_file, 'r') as f:
 
-        sentence_splitter = SentenceSplitter()
-
-        docs = []
         segments = []
-        text_part = []
+        tsv_part = []
         header = None
-        urls = []
+        contexts = []
 
         def make_segement():
 
-            nonlocal docs, segments, text_part
+            nonlocal segments, tsv_part
 
-            if len(text_part) == 0:
+            if len(tsv_part) == 0:
                 return
 
-            tmp = None
+            segment = None
             # noinspection PyBroadException
             try:
-                tmp = pd.read_csv(StringIO(header + "".join(text_part)), sep='\t', comment='#', quoting=3)
-            except:
+                segment = pd.read_csv(StringIO(header + "".join(tsv_part)), sep='\t', comment='#', quoting=3)
+            except Exception as e:
+                print(e)
                 import ipdb
                 ipdb.set_trace()
 
-            tmp = tmp.reset_index().rename(columns={'index': 'TOKEN_ID'})
+            segment = segment.reset_index().rename(columns={'index': 'TOKEN_ID'})
 
-            tmp['url_id'] = len(docs)
-            tmp['segment_id'] = len(segments)
+            segment['url_id'] = len(segments)
 
-            segments.append(tmp)
+            tsv_part = []
 
-            text_part = []
+            token_id = []
+            counter = 0
+            for misc in segment.MISC.astype(str).to_list():
 
-        def make_doc():
+                token_id.append(counter)
 
-            nonlocal docs, segments, sentence_splitter
+                if re.match(r'.*EndOfSentence.*', misc):
+                    counter = 0
+                else:
+                    counter += 1
 
-            doc = pd.concat(segments)
+            segment['TOKEN_ID'] = token_id
 
-            sentences = sentence_splitter.split(doc.TOKEN.astype(str).to_list())
-            doc['TOKEN_ID'] = [i for s in sentences for i in range(len(s))]
-            
-            docs.append(doc)
-            segments = []
+            segments.append(segment)
+
+        context = dict()
 
         for line in tqdm(f):
 
             if header is None:
                 header = "\t".join(line.split()) + '\n'
-                import ipdb;ipdb.set_trace()
                 continue
 
-            if not line.startswith('#'):
-                text_part.append(line)
+            m = re.match(r'#\s+(.*)\s+=\s+(.*)', line)
 
-            if re.match(r'#\s+segment_iiif_link\s+=.*', line):
+            if m:
+                if len(tsv_part) > 0:
+                    make_segement()
+                    contexts.append(context)
 
-                make_segement()
+                    context = dict()
 
-            if re.match(r'#\s+document_id\s+=.*', line):
-
-                make_segement()
-
-                urls.append(line)
-                if len(segments) > 0:
-                    make_doc()
+                context[m.group(1)] = m.group(2)
+            else:
+                tsv_part.append(line)
 
         make_segement()
-        make_doc()
+        contexts.append(context)
 
-        return urls, pd.concat(docs).reset_index(drop=True)
+        return contexts, pd.concat(segments).reset_index(drop=True)
 
 
 @click.command()
 @click.argument('clef-file', type=click.Path(exists=True), required=True, nargs=1)
 @click.argument('tsv-file', type=click.Path(), required=True, nargs=1)
 def cli_clef2tsv(clef_file, tsv_file):
-
     clef2tsv(clef_file, tsv_file)
 
 
 def clef2tsv(clef_file, tsv_file):
-
     out_columns = ['No.', 'TOKEN', 'NE-TAG', 'NE-EMB', 'ID', 'url_id', 'left', 'right', 'top', 'bottom']
 
     entity_types = ['PER', 'LOC', 'ORG', 'O']
 
-    urls, df = read_clef(clef_file)
+    contexts, df = read_clef(clef_file)
 
     df['NE-COARSE-LIT'] = df['NE-COARSE-LIT'].str[0:5].str.upper()
 
@@ -135,10 +126,9 @@ def clef2tsv(clef_file, tsv_file):
 
     pd.DataFrame([], columns=out_columns).to_csv(tsv_file, sep="\t", quoting=3, index=False)
 
-    for (_, part), url in zip(df.groupby('url_id', sort=False, as_index=False), urls):
-
+    for (_, part), context in zip(df.groupby('url_id', sort=False, as_index=False), contexts):
         with open(tsv_file, 'a') as f:
-            f.write(url)
+            f.write('#__CONTEXT__:{}\n'.format(json.dumps(context)))
 
         part.to_csv(tsv_file, sep="\t", quoting=3, index=False, mode="a", header=False)
 
@@ -152,14 +142,13 @@ def cli_tsv2clef(tsv_file, clef_gs_file, out_clef_file):
 
 
 def tsv2clef(tsv_file, clef_gs_file, out_clef_file):
-
     out_columns = ['TOKEN', 'NE-COARSE-LIT', 'NE-COARSE-METO', 'NE-FINE-LIT', 'NE-FINE-METO', 'NE-FINE-COMP',
                    'NE-NESTED', 'NEL-LIT', 'NEL-METO', 'MISC']
 
     tsv = pd.read_csv(tsv_file, sep='\t', comment='#', quoting=3)
     tsv.loc[tsv.TOKEN.isnull(), 'TOKEN'] = ""
 
-    urls, tsv_gs = read_clef(clef_gs_file)
+    contexts, tsv_gs = read_clef(clef_gs_file)
     tsv_gs['TOKEN'] = tsv_gs.TOKEN.astype(str)
 
     tsv_out = []
@@ -170,7 +159,7 @@ def tsv2clef(tsv_file, clef_gs_file, out_clef_file):
 
         nonlocal tsv_out, out_columns
 
-        tsv_out = pd.DataFrame(tsv_out).\
+        tsv_out = pd.DataFrame(tsv_out). \
             rename(columns={'NE-TAG': 'NE-COARSE-LIT', 'NE-EMB': 'NE-NESTED', 'ID': 'NEL-LIT'})
 
         tsv_out['NE-COARSE-LIT'] = tsv_out['NE-COARSE-LIT'].str.replace('-PER', '-pers')
@@ -245,7 +234,7 @@ def tsv2clef(tsv_file, clef_gs_file, out_clef_file):
             url_id = row_gs.url_id
 
             with open(out_clef_file, 'a') as fw:
-                fw.write(urls[row_gs.url_id])
+                fw.write(contexts[row_gs.url_id])
 
         if row_gs.segment_id != segment_id:
 
@@ -262,7 +251,6 @@ def tsv2clef(tsv_file, clef_gs_file, out_clef_file):
 class SentenceStatTask:
 
     def __init__(self, entity_result, quantiles, rank_intervalls, min_pairs, max_pairs):
-
         self._entity_result = entity_result
         self._quantiles = quantiles
         self._rank_intervalls = rank_intervalls
@@ -286,7 +274,6 @@ class SentenceStatTask:
 @click.option('--max-pairs', type=int, default=50, help='default: 50.')
 @click.option('--processes', type=int, default=8, help='default: 8.')
 def sentence_stat(tsv_file, json_file, clef_gs_file, data_set_file, min_pairs, max_pairs, processes):
-
     tsv = pd.read_csv(tsv_file, sep='\t', comment='#', quoting=3)
     tsv.loc[tsv.TOKEN.isnull(), 'TOKEN'] = ""
 
@@ -514,7 +501,6 @@ teams = {
 
 
 def read_HIPE_results():
-
     files = [f for f in glob.glob('*.tsv')]
 
     results = pd.concat([pd.read_csv(f, sep='\t') for f in files])
@@ -532,7 +518,6 @@ def read_HIPE_results():
 
 
 def make_table_ner(results):
-
     sbb_results = results.loc[results.System.str.startswith('team33')]
 
     tmp = sbb_results.loc[(sbb_results.F1 > 0.1) & (sbb_results.Evaluation.str.startswith('NE-COARSE'))]
@@ -544,9 +529,9 @@ def make_table_ner(results):
 
     tmp = pd.concat([tmp, tmp2])
 
-    tmp =\
-        tmp.sort_values(['Lang', 'Evaluation', 'F1'], ascending=[True, True, False]).\
-        drop(columns=['F1_std', 'P_std', 'R_std'])
+    tmp = \
+        tmp.sort_values(['Lang', 'Evaluation', 'F1'], ascending=[True, True, False]). \
+            drop(columns=['F1_std', 'P_std', 'R_std'])
 
     print(tmp[['Lang', 'team', 'Evaluation', 'Label', 'P', 'R', 'F1']].to_latex(index=False))
 
@@ -563,12 +548,11 @@ def make_table_nel(results):
 
 
 def make_table_nel_only(results):
-
     tmp = results.loc[results.System.str.startswith('team33_bundle5') &
                       results.Evaluation.str.startswith('NEL-LIT-micro-fuzzy')].drop_duplicates()
 
-    tmp = tmp.\
-        sort_values(['System', 'Evaluation']).\
+    tmp = tmp. \
+        sort_values(['System', 'Evaluation']). \
         drop(columns=['TP', 'FN', 'FP', 'F1_std', 'P_std', 'R_std', 'Task', 'System'])
 
     print(tmp.to_latex(index=False))
@@ -577,7 +561,7 @@ def make_table_nel_only(results):
 def make_table_nel_comparison(results):
     lang = ['de', 'fr', 'en']
 
-    tmp =\
+    tmp = \
         pd.concat(
             [pd.concat(
                 [res.sort_values('P', ascending=False).iloc[[0]]
@@ -587,18 +571,17 @@ def make_table_nel_comparison(results):
                      results.Evaluation.str.startswith('NEL-LIT-micro-fuzzy-relaxed-@5')].drop_duplicates().
                      groupby('team')]
             ) for lng in lang]
-        ).\
-        drop(columns=['System', 'F1_std', 'P_std', 'R_std', 'TP', 'FP', 'FN', 'Task']).\
-        sort_values(['Lang', 'P'], ascending=[False, False])
+        ). \
+            drop(columns=['System', 'F1_std', 'P_std', 'R_std', 'TP', 'FP', 'FN', 'Task']). \
+            sort_values(['Lang', 'P'], ascending=[False, False])
 
     print(tmp.to_latex(index=False))
 
 
 def make_table_nel_only_comparison(results):
-
     lang = ['de', 'fr', 'en']
 
-    tmp =\
+    tmp = \
         pd.concat(
             [pd.concat(
                 [res.sort_values('P', ascending=False).iloc[[0]]
@@ -607,9 +590,9 @@ def make_table_nel_only_comparison(results):
                      results.Evaluation.str.startswith('NEL-LIT-micro-fuzzy-relaxed-@5')].drop_duplicates().
                      groupby('team')]
             ) for lng in lang]
-        ).\
-        drop(columns=['System', 'F1_std', 'P_std', 'R_std', 'TP', 'FP', 'FN', 'Task']).\
-        sort_values(['Lang', 'P'], ascending=[False, False])
+        ). \
+            drop(columns=['System', 'F1_std', 'P_std', 'R_std', 'TP', 'FP', 'FN', 'Task']). \
+            sort_values(['Lang', 'P'], ascending=[False, False])
 
     print(tmp.to_latex(index=False))
 
@@ -618,13 +601,13 @@ def make_table_nel_only_comparison(results):
 @click.argument('entities-file', type=click.Path(exists=True), required=True, nargs=1)
 @click.argument('gt-file', type=click.Path(exists=True), required=True, nargs=1)
 def compute_knb_coverage(entities_file, gt_file):
-
     knb = pd.read_pickle(entities_file)
 
     test_data = pd.read_csv(gt_file, sep='\t', comment='#')
 
-    entities_in_test_data =\
-        test_data.loc[(test_data['NEL-LIT'].str.len() > 1) & (test_data['NEL-LIT'] != 'NIL')][['NEL-LIT']].drop_duplicates().reset_index(drop=True)
+    entities_in_test_data = \
+        test_data.loc[(test_data['NEL-LIT'].str.len() > 1) & (test_data['NEL-LIT'] != 'NIL')][
+            ['NEL-LIT']].drop_duplicates().reset_index(drop=True)
 
     with_representation = entities_in_test_data.merge(knb, left_on='NEL-LIT', right_on='QID')
 
@@ -632,7 +615,6 @@ def compute_knb_coverage(entities_file, gt_file):
 
 
 def compute_nil_fraction(gt_file):
-
     vc = pd.read_csv(gt_file, sep='\t', comment='#')['NEL-LIT'].value_counts()
 
     print(vc['NIL'] / (vc.sum() - vc['NIL'] - vc['_']))

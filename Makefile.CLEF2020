@@ -40,23 +40,23 @@ $(CLEF_TARGET_PATH):
 
 .PRECIOUS: $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-dev-%.tsv
 $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-dev-%.tsv:
-	clef2tsv $(CLEF_PATH)/data/training-v1.2/$*/HIPE-data-v1.2-dev-$*.tsv $@
+	clef2tsv-2020 $(CLEF_PATH)/data/training-v1.2/$*/HIPE-data-v1.2-dev-$*.tsv $@
 
 .PRECIOUS: $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-train-%.tsv
 $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-train-%.tsv:
-	clef2tsv $(CLEF_PATH)/data/training-v1.2/$*/HIPE-data-v1.2-train-$*.tsv $@
+	clef2tsv-2020 $(CLEF_PATH)/data/training-v1.2/$*/HIPE-data-v1.2-train-$*.tsv $@
 
 .PRECIOUS: $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-test-masked-%.tsv
 $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-test-masked-%.tsv:
-	clef2tsv $(CLEF_PATH)/data/test-masked-v1.2/$*/HIPE-data-v1.2-test-masked-$*.tsv $@
+	clef2tsv-2020 $(CLEF_PATH)/data/test-masked-v1.2/$*/HIPE-data-v1.2-test-masked-$*.tsv $@
 
 .PRECIOUS: $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.3-test-masked-bundle5-%.tsv
 $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.3-test-masked-bundle5-%.tsv:
-	clef2tsv $(CLEF_PATH)/data/test-masked-v1.3/$*/HIPE-data-v1.3-test-masked-bundle5-$*.tsv $@
+	clef2tsv-2020 $(CLEF_PATH)/data/test-masked-v1.3/$*/HIPE-data-v1.3-test-masked-bundle5-$*.tsv $@
 
 .PRECIOUS: $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.3-test-%.tsv
 $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.3-test-%.tsv:
-	clef2tsv $(CLEF_PATH)/data/test-v1.3/$*/HIPE-data-v1.3-test-$*.tsv $@
+	clef2tsv-2020 $(CLEF_PATH)/data/test-v1.3/$*/HIPE-data-v1.3-test-$*.tsv $@
 
 CLEF2020-%-tsv: $(CLEF_TARGET_PATH) $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.3-test-%.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-dev-%.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-train-%.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-test-masked-%.tsv $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.3-test-masked-bundle5-%.tsv ;
 
@@ -104,19 +104,19 @@ CLEF2020-%-test-masked-bundle5-json: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.3
 
 .PRECIOUS:	$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-train-%-$(NED_PARAMS).tsv
 $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-train-%-$(NED_PARAMS).tsv:	$(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-train-%-$(NED_PARAMS).tsv
-	tsv2clef $^ $(CLEF_PATH)/data/training-v1.2/$*/HIPE-data-v1.2-train-$*.tsv $@
+	tsv-clef2020 $^ $(CLEF_PATH)/data/training-v1.2/$*/HIPE-data-v1.2-train-$*.tsv $@
 
 .PRECIOUS:	$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-dev-%-$(NED_PARAMS).tsv
 $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-dev-%-$(NED_PARAMS).tsv: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-dev-%-$(NED_PARAMS).tsv
-	tsv2clef $^ $(CLEF_PATH)/data/training-v1.2/$*/HIPE-data-v1.2-dev-$*.tsv $@
+	tsv-clef2020 $^ $(CLEF_PATH)/data/training-v1.2/$*/HIPE-data-v1.2-dev-$*.tsv $@
 
 .PRECIOUS:	$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-test-masked-%-$(NED_PARAMS).tsv
 $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.2-test-masked-%-$(NED_PARAMS).tsv: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-test-masked-%-$(NED_PARAMS).tsv
-	tsv2clef $^ $(CLEF_PATH)/data/test-masked-v1.2/$*/HIPE-data-v1.2-test-masked-$*-$(NED_PARAMS).tsv $@
+	tsv-clef2020 $^ $(CLEF_PATH)/data/test-masked-v1.2/$*/HIPE-data-v1.2-test-masked-$*-$(NED_PARAMS).tsv $@
 
 .PRECIOUS:	$(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.3-test-masked-bundle5-%-$(NED_PARAMS).tsv
 $(CLEF_TARGET_PATH)/CLEF-ned-result-HIPE-data-v1.3-test-masked-bundle5-%-$(NED_PARAMS).tsv: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.3-test-masked-bundle5-%-$(NED_PARAMS).tsv
-	tsv2clef $^ $(CLEF_PATH)/data/test-masked-v1.3/$*/HIPE-data-v1.3-test-masked-bundle5-$*.tsv $@
+	tsv-clef2020 $^ $(CLEF_PATH)/data/test-masked-v1.3/$*/HIPE-data-v1.3-test-masked-bundle5-$*.tsv $@
 
 # ===================================================
 
