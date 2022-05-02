@@ -1,0 +1,4 @@
+CLEF_DATA_PATH=/home/labusch/qurator/HIPE-2022-data/data/v2.1
+
+tsvs:
+	find $(CLEF_DATA_PATH) -name "*.tsv" | parallel 'clef2tsv-2022 {} `dirname {}`/neat-`basename {}`'
