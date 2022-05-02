@@ -30,11 +30,9 @@ def get_embedding_vectors(embeddings, surface, split_parts):
         if split_parts:
             parts = [p for p in re.split(r'[ \-_]', surface)]
         else:
-            parts = [surface]
+            parts = [re.sub(r'[¬]+', '', surface)]
 
     elif type(surface) == list:
-
-        # "¬"
 
         if split_parts:
             parts = [p for s in surface for p in re.split(r'[ \-_]', s)]
@@ -44,7 +42,7 @@ def get_embedding_vectors(embeddings, surface, split_parts):
         RuntimeError('Type of surface not supported.')
 
     if split_parts:
-        parts = [re.sub(r'[\W_]+', '', p) for p in parts]
+        parts = [re.sub(r'[\W_¬]+', '', p) for p in parts]
     
     parts = [p.lower() for p in parts if len(p) > 0]
 
