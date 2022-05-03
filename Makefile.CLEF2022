@@ -10,7 +10,7 @@ NED_JSON_PARAMS ?=md$(MAX_DIST)_mc$(MAX_CANDIDATES)_mf$(MAX_FREQUENCY)
 
 FIND_ENTITY_PARAMS ?=--ned-threshold=$(NED_THRESHOLD) --max-candidates=$(MAX_CANDIDATES) --max-dist=$(MAX_DIST) 
 
-NED_ENDPOINTS = '{"de": "https://localhost:5015/ned", "en": "https://localhost:5017/ned", "fr": "https://localhost:5017/ned"}'
+NED_ENDPOINTS = \''{"de": "http://localhost:5015", "en": "http://localhost:5017", "fr": "http://localhost:5017"}'\'
 
 %-tsvs:
 	find $(CLEF_DATA_PATH) -wholename "*/$*/*.tsv" | parallel 'clef2tsv-2022 {} `dirname {}`/neat-`basename {}`'
@@ -18,7 +18,12 @@ clean-%-tsvs:
 	find $(CLEF_DATA_PATH) -wholename "*/$*/neat-*.tsv" -exec rm -f {} \;
 
 %-dev-ned:
-	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/neat-*dev*.tsv"`;do echo find-entities $(FIND_ENTITY_PARAMS) --noproxy $$i --ned-json-file=`dirname $$i`/`basename -s .tsv $$i`-$(NED_JSON_PARAMS).json --ned-rest-endpoints=$(NED_ENDPOINTS) --lang $* --context-split ;done
+	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/neat-*dev*.tsv"`;do echo find-entities $(FIND_ENTITY_PARAMS) --noproxy --ned-json-file=`dirname $$i`/`basename -s .tsv $$i`-$(NED_JSON_PARAMS).json --ned-rest-endpoints=$(NED_ENDPOINTS) --lang $* --context-split  --not-after-context-field "hipe2022:date" $$i `dirname $$i`/ned-full-`basename -s .tsv $$i`-$(NED_PARAMS)-bundle5.tsv ;done
+
+%-train-ned:
+	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/neat-*train*.tsv"`;do echo find-entities $(FIND_ENTITY_PARAMS) --noproxy --ned-json-file=`dirname $$i`/`basename -s .tsv $$i`-$(NED_JSON_PARAMS).json --ned-rest-endpoints=$(NED_ENDPOINTS) --lang $* --context-split  --not-after-context-field "hipe2022:date" $$i `dirname $$i`/ned-full-`basename -s .tsv $$i`-$(NED_PARAMS)-bundle5.tsv ;done
+
+train-ned:	de-train-ned fr-train-ned en-train-ned
 
 clean:	clean-de-tsvs clean-fr-tsvs clean-en-tsvs
 
