@@ -1,4 +1,24 @@
-CLEF_DATA_PATH=/home/labusch/qurator/HIPE-2022-data/data/v2.1
+CLEF_DATA_PATH=/home/kai.labusch/qurator/HIPE-2022-data/data/v2.1
 
-tsvs:
-	find $(CLEF_DATA_PATH) -name "*.tsv" | parallel 'clef2tsv-2022 {} `dirname {}`/neat-`basename {}`'
+MAX_DIST ?= 0.05
+MAX_CANDIDATES ?= 25
+MAX_FREQUENCY ?= 1000
+NED_THRESHOLD ?= 0.2
+
+NED_PARAMS ?=md$(MAX_DIST)_mc$(MAX_CANDIDATES)_mf$(MAX_FREQUENCY)_nthr$(NED_THRESHOLD)
+NED_JSON_PARAMS ?=md$(MAX_DIST)_mc$(MAX_CANDIDATES)_mf$(MAX_FREQUENCY)
+
+FIND_ENTITY_PARAMS ?=--ned-threshold=$(NED_THRESHOLD) --max-candidates=$(MAX_CANDIDATES) --max-dist=$(MAX_DIST) 
+
+NED_ENDPOINTS = '{"de": "https://localhost:5015/ned", "en": "https://localhost:5017/ned", "fr": "https://localhost:5017/ned"}'
+
+%-tsvs:
+	find $(CLEF_DATA_PATH) -wholename "*/$*/*.tsv" | parallel 'clef2tsv-2022 {} `dirname {}`/neat-`basename {}`'
+clean-%-tsvs:
+	find $(CLEF_DATA_PATH) -wholename "*/$*/neat-*.tsv" -exec rm -f {} \;
+
+%-dev-ned:
+	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/neat-*dev*.tsv"`;do echo find-entities $(FIND_ENTITY_PARAMS) --noproxy $$i --ned-json-file=`dirname $$i`/`basename -s .tsv $$i`-$(NED_JSON_PARAMS).json --ned-rest-endpoints=$(NED_ENDPOINTS) --lang $* --context-split ;done
+
+clean:	clean-de-tsvs clean-fr-tsvs clean-en-tsvs
+
