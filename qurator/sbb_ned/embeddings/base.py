@@ -21,8 +21,32 @@ class Embeddings:
         raise NotImplementedError()
 
 
-def get_embedding_vectors(embeddings, surface, split_parts):
+def dehypener(parts):
+    cur = ''
+    concat = True
 
+    res = []
+
+    parts = [re.sub(r'[¬]+', '', p) for p in parts]
+
+    for i in range(len(parts)):
+        if len(parts[i]) == 0:
+            concat = True
+            continue
+
+        if not concat:
+            res.append(cur)
+            cur = ''
+
+        cur += parts[i]
+        concat = False
+
+    res.append(cur)
+
+    return res
+
+
+def surface_parts(surface, split_parts):
     parts = []
 
     if type(surface) == str:
@@ -30,7 +54,7 @@ def get_embedding_vectors(embeddings, surface, split_parts):
         if split_parts:
             parts = [p for p in re.split(r'[ \-_]', surface)]
         else:
-            parts = [re.sub(r'[¬]+', '', surface)]
+            parts = [surface]
 
     elif type(surface) == list:
 
@@ -42,9 +66,27 @@ def get_embedding_vectors(embeddings, surface, split_parts):
         RuntimeError('Type of surface not supported.')
 
     if split_parts:
-        parts = [re.sub(r'[\W_¬]+', '', p) for p in parts]
-    
+        parts = [re.sub(r'[\s_]+', '', p) for p in parts]
+
     parts = [p.lower() for p in parts if len(p) > 0]
+
+    return parts
+
+
+def filter_surface(surface, split_parts):
+
+    parts = surface_parts(surface, split_parts)
+
+    parts = dehypener(parts)
+
+    parts = [re.sub(r'[\W_]+', '', p) for p in parts]
+
+    return parts
+
+
+def get_embedding_vectors(embeddings, surface, split_parts):
+
+    parts = filter_surface(surface, split_parts)
 
     vectors = []
     vector_parts = []
