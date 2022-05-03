@@ -81,6 +81,8 @@ def filter_surface(surface, split_parts):
 
     parts = [re.sub(r'[\W_]+', '', p) for p in parts]
 
+    parts = [p for p in parts if len(p) > 0]
+
     return parts
 
 
