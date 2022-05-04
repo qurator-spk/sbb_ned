@@ -10,7 +10,11 @@ NED_JSON_PARAMS ?=md$(MAX_DIST)_mc$(MAX_CANDIDATES)_mf$(MAX_FREQUENCY)
 
 FIND_ENTITY_PARAMS ?=--ned-threshold=$(NED_THRESHOLD) --max-candidates=$(MAX_CANDIDATES) --max-dist=$(MAX_DIST) 
 
+<<<<<<< HEAD
 NED_ENDPOINTS?='{"de": "http://localhost:5015", "en": "http://localhost:5017", "fr": "http://localhost:5017"}'
+=======
+NED_ENDPOINTS = \''{"de": "http://localhost:5015", "en": "http://localhost:5017", "fr": "http://localhost:5017"}'\'
+>>>>>>> 6de028ace4f1710bf94eb96188f7501f66711e24
 
 %-tsvs:
 	find $(CLEF_DATA_PATH) -wholename "*/$*/*.tsv" | parallel 'clef2tsv-2022 {} `dirname {}`/neat-`basename {}`'
