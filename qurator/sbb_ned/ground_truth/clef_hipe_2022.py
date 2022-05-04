@@ -310,14 +310,17 @@ def sentence_stat(tsv_file, json_file, clef_gs_file, data_set_file, min_pairs, m
         assert (len(ned_result) == len(tsv_gs))
 
         data = []
-        for tsv_cur, tsv_gs_cur, context_cur, context_gs_cur, ned_result_cur in \
+        for (_, tsv_cur), (_, tsv_gs_cur), context_cur, context_gs_cur, ned_result_cur in \
                 zip(tsv, tsv_gs, contexts, contexts_gs, ned_result):
 
             data_cur = _sentence_stat(ned_result_cur, tsv_cur, tsv_gs_cur, min_pairs, max_pairs, processes)
 
+            if len(data_cur) < 1:
+                continue
+
             data.append(data_cur)
 
-        data = pd.concat(data)
+        data = pd.concat(data).reset_index(drop=True)
 
     data.to_pickle(data_set_file)
 
@@ -359,6 +362,9 @@ def _sentence_stat(ned_result, tsv, tsv_gs, min_pairs, max_pairs, processes):
 
         progress.set_description("#data: {}".format(data_len))
         progress.refresh()
+
+    if len(data) < 1:
+        return pd.DataFrame()
 
     data = pd.concat(data)
 

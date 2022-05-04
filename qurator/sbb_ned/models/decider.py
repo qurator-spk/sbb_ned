@@ -85,7 +85,7 @@ def features(dec, cand, quantiles, rank_intervalls, min_pairs=np.inf, max_pairs=
         stat_funcs = ['min', 'max', 'mean', 'std', 'median']
 
     data = list()
-    cand = cand.copy()
+    cand = cand.copy().drop(columns=['surface'])
 
     # normalize rank, i.e, rank is afterwards in between [0,1]
     cand['rank'] = [r / (len(cand) - 1 if len(cand) > 1 else 1) for r in range(0, len(cand))]
