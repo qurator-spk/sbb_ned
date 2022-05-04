@@ -10,6 +10,7 @@ import logging
 import glob
 # from CLEF2020.clef_evaluation import get_results
 from qurator.utils.parallel import run as prun
+from qurator.utils.tsv import read_tsv
 from ..models.decider import features
 
 logger = logging.getLogger(__name__)
@@ -273,16 +274,55 @@ class SentenceStatTask:
 @click.option('--min-pairs', type=int, default=10, help='default: 10.')
 @click.option('--max-pairs', type=int, default=50, help='default: 50.')
 @click.option('--processes', type=int, default=8, help='default: 8.')
-def sentence_stat(tsv_file, json_file, clef_gs_file, data_set_file, min_pairs, max_pairs, processes):
-    tsv = pd.read_csv(tsv_file, sep='\t', comment='#', quoting=3)
-    tsv.loc[tsv.TOKEN.isnull(), 'TOKEN'] = ""
+@click.option('--context-split', type=bool, is_flag=True, help="Perform extraction for different contexts.")
+def sentence_stat(tsv_file, json_file, clef_gs_file, data_set_file, min_pairs, max_pairs, processes, context_split):
 
-    tsv_gs = pd.read_csv(clef_gs_file, sep='\t', comment='#', quoting=3)
-    tsv_gs.loc[tsv_gs.TOKEN.isnull(), 'TOKEN'] = ""
+    if not context_split:
+        tsv = pd.read_csv(tsv_file, sep='\t', comment='#', quoting=3)
+        tsv.loc[tsv.TOKEN.isnull(), 'TOKEN'] = ""
 
-    with open(json_file, 'r') as fp_json:
-        ned_result = json.load(fp_json)
+        tsv_gs = pd.read_csv(clef_gs_file, sep='\t', comment='#', quoting=3)
+        tsv_gs.loc[tsv_gs.TOKEN.isnull(), 'TOKEN'] = ""
 
+        with open(json_file, 'r') as fp_json:
+            ned_result = json.load(fp_json)
+
+        data = _sentence_stat(ned_result, tsv, tsv_gs, min_pairs, max_pairs, processes)
+
+    else:
+        tsv, urls, contexts = read_tsv(tsv_file)
+
+        tsv = [(url_id, part) for url_id, part in tsv.groupby("url_id", as_index=False)]
+
+        tsv_gs, urls_gs, contexts_gs = read_tsv(clef_gs_file)
+
+        tsv_gs = [(url_id, part) for url_id, part in tsv_gs.groupby("url_id", as_index=False)]
+
+        assert(len(tsv) == len(tsv_gs))
+
+        assert(len(tsv) == len(contexts))
+        assert (len(tsv_gs) == len(contexts_gs))
+
+        with open(json_file, 'r') as fp_json:
+            ned_result = json.load(fp_json)
+
+        assert(len(ned_result) == len(tsv))
+        assert (len(ned_result) == len(tsv_gs))
+
+        data = []
+        for tsv_cur, tsv_gs_cur, context_cur, context_gs_cur, ned_result_cur in \
+                zip(tsv, tsv_gs, contexts, contexts_gs, ned_result):
+
+            data_cur = _sentence_stat(ned_result_cur, tsv_cur, tsv_gs_cur, min_pairs, max_pairs, processes)
+
+            data.append(data_cur)
+
+        data = pd.concat(data)
+
+    data.to_pickle(data_set_file)
+
+
+def _sentence_stat(ned_result, tsv, tsv_gs, min_pairs, max_pairs, processes):
     ned_result = add_ground_truth(ned_result, tsv, tsv_gs)
 
     applicable_results = sum(['gt' in entity_result and 'decision' in entity_result
@@ -322,7 +362,7 @@ def sentence_stat(tsv_file, json_file, clef_gs_file, data_set_file, min_pairs, m
 
     data = pd.concat(data)
 
-    data.to_pickle(data_set_file)
+    return data
 
 
 def add_ground_truth(ned_result, tsv, tsv_gs):
