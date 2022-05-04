@@ -177,11 +177,11 @@ CLEF2020-bundle5:	$(CLEF_TARGET_PATH) $(CLEF_TARGET_PATH)/SBB_bundle5_de_$(RUNNU
 
 .PRECIOUS:	$(CLEF_TARGET_PATH)/%-decider-train-dataset-$(NED_JSON_PARAMS).pkl
 $(CLEF_TARGET_PATH)/%-decider-train-dataset-$(NED_JSON_PARAMS).pkl:  $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-train-%-$(NED_JSON_PARAMS).json $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-train-%.tsv
-	sentence-stat --processes=$(PROCESSES) $(basename $<).tsv $^ $@
+	sentence-stat-2020 --processes=$(PROCESSES) $(basename $<).tsv $^ $@
 
 .PRECIOUS:	$(CLEF_TARGET_PATH)/en-decider-train-dataset-$(NED_JSON_PARAMS).pkl
 $(CLEF_TARGET_PATH)/en-decider-train-dataset-$(NED_JSON_PARAMS).pkl: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-dev-en-$(NED_JSON_PARAMS).json $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-dev-en-$(NED_PARAMS).tsv
-	sentence-stat --processes=$(PROCESSES) $(basename $<).tsv $^ $@
+	sentence-stat-2020 --processes=$(PROCESSES) $(basename $<).tsv $^ $@
 
 CLEF2020-%-decider-train-data: $(CLEF_TARGET_PATH) $(CLEF_TARGET_PATH)/%-decider-train-dataset-$(NED_JSON_PARAMS).pkl ;
 
@@ -190,7 +190,7 @@ CLEF2020-decider-train-data: CLEF2020-de-decider-train-data CLEF2020-fr-decider-
 
 
 $(CLEF_TARGET_PATH)/de-decider-dev-dataset.pkl: $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-dev-de.tsv $(CLEF_TARGET_PATH)/ned-full-data-HIPE-v1.2-dev-de.json $(CLEF_TARGET_PATH)/neat-HIPE-data-v1.2-dev-de.tsv
-	sentence-stat --processes=$(PROCESSES) $^ $@
+	sentence-stat-2020 --processes=$(PROCESSES) $^ $@
 
 CLEF2020-decider-dev-data: $(CLEF_TARGET_PATH)/de-decider-dev-dataset.pkl
 
