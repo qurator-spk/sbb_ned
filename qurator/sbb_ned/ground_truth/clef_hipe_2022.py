@@ -125,7 +125,7 @@ def clef2tsv(clef_file, tsv_file):
 
     df = df[out_columns]
 
-    pd.DataFrame([], columns=out_columns).to_csv(tsv_file, sep="\t", quoting=3, index=False)
+    pd.DataFrame([], columns=df.columns).to_csv(tsv_file, sep="\t", quoting=3, index=False)
 
     for (_, part), context in zip(df.groupby('url_id', sort=False, as_index=False), contexts):
         with open(tsv_file, 'a') as f:
