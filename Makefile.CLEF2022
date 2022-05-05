@@ -10,7 +10,7 @@ NED_JSON_PARAMS ?=md$(MAX_DIST)_mc$(MAX_CANDIDATES)_mf$(MAX_FREQUENCY)
 
 FIND_ENTITY_PARAMS ?=--ned-threshold=$(NED_THRESHOLD) --max-candidates=$(MAX_CANDIDATES) --max-dist=$(MAX_DIST) 
 
-NED_ENDPOINTS?='{"de": "http://localhost:5015", "en": "http://localhost:5017", "fr": "http://localhost:5017"}'
+NED_ENDPOINTS?='{"de": "http://localhost:5015", "fr": "http://localhost:5016", "en": "http://localhost:5017"}'
 
 %-tsvs:
 	find $(CLEF_DATA_PATH) -wholename "*/$*/*.tsv" | parallel 'clef2tsv-2022 {} `dirname {}`/neat-`basename {}`'
@@ -30,5 +30,20 @@ clean-%-tsvs:
 	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/neat-*train*.tsv"`;do sentence-stat-2022 --context-split `dirname $$i`/ned-full-`basename -s .tsv $$i`-$(NED_PARAMS)-bundle5.tsv $$i `dirname $$i`/train-data-`basename -s .tsv $$i`-$(NED_PARAMS).pkl; done
 
 train-ned:	de-train-ned fr-train-ned en-train-ned
+
+de-service:
+	env CONFIG=de-config-HIPE2022.json env FLASK_APP=qurator/sbb_ned/webapp/app.py env FLASK_ENV=development env USE_CUDA=True flask run --host=0.0.0.0 --port=5015
+fr-service:
+	env CONFIG=fr-config-HIPE2022.json env FLASK_APP=qurator/sbb_ned/webapp/app.py env FLASK_ENV=development env USE_CUDA=True flask run --host=0.0.0.0 --port=5016
+en-service:
+	env CONFIG=en-config-HIPE2022.json env FLASK_APP=qurator/sbb_ned/webapp/app.py env FLASK_ENV=development env USE_CUDA=True flask run --host=0.0.0.0 --port=5017
+
+de-service-no-decider:
+	env CONFIG=de-config-no-decider.json env FLASK_APP=qurator/sbb_ned/webapp/app.py env FLASK_ENV=development env USE_CUDA=True flask run --host=0.0.0.0 --port=5015
+fr-service-no-decider:
+	env CONFIG=fr-config-no-decider.json env FLASK_APP=qurator/sbb_ned/webapp/app.py env FLASK_ENV=development env USE_CUDA=True flask run --host=0.0.0.0 --port=5016
+en-service-no-decider:
+	env CONFIG=en-config-no-decider.json env FLASK_APP=qurator/sbb_ned/webapp/app.py env FLASK_ENV=development env USE_CUDA=True flask run --host=0.0.0.0 --port=5017
+
 
 clean:	clean-de-tsvs clean-fr-tsvs clean-en-tsvs
