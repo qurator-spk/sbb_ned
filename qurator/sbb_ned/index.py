@@ -126,7 +126,7 @@ class LookUpByEmbeddings:
                 ranking = ranking.drop(columns=['dateofbirth', 'inception'])
 
             except Exception as e:
-                print("Could not evaluate not_after context: ", e)
+                print("Could not evaluate not_after context: {}".format(not_after), e)
 
         ranking = ranking.reset_index(drop=True)
 
