@@ -18,14 +18,23 @@ NED_ENDPOINTS?='{"de": "http://localhost:5015", "fr": "http://localhost:5016", "
 clean-%-tsvs:
 	find $(CLEF_DATA_PATH) -wholename "*/$*/neat-*.tsv" -exec rm -f {} \;
 
+tsvs:	de-tsvs fr-tsvs en-tsvs
+
 %-dev-ned:
 	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/neat-*dev*.tsv"`;do find-entities $(FIND_ENTITY_PARAMS) --noproxy --ned-json-file=`dirname $$i`/`basename -s .tsv $$i`-$(NED_JSON_PARAMS).json --ned-rest-endpoints=$(NED_ENDPOINTS) --lang $* --context-split  --not-after-context-field "hipe2022:date" $$i `dirname $$i`/ned-full-`basename -s .tsv $$i`-$(NED_PARAMS)-bundle5.tsv ;done
 
 %-train-ned:
 	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/neat-*train*.tsv"`;do find-entities $(FIND_ENTITY_PARAMS) --noproxy --ned-json-file=`dirname $$i`/`basename -s .tsv $$i`-$(NED_JSON_PARAMS).json --ned-rest-endpoints=$(NED_ENDPOINTS) --lang $* --context-split  --not-after-context-field "hipe2022:date" $$i `dirname $$i`/ned-full-`basename -s .tsv $$i`-$(NED_PARAMS)-bundle5.tsv ;done
 
-%-test-ELmasked-ned:
+%-test-masked-ned:
 	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/neat-*test_ELmasked*.tsv"`;do find-entities $(FIND_ENTITY_PARAMS) --noproxy --ned-json-file=`dirname $$i`/`basename -s .tsv $$i`-$(NED_JSON_PARAMS).json --ned-rest-endpoints=$(NED_ENDPOINTS) --lang $* --context-split  --not-after-context-field "hipe2022:date" $$i `dirname $$i`/ned-full-`basename -s .tsv $$i`-$(NED_PARAMS)-bundle5.tsv ;done
+
+dev-ned:	de-dev-ned fr-dev-ned en-dev-ned
+
+train-ned:	de-train-ned fr-train-ned en-train-ned
+
+test-masked-ned:	de-test-masked-ned fr-test-masked-ned en-test-masked-ned
+
 
 %-train-stat:
 	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/neat-*train*.tsv"`;do sentence-stat-2022 --context-split `dirname $$i`/ned-full-`basename -s .tsv $$i`-$(NED_PARAMS)-bundle5.tsv $$i `dirname $$i`/train-data-`basename -s .tsv $$i`-$(NED_PARAMS).pkl; done
@@ -34,11 +43,14 @@ clean-%-tsvs:
 	mkdir -p $(RESULT_PATH)
 	df-concatenate --reset-index `find $(CLEF_DATA_PATH) -printf "%p " -wholename "*/$*/train-data*-$(NED_PARAMS).pkl"` $(RESULT_DIR)/$*-train-$(NED_PARAMS).pkl
 
-train-ned:	de-train-ned fr-train-ned en-train-ned
+%-decider:
+	train-decider $(RESULT_DIR)/$*-train-$(NED_PARAMS).pkl $(RESULT_DIR)/$*-decider-$(NED_PARAMS).pkl
 
 train-stat: de-train-stat fr-train-stat en-train-stat
 
 train-data: de-train-data fr-train-data en-train-data
+
+decider: de-decider fr-decider en-decider
 
 de-service:
 	env CONFIG=de-config-HIPE2022.json env FLASK_APP=qurator/sbb_ned/webapp/app.py env FLASK_ENV=development env USE_CUDA=True flask run --host=0.0.0.0 --port=5015
