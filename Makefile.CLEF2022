@@ -18,12 +18,17 @@ clean-%-tsvs:
 	find $(CLEF_DATA_PATH) -wholename "*/$*/neat-*.tsv" -exec rm -f {} \;
 
 %-dev-ned:
-	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/neat-*dev*.tsv"`;do echo find-entities $(FIND_ENTITY_PARAMS) --noproxy --ned-json-file=`dirname $$i`/`basename -s .tsv $$i`-$(NED_JSON_PARAMS).json --ned-rest-endpoints=$(NED_ENDPOINTS) --lang $* --context-split  --not-after-context-field "hipe2022:date" $$i `dirname $$i`/ned-full-`basename -s .tsv $$i`-$(NED_PARAMS)-bundle5.tsv ;done
+	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/neat-*dev*.tsv"`;do find-entities $(FIND_ENTITY_PARAMS) --noproxy --ned-json-file=`dirname $$i`/`basename -s .tsv $$i`-$(NED_JSON_PARAMS).json --ned-rest-endpoints=$(NED_ENDPOINTS) --lang $* --context-split  --not-after-context-field "hipe2022:date" $$i `dirname $$i`/ned-full-`basename -s .tsv $$i`-$(NED_PARAMS)-bundle5.tsv ;done
 
 %-train-ned:
 	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/neat-*train*.tsv"`;do find-entities $(FIND_ENTITY_PARAMS) --noproxy --ned-json-file=`dirname $$i`/`basename -s .tsv $$i`-$(NED_JSON_PARAMS).json --ned-rest-endpoints=$(NED_ENDPOINTS) --lang $* --context-split  --not-after-context-field "hipe2022:date" $$i `dirname $$i`/ned-full-`basename -s .tsv $$i`-$(NED_PARAMS)-bundle5.tsv ;done
 
+%-test-ELmasked-ned:
+	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/neat-*test_ELmasked*.tsv"`;do find-entities $(FIND_ENTITY_PARAMS) --noproxy --ned-json-file=`dirname $$i`/`basename -s .tsv $$i`-$(NED_JSON_PARAMS).json --ned-rest-endpoints=$(NED_ENDPOINTS) --lang $* --context-split  --not-after-context-field "hipe2022:date" $$i `dirname $$i`/ned-full-`basename -s .tsv $$i`-$(NED_PARAMS)-bundle5.tsv ;done
+
+%-train-stat:
+	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/neat-*train*.tsv"`; sentence-stat-2022 --context-split `dirname $$i`/ned-full-`basename -s .tsv $$i`-$(NED_PARAMS)-bundle5.tsv $$i `dirname $$i`/train-data-`basename -s .tsv $$i`-$(NED_PARAMS).pkl; done
+
 train-ned:	de-train-ned fr-train-ned en-train-ned
 
 clean:	clean-de-tsvs clean-fr-tsvs clean-en-tsvs
-
