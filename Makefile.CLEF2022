@@ -15,10 +15,14 @@ NED_ENDPOINTS?='{"de": "http://localhost:5015", "fr": "http://localhost:5016", "
 
 %-tsvs:
 	find $(CLEF_DATA_PATH) -wholename "*/$*/*.tsv" | parallel 'clef2tsv-2022 {} `dirname {}`/neat-`basename {}`'
+
+tsvs:	de-tsvs fr-tsvs en-tsvs
+
 clean-%-tsvs:
 	find $(CLEF_DATA_PATH) -wholename "*/$*/neat-*.tsv" -exec rm -f {} \;
 
-tsvs:	de-tsvs fr-tsvs en-tsvs
+clean-tsvs:	clean-de-tsvs clean-fr-tsvs clean-en-tsvs
+
 
 %-dev-ned:
 	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/neat-*dev*.tsv"`;do find-entities $(FIND_ENTITY_PARAMS) --noproxy --ned-json-file=`dirname $$i`/`basename -s .tsv $$i`-$(NED_JSON_PARAMS).json --ned-rest-endpoints=$(NED_ENDPOINTS) --lang $* --context-split  --not-after-context-field "hipe2022:date" $$i `dirname $$i`/ned-full-`basename -s .tsv $$i`-$(NED_PARAMS)-bundle5.tsv ;done
@@ -67,4 +71,4 @@ en-service-no-decider:
 	env CONFIG=en-config-no-decider.json env FLASK_APP=qurator/sbb_ned/webapp/app.py env FLASK_ENV=development env USE_CUDA=True flask run --host=0.0.0.0 --port=5017
 
 
-clean:	clean-de-tsvs clean-fr-tsvs clean-en-tsvs
+
