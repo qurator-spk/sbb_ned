@@ -1,4 +1,5 @@
 CLEF_DATA_PATH=/home/kai.labusch/qurator/HIPE-2022-data/data/v2.1
+RESULT_PATH=data/HIPE2022
 
 MAX_DIST ?= 0.05
 MAX_CANDIDATES ?= 25
@@ -29,7 +30,15 @@ clean-%-tsvs:
 %-train-stat:
 	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/neat-*train*.tsv"`;do sentence-stat-2022 --context-split `dirname $$i`/ned-full-`basename -s .tsv $$i`-$(NED_PARAMS)-bundle5.tsv $$i `dirname $$i`/train-data-`basename -s .tsv $$i`-$(NED_PARAMS).pkl; done
 
+%-train-data:
+	mkdir -p $(RESULT_PATH)
+	df-concatenate --reset-index `find $(CLEF_DATA_PATH) -printf "%p " -wholename "*/$*/train-data*-$(NED_PARAMS).pkl"` $(RESULT_DIR)/$*-train-$(NED_PARAMS).pkl
+
 train-ned:	de-train-ned fr-train-ned en-train-ned
+
+train-stat: de-train-stat fr-train-stat en-train-stat
+
+train-data: de-train-data fr-train-data en-train-data
 
 de-service:
 	env CONFIG=de-config-HIPE2022.json env FLASK_APP=qurator/sbb_ned/webapp/app.py env FLASK_ENV=development env USE_CUDA=True flask run --host=0.0.0.0 --port=5015
