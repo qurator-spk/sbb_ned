@@ -166,10 +166,20 @@ def features(dec, cand, quantiles, rank_intervalls, min_pairs=np.inf, max_pairs=
 @click.command()
 @click.argument('data-file', type=click.Path(exists=True), required=True, nargs=1)
 @click.argument('model-file', type=click.Path(exists=False), required=True, nargs=1)
-@click.option('--n-jobs', type=int, default=8, help='default: 8.')
-@click.option('--include-prefix', type=str, multiple=True, default=[])
-@click.option('--exclude-prefix', type=str, multiple=True, default=[])
+@click.option('--n-jobs', type=int, default=8, help='Number of processes. Default: 8.')
+@click.option('--include-prefix', type=str, multiple=True, default=[],
+              help="Include only data columns that have a prefix in this list.")
+@click.option('--exclude-prefix', type=str, multiple=True, default=[],
+              help="Exclude data columns that have a prefix in this list.")
 def train(data_file, model_file, n_jobs, include_prefix, exclude_prefix):
+    """
+    Train an EL-decider.
+
+    DATA_FILE: Training data that has been generated with sentence-stat.
+
+    MODEL_FILE: Store pickled model here.
+
+    """
 
     df = pd.read_pickle(data_file)
 
