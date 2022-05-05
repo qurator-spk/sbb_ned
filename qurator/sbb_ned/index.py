@@ -110,18 +110,23 @@ class LookUpByEmbeddings:
 
         if self._context is not None and "time" in self._context and 'not_after' in self._context['time']:
 
-            ranking = ranking.merge(LookUpByEmbeddings.entities[['dateofbirth', 'inception']],
-                                    left_on="guessed_title", right_index=True)
+            try:
 
-            ranking['dateofbirth'] = pd.to_datetime(ranking.dateofbirth, yearfirst=True, errors="coerce", utc=True)
-            ranking['inception'] = pd.to_datetime(ranking.inception, yearfirst=True, errors="coerce", utc=True)
+                not_after = pd.to_datetime(self._context['time']['not_after'], utc=True)
 
-            not_after = pd.to_datetime(self._context['time']['not_after'], utc=True)
+                ranking = ranking.merge(LookUpByEmbeddings.entities[['dateofbirth', 'inception']],
+                                        left_on="guessed_title", right_index=True)
 
-            ranking = ranking.loc[(ranking.inception.isnull() & ranking.dateofbirth.isnull()) |
-                                  (ranking.inception < not_after) | (ranking.dateofbirth < not_after)]
+                ranking['dateofbirth'] = pd.to_datetime(ranking.dateofbirth, yearfirst=True, errors="coerce", utc=True)
+                ranking['inception'] = pd.to_datetime(ranking.inception, yearfirst=True, errors="coerce", utc=True)
 
-            ranking = ranking.drop(columns=['dateofbirth', 'inception'])
+                ranking = ranking.loc[(ranking.inception.isnull() & ranking.dateofbirth.isnull()) |
+                                      (ranking.inception < not_after) | (ranking.dateofbirth < not_after)]
+
+                ranking = ranking.drop(columns=['dateofbirth', 'inception'])
+
+            except Exception as e:
+                print("Could not evaluate not_after context: ", e)
 
         ranking = ranking.reset_index(drop=True)
 
