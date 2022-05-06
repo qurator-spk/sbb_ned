@@ -83,6 +83,4 @@ fr-service-no-decider:
 en-service-no-decider:
 	env CONFIG=en-config-no-decider.json env FLASK_APP=qurator/sbb_ned/webapp/app.py env FLASK_ENV=development env USE_CUDA=True flask run --host=0.0.0.0 --port=5017
 
-
-
-%-all: %-dev-ned %-train-ned %-train-stat %-train-data %-decider ;
+%-train-all: %-train-ned %-train-stat %-train-data %-decider ;
