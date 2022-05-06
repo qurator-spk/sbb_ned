@@ -186,8 +186,8 @@ def tsv2clef(tsv_file, clef_gs_file, out_clef_file):
 
         tsv_out = tsv_out[out_columns]
 
-        with open(out_clef_file, 'a') as f:
-            f.write("# segment_iiif_link = _\n")
+        # with open(out_clef_file, 'a') as f:
+        #    f.write("# segment_iiif_link = _\n")
 
         tsv_out.to_csv(out_clef_file, sep="\t", index=False, mode='a', header=False)
 
@@ -243,7 +243,7 @@ def tsv2clef(tsv_file, clef_gs_file, out_clef_file):
 
                 for k, v in contexts_gs[row_gs.url_id].items():
 
-                    fw.write("# {} = {}".format(k, v))
+                    fw.write("# {} = {}\n".format(k, v))
 
             if len(tsv_out) > 0:
                 write_segment()
