@@ -85,4 +85,4 @@ en-service-no-decider:
 
 
 
-%-all: %-dev-ned %-train-ned %-train-stat %-train-data %-decider ;
+%-train-all: %-train-ned %-train-stat %-train-data %-decider ;
