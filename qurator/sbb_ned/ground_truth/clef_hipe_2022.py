@@ -238,7 +238,9 @@ def tsv2clef(tsv_file, clef_gs_file, out_clef_file):
 
             with open(out_clef_file, 'a') as fw:
 
-                fw.write("\n")
+                if url_id > 0:
+                    fw.write("\n")
+                    
                 for k, v in contexts_gs[row_gs.url_id].items():
 
                     fw.write("# {} = {}\n".format(k, v))
