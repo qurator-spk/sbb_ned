@@ -151,7 +151,8 @@ def tsv2clef(tsv_file, clef_gs_file, out_clef_file):
 
     tsv.loc[tsv.TOKEN.isnull(), 'TOKEN'] = ""
 
-    contexts_gs, tsv_gs = read_clef(clef_gs_file)
+    # contexts_gs, tsv_gs = read_clef(clef_gs_file)
+    tsv_gs,  urls_gs, contexts_gs = read_tsv(clef_gs_file)
     tsv_gs['TOKEN'] = tsv_gs.TOKEN.astype(str)
 
     assert(len(contexts) == len(contexts_gs))
