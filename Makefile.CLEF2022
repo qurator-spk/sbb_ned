@@ -15,12 +15,12 @@ NED_ENDPOINTS?='{"de": "http://localhost:5015", "fr": "http://localhost:5016", "
 
 RUNNUMBER?=1
 
-#define CREATE_SUBMISSION_NAME
+define CREATE_SUBMISSION_NAME
 import sys
 import re
 
 out_file = sys.argv[1]
-#endif
+endef
 export CREATE_SUBMISSION_NAME
 
 %-neat-tsvs:
