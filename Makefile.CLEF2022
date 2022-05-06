@@ -45,7 +45,7 @@ test-masked-ned:	de-test-masked-ned fr-test-masked-ned en-test-masked-ned
 
 %-train-data:
 	mkdir -p $(RESULT_PATH)
-	df-concatenate --reset-index `find $(CLEF_DATA_PATH) -printf "%p " -wholename "*/$*/train-data*-$(NED_PARAMS).pkl"` $(RESULT_DIR)/$*-train-$(NED_PARAMS).pkl
+	df-concatenate --reset-index `find $(CLEF_DATA_PATH) -printf "%p " -wholename "*/$*/train-data*-$(NED_PARAMS).pkl"` $(RESULT_DIR)/$*-train-$(NED_JSON_PARAMS).pkl
 
 %-decider:
 	train-decider $(RESULT_DIR)/$*-train-$(NED_PARAMS).pkl $(RESULT_DIR)/$*-decider-$(NED_PARAMS).pkl
