@@ -186,10 +186,8 @@ def tsv2clef(tsv_file, clef_gs_file, out_clef_file):
 
         tsv_out = tsv_out[out_columns]
 
-        # with open(out_clef_file, 'a') as f:
-        #    f.write("# segment_iiif_link = _\n")
-
-        tsv_out.to_csv(out_clef_file, sep="\t", index=False, mode='a', header=False)
+        tsv_out.iloc[:-1].to_csv(out_clef_file, sep="\t", index=False, mode='a', header=False)
+        tsv_out.iloc[-1:].to_csv(out_clef_file, sep="\t", index=False, mode='a', header=False, line_terminator="")
 
         tsv_out = []
 
