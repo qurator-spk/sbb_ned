@@ -146,7 +146,7 @@ def tsv2clef(tsv_file, clef_gs_file, out_clef_file):
     out_columns = ['TOKEN', 'NE-COARSE-LIT', 'NE-COARSE-METO', 'NE-FINE-LIT', 'NE-FINE-METO', 'NE-FINE-COMP',
                    'NE-NESTED', 'NEL-LIT', 'NEL-METO', 'MISC']
 
-    tsv, urls, contexts = read_tsv()
+    tsv, urls, contexts = read_tsv(tsv_file)
     # tsv = pd.read_csv(tsv_file, sep='\t', comment='#', quoting=3)
 
     tsv.loc[tsv.TOKEN.isnull(), 'TOKEN'] = ""
