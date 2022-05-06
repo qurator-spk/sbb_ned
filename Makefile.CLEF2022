@@ -41,7 +41,7 @@ test-masked-ned:	de-test-masked-ned fr-test-masked-ned en-test-masked-ned
 
 
 %-train-stat:
-	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/neat-*train*.tsv"`;do sentence-stat-2022 --context-split `dirname $$i`/ned-full-`basename -s .tsv $$i`-$(NED_PARAMS)-bundle5.tsv $$i `dirname $$i`/train-data-`basename -s .tsv $$i`-$(NED_PARAMS).pkl; done
+	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/neat-*train*.tsv"`;do sentence-stat-2022 --context-split `dirname $$i`/ned-full-`basename -s .tsv $$i`-$(NED_PARAMS)-bundle5.json $$i `dirname $$i`/train-data-`basename -s .tsv $$i`-$(NED_PARAMS).pkl; done
 
 %-train-data:
 	mkdir -p $(RESULT_PATH)
