@@ -422,7 +422,7 @@ def add_ground_truth(ned_result, tsv, tsv_gs):
 
             entity += " " if entity != "" else ""
 
-            entity += row['TOKEN']
+            entity += str(row['TOKEN'])
 
             if row_gs.ID != 'NIL' and row_gs.ID != '_':
                 ids.add(row_gs.ID)
