@@ -146,11 +146,15 @@ def tsv2clef(tsv_file, clef_gs_file, out_clef_file):
     out_columns = ['TOKEN', 'NE-COARSE-LIT', 'NE-COARSE-METO', 'NE-FINE-LIT', 'NE-FINE-METO', 'NE-FINE-COMP',
                    'NE-NESTED', 'NEL-LIT', 'NEL-METO', 'MISC']
 
-    tsv = pd.read_csv(tsv_file, sep='\t', comment='#', quoting=3)
+    contexts, tsv = read_clef(tsv_file)
+    # tsv = pd.read_csv(tsv_file, sep='\t', comment='#', quoting=3)
+
     tsv.loc[tsv.TOKEN.isnull(), 'TOKEN'] = ""
 
-    contexts, tsv_gs = read_clef(clef_gs_file)
+    contexts_gs, tsv_gs = read_clef(clef_gs_file)
     tsv_gs['TOKEN'] = tsv_gs.TOKEN.astype(str)
+
+    assert(len(contexts) == len(contexts_gs))
 
     tsv_out = []
 
@@ -171,11 +175,12 @@ def tsv2clef(tsv_file, clef_gs_file, out_clef_file):
         tsv_out['NE-NESTED'] = tsv_out['NE-NESTED'].str.replace('-LOC', '-loc')
         tsv_out['NE-NESTED'] = tsv_out['NE-NESTED'].str.replace('-ORG', '-org')
 
-        tsv_out['NE-COARSE-METO'] = tsv_out['NE-COARSE-LIT']
-        tsv_out['NE-FINE-LIT'] = 'O'
-        tsv_out['NE-FINE-METO'] = 'O'
-        tsv_out['NE-FINE-COMP'] = 'O'
-        tsv_out['NEL-METO'] = '-'
+        tsv_out['NE-COARSE-METO'] = '_'
+        tsv_out['NE-FINE-LIT'] = '_'
+        tsv_out['NE-FINE-METO'] = '_'
+        tsv_out['NE-FINE-COMP'] = '_'
+        tsv_out['NEL-METO'] = '_'
+
         tsv_out['MISC'] = '-'
 
         tsv_out = tsv_out[out_columns]
@@ -191,7 +196,6 @@ def tsv2clef(tsv_file, clef_gs_file, out_clef_file):
 
     _, row_out = next(seq_out, (None, None))
 
-    segment_id = None
     url_id = None
 
     for _, row_gs in tqdm(tsv_gs.iterrows(), total=len(tsv_gs)):
@@ -214,7 +218,7 @@ def tsv2clef(tsv_file, clef_gs_file, out_clef_file):
             _, row_out = next(seq_out, (None, None))
 
         if row_gs.TOKEN != cur_token:
-            tsv_out.append({'TOKEN': row_gs.TOKEN, 'NE-TAG': 'O', 'NE-EMB': 'O', 'ID': '-'})
+            tsv_out.append({'TOKEN': row_gs.TOKEN, 'NE-TAG': 'O', 'NE-EMB': 'O', 'ID': '_'})
             continue
 
         if len(ne_tags) == 1:
@@ -225,7 +229,7 @@ def tsv2clef(tsv_file, clef_gs_file, out_clef_file):
         if len(nel_ids) == 1:
             nel_id = nel_ids.pop()
         else:
-            nel_id = '-'
+            nel_id = '_'
 
         if row_gs.url_id != url_id:
 
@@ -235,11 +239,10 @@ def tsv2clef(tsv_file, clef_gs_file, out_clef_file):
             url_id = row_gs.url_id
 
             with open(out_clef_file, 'a') as fw:
-                fw.write(contexts[row_gs.url_id])
 
-        if row_gs.segment_id != segment_id:
+                for k, v in contexts_gs[row_gs.url_id].items():
 
-            segment_id = row_gs.segment_id
+                    fw.write("# {} = {}".format(k, v))
 
             if len(tsv_out) > 0:
                 write_segment()

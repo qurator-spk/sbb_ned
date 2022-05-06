@@ -13,10 +13,23 @@ FIND_ENTITY_PARAMS ?=--ned-threshold=$(NED_THRESHOLD) --max-candidates=$(MAX_CAN
 
 NED_ENDPOINTS?='{"de": "http://localhost:5015", "fr": "http://localhost:5016", "en": "http://localhost:5017"}'
 
-%-tsvs:
+RUNNUMBER?=1
+
+#define CREATE_SUBMISSION_NAME
+import sys
+import re
+
+out_file = sys.argv[1]
+#endif
+export CREATE_SUBMISSION_NAME
+
+%-neat-tsvs:
 	find $(CLEF_DATA_PATH) -wholename "*/$*/HIPE-2022*.tsv" | parallel 'clef2tsv-2022 {} `dirname {}`/neat-`basename {}`'
 
-tsvs:	de-tsvs fr-tsvs en-tsvs
+neat-tsvs:	de-neat-tsvs fr-neat-tsvs en-neat-tsvs
+
+%-clef-tsvs:
+	find $(CLEF_DATA_PATH) -wholename "*/$*/HIPE-2022*.tsv" | parallel 'clef2tsv-2022 {} `dirname {}`/neat-`basename {}`'
 
 clean-%-tsvs:
 	find $(CLEF_DATA_PATH) -wholename "*/$*/neat-*.tsv" -exec rm -f {} \;
