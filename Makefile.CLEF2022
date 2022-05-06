@@ -29,7 +29,7 @@ export CREATE_SUBMISSION_NAME
 neat-tsvs:	de-neat-tsvs fr-neat-tsvs en-neat-tsvs
 
 %-clef-tsvs:
-	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/neat-*test?ELmasked*.tsv"`;do 'sv2clef-2022 {} `dirname $$i`/ned-full-`basename -s .tsv $$i`-$(NED_PARAMS)-bundle5.tsv $$i `python -c "$$CREATE_SUBMISSION_NAME" $$i`;done
+	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/neat-*test?ELmasked*.tsv"`;do tsv2clef-2022 `dirname $$i`/ned-full-`basename -s .tsv $$i`-$(NED_PARAMS)-bundle5.tsv $$i `python -c "$$CREATE_SUBMISSION_NAME" $$i`;done
 clean-%-tsvs:
 	find $(CLEF_DATA_PATH) -wholename "*/$*/neat-*.tsv" -exec rm -f {} \;
 
