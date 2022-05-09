@@ -1,5 +1,6 @@
 CLEF_DATA_PATH=/home/kai.labusch/qurator/HIPE-2022-data/data/v2.1
 RESULT_PATH=data/HIPE2022
+SUBMISSION_PATH=/home/kai.labusch/qurator/HIPE-2022-data/data/submission
 
 MAX_DIST ?= 0.05
 MAX_CANDIDATES ?= 25
@@ -13,13 +14,30 @@ FIND_ENTITY_PARAMS ?=--ned-threshold=$(NED_THRESHOLD) --max-candidates=$(MAX_CAN
 
 NED_ENDPOINTS?='{"de": "http://localhost:5015", "fr": "http://localhost:5016", "en": "http://localhost:5017"}'
 
-RUNNUMBER?=1
+RUNNUMBER?= 1
+TEAM?=SBB
+TASKBUNDLEID=bundle5
 
 define CREATE_SUBMISSION_NAME
-import sys
-import re
+import sys,re,os
 
-out_file = sys.argv[1]
+infile = sys.argv[1]
+taskbundleid = sys.argv[2]
+lang = sys.argv[3]
+team = sys.argv[4]
+runnumber = sys.argv[5]
+
+infile = os.path.basename(infile)
+#print("{}: {}, {}".format(infile, taskbundleid, lang, team, runnumber))
+
+m = re.match(r'neat-HIPE-2022-v2.1-(\w+)-test.*', infile)
+
+if not m:
+	raise RunTimeError("File name does not match!")
+
+datasetalias = m.group(1)
+
+print("{}_{}_{}_{}_{}.tsv".format(team, taskbundleid, datasetalias, lang, runnumber))
 endef
 export CREATE_SUBMISSION_NAME
 
@@ -29,7 +47,8 @@ export CREATE_SUBMISSION_NAME
 neat-tsvs:	de-neat-tsvs fr-neat-tsvs en-neat-tsvs
 
 %-clef-tsvs:
-	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/neat-*test?ELmasked*.tsv"`;do tsv2clef-2022 `dirname $$i`/ned-full-`basename -s .tsv $$i`-$(NED_PARAMS)-bundle5.tsv $$i `python -c "$$CREATE_SUBMISSION_NAME" $$i`;done
+	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/neat-*test?ELmasked*.tsv"`;do tsv2clef-2022 `dirname $$i`/ned-full-`basename -s .tsv $$i`-$(NED_PARAMS)-$(TASKBUNDLEID).tsv $$i $(SUBMISSION_PATH)/`python -c "$$CREATE_SUBMISSION_NAME" "$$i" $(TASKBUNDLEID) "$*" $(TEAM) $(RUNNUMBER)`;done
+
 clean-%-tsvs:
 	find $(CLEF_DATA_PATH) -wholename "*/$*/neat-*.tsv" -exec rm -f {} \;
 
@@ -37,13 +56,13 @@ clean-tsvs:	clean-de-tsvs clean-fr-tsvs clean-en-tsvs
 
 
 %-dev-ned:
-	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/neat-*dev*.tsv"`;do find-entities $(FIND_ENTITY_PARAMS) --noproxy --ned-json-file=`dirname $$i`/`basename -s .tsv $$i`-$(NED_JSON_PARAMS).json --ned-rest-endpoints=$(NED_ENDPOINTS) --lang $* --context-split  --not-after-context-field "hipe2022:date" $$i `dirname $$i`/ned-full-`basename -s .tsv $$i`-$(NED_PARAMS)-bundle5.tsv ;done
+	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/neat-*dev*.tsv"`;do find-entities $(FIND_ENTITY_PARAMS) --noproxy --ned-json-file=`dirname $$i`/`basename -s .tsv $$i`-$(NED_JSON_PARAMS).json --ned-rest-endpoints=$(NED_ENDPOINTS) --lang $* --context-split  --not-after-context-field "hipe2022:date" $$i `dirname $$i`/ned-full-`basename -s .tsv $$i`-$(NED_PARAMS)-$(TASKBUNDLEID).tsv ;done
 
 %-train-ned:
-	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/neat-*train*.tsv"`;do find-entities $(FIND_ENTITY_PARAMS) --noproxy --ned-json-file=`dirname $$i`/`basename -s .tsv $$i`-$(NED_JSON_PARAMS).json --ned-rest-endpoints=$(NED_ENDPOINTS) --lang $* --context-split  --not-after-context-field "hipe2022:date" $$i `dirname $$i`/ned-full-`basename -s .tsv $$i`-$(NED_PARAMS)-bundle5.tsv ;done
+	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/neat-*train*.tsv"`;do find-entities $(FIND_ENTITY_PARAMS) --noproxy --ned-json-file=`dirname $$i`/`basename -s .tsv $$i`-$(NED_JSON_PARAMS).json --ned-rest-endpoints=$(NED_ENDPOINTS) --lang $* --context-split  --not-after-context-field "hipe2022:date" $$i `dirname $$i`/ned-full-`basename -s .tsv $$i`-$(NED_PARAMS)-$(TASKBUNDLEID).tsv ;done
 
 %-test-masked-ned:
-	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/neat-*test?ELmasked*.tsv"`;do find-entities $(FIND_ENTITY_PARAMS) --noproxy --ned-json-file=`dirname $$i`/`basename -s .tsv $$i`-$(NED_JSON_PARAMS).json --ned-rest-endpoints=$(NED_ENDPOINTS) --lang $* --context-split  --not-after-context-field "hipe2022:date" $$i `dirname $$i`/ned-full-`basename -s .tsv $$i`-$(NED_PARAMS)-bundle5.tsv ;done
+	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/neat-*test?ELmasked*.tsv"`;do find-entities $(FIND_ENTITY_PARAMS) --noproxy --ned-json-file=`dirname $$i`/`basename -s .tsv $$i`-$(NED_JSON_PARAMS).json --ned-rest-endpoints=$(NED_ENDPOINTS) --lang $* --context-split  --not-after-context-field "hipe2022:date" $$i `dirname $$i`/ned-full-`basename -s .tsv $$i`-$(NED_PARAMS)-$(TASKBUNDLEID).tsv ;done
 
 dev-ned:	de-dev-ned fr-dev-ned en-dev-ned
 
@@ -67,6 +86,8 @@ train-stat: de-train-stat fr-train-stat en-train-stat
 train-data: de-train-data fr-train-data en-train-data
 
 decider: de-decider fr-decider en-decider
+
+submission: de-clef-tsvs fr-clef-tsvs en-clef-tsvs
 
 de-service:
 	env CONFIG=de-HIPE2022.json env FLASK_APP=qurator/sbb_ned/webapp/app.py env FLASK_ENV=development env USE_CUDA=True flask run --host=0.0.0.0 --port=5015
