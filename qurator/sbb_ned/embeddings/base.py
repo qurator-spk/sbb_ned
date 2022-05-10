@@ -46,7 +46,7 @@ def dehypener(parts):
     return res
 
 
-def surface_parts(surface, split_parts):
+def surface_parts(surface, split_parts, lower_case=True):
     parts = []
 
     if type(surface) == str:
@@ -68,14 +68,17 @@ def surface_parts(surface, split_parts):
     if split_parts:
         parts = [re.sub(r'[\s_]+', '', p) for p in parts]
 
-    parts = [p.lower() for p in parts if len(p) > 0]
+    if lower_case:
+        parts = [p.lower() for p in parts if len(p) > 0]
+    else:
+        parts = [p for p in parts if len(p) > 0]
 
     return parts
 
 
-def filter_surface(surface, split_parts):
+def filter_surface(surface, split_parts, lower_case=True):
 
-    parts = surface_parts(surface, split_parts)
+    parts = surface_parts(surface, split_parts, lower_case)
 
     parts = dehypener(parts)
 

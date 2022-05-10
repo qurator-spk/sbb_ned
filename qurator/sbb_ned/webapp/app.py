@@ -16,7 +16,7 @@ import multiprocessing as mp
 from qurator.sbb_ned.models.classifier_decider_queue import ClassifierDeciderQueue
 from qurator.sbb_ner.models.tokenization import BertTokenizer
 
-from ..embeddings.base import load_embeddings
+from ..embeddings.base import load_embeddings, filter_surface
 from ..models.ned_lookup import NEDLookup
 
 from nltk.stem.snowball import SnowballStemmer
@@ -303,12 +303,17 @@ def parse_entities():
                 parsed[entity_id]['sentences'].append(parsed_sent)
                 parsed[entity_id]['gt'] = list(set(parsed[entity_id]['gt']) | ent_gt)
             else:
-                normalized = "".join([normalization_map[c] if c in normalization_map else c for c in entity])
-                stem = " ".join([stemmer.stem(p) for p in re.split(' |-|_', normalized)])
+                parts = filter_surface(entity, split_parts=True, lower_case=False)
+
+                normalized = ["".join([normalization_map[c] if c in normalization_map else c for c in p])
+                              for p in parts]
+
+                stem = " ".join([stemmer.stem(norm) for norm in normalized])
+                normalized = " ".join(normalized)
 
                 surfaces = {normalized, stem}
-                if normalized in redirects.index:
-                    surfaces.add(redirects.loc[normalized].rd_title.replace('_', ' '))
+                if normalized.replace(' ', '_') in redirects.index:
+                    surfaces.add(redirects.loc[normalized.replace(' ', '_')].rd_title.replace('_', ' '))
 
                 surfaces = list(surfaces)
 
