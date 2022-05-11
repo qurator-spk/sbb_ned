@@ -544,7 +544,8 @@ def build_from_matrix(context_matrix_file, distance_measure, n_trees):
     index.save(result_file)
 
 
-def load(entities_file, embedding_config, ent_type, n_trees, distance_measure='angular', path='.'):
+def load(entities_file, embedding_config, ent_type, n_trees, distance_measure='angular', path='.',
+         min_title_len=3):
 
     prefix = ".".join(os.path.basename(entities_file).split('.')[:-1])
 
@@ -564,6 +565,8 @@ def load(entities_file, embedding_config, ent_type, n_trees, distance_measure='a
     vc = mapping.ann_index.value_counts()
 
     # mapping = mapping.loc[~mapping.ann_index.isin(vc.loc[vc > max_occurences].index)]
+
+    mapping = mapping.loc[(mapping.page_title.str.len() < min_title_len) | (mapping.page_title.str.isnumeric())]
 
     mapping = mapping.set_index('ann_index').sort_index()
 
