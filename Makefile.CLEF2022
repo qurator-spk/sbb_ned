@@ -47,12 +47,17 @@ export CREATE_SUBMISSION_NAME
 neat-tsvs:	de-neat-tsvs fr-neat-tsvs en-neat-tsvs
 
 %-clef-tsvs:
+	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/neat-*test?ELmasked*.tsv"`;do tsv2clef-2022 `dirname $$i`/ned-full-`basename -s .tsv $$i`-$(NED_PARAMS)-$(TASKBUNDLEID).tsv $$i `dirname $$i`/prediction-`basename -s .tsv $$i`-$(NED_PARAMS)-$(TASKBUNDLEID).tsv;done
+
+%-clef-submission:
 	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/neat-*test?ELmasked*.tsv"`;do tsv2clef-2022 `dirname $$i`/ned-full-`basename -s .tsv $$i`-$(NED_PARAMS)-$(TASKBUNDLEID).tsv $$i $(SUBMISSION_PATH)/`python -c "$$CREATE_SUBMISSION_NAME" "$$i" $(TASKBUNDLEID) "$*" $(TEAM) $(RUNNUMBER)`;done
 
 clean-%-tsvs:
 	find $(CLEF_DATA_PATH) -wholename "*/$*/neat-*.tsv" -exec rm -f {} \;
 
 clean-tsvs:	clean-de-tsvs clean-fr-tsvs clean-en-tsvs
+
+clef-tsvs:	de-clef-tsvs fr-clef-tsvs en-clef-tsvs
 
 
 %-dev-ned:
@@ -87,7 +92,7 @@ train-data: de-train-data fr-train-data en-train-data
 
 decider: de-decider fr-decider en-decider
 
-submission: de-clef-tsvs fr-clef-tsvs en-clef-tsvs
+submission: de-clef-submission fr-clef-submission en-clef-submission
 
 de-service:
 	env CONFIG=de-HIPE2022.json env FLASK_APP=qurator/sbb_ned/webapp/app.py env FLASK_ENV=development env USE_CUDA=True flask run --host=0.0.0.0 --port=5015
@@ -111,3 +116,9 @@ en-service-no-decider:
 	env CONFIG=en-config-no-decider.json env FLASK_APP=qurator/sbb_ned/webapp/app.py env FLASK_ENV=development env USE_CUDA=True flask run --host=0.0.0.0 --port=5017
 
 %-train-all: %-train-ned %-train-stat %-train-data %-decider ;
+
+%-scoring-test:
+	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/HIPE-2022-v2.1-*-test-$*.tsv"`;do echo $$i;done
+
+%-scoring:
+	hipe-scorer --pred=prediction-neat-HIPE-2022-v2.1-ajmc-test-ELmasked-de-md0.13_mc50_mf1000_nthr0.2-bundle5.tsv --ref=HIPE-2022-v2.1-ajmc-test-de.tsv --task=nel --n_best=1,2,3 --suffix=eval --skip-check --hipe_edition=hipe-2022 --outdir=test --log=test.log

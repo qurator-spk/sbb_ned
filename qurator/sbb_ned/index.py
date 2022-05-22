@@ -566,7 +566,7 @@ def load(entities_file, embedding_config, ent_type, n_trees, distance_measure='a
 
     # mapping = mapping.loc[~mapping.ann_index.isin(vc.loc[vc > max_occurences].index)]
 
-    mapping = mapping.loc[(mapping.page_title.str.len() < min_title_len) | (mapping.page_title.str.isnumeric())]
+    mapping = mapping.loc[~((mapping.page_title.str.len() < min_title_len) | (mapping.page_title.str.isnumeric()))]
 
     mapping = mapping.set_index('ann_index').sort_index()
 
