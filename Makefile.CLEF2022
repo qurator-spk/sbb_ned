@@ -173,3 +173,37 @@ en-service-no-decider:
 
 %-scoring:
 	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/prediction-neat-HIPE-2022-v2.1-*-test?ELmasked-$**.tsv"`;do hipe-scorer --pred=$$i --ref=`python -c "$$GS_FILENAME" "$$i" "$(NED_PARAMS)" "$*" "$(TASKBUNDLEID)"` --task=nel --n_best=1 --suffix=eval --skip-check --hipe_edition=hipe-2022 --outdir=test --log=test.log;done
+
+test-iterate-threshold:
+	make -f Makefile.CLEF2022 test-ELmasked-ned MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.05
+	make -f Makefile.CLEF2022 test-ELmasked-ned MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.1
+	make -f Makefile.CLEF2022 test-ELmasked-ned MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.15
+	make -f Makefile.CLEF2022 test-ELmasked-ned MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.2
+	make -f Makefile.CLEF2022 test-ELmasked-ned MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.25
+	make -f Makefile.CLEF2022 test-ELmasked-ned MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.3
+	make -f Makefile.CLEF2022 test-ELmasked-ned MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.35
+	make -f Makefile.CLEF2022 test-ELmasked-ned MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.4
+	make -f Makefile.CLEF2022 test-ELmasked-ned MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.45
+	make -f Makefile.CLEF2022 test-ELmasked-ned MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.5
+
+test-iterate:
+	make -f Makefile.CLEF2022 test-iterate-threshold MAX_CANDIDATES=25 MAX_DIST=0.05
+	make -f Makefile.CLEF2022 test-iterate-threshold MAX_CANDIDATES=50 MAX_DIST=0.13
+
+
+dev-iterate-threshold:
+	make -f Makefile.CLEF2022 dev-ELmasked-ned MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.05
+	make -f Makefile.CLEF2022 dev-ELmasked-ned MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.1
+	make -f Makefile.CLEF2022 dev-ELmasked-ned MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.15
+	make -f Makefile.CLEF2022 dev-ELmasked-ned MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.2
+	make -f Makefile.CLEF2022 dev-ELmasked-ned MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.25
+	make -f Makefile.CLEF2022 dev-ELmasked-ned MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.3
+	make -f Makefile.CLEF2022 dev-ELmasked-ned MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.35
+	make -f Makefile.CLEF2022 dev-ELmasked-ned MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.4
+	make -f Makefile.CLEF2022 dev-ELmasked-ned MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.45
+	make -f Makefile.CLEF2022 dev-ELmasked-ned MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.5
+
+dev-iterate:
+	make -f Makefile.CLEF2022 dev-iterate-threshold MAX_CANDIDATES=25 MAX_DIST=0.05
+	make -f Makefile.CLEF2022 dev-iterate-threshold MAX_CANDIDATES=50 MAX_DIST=0.13
+
