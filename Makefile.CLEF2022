@@ -18,6 +18,8 @@ RUNNUMBER?= 1
 TEAM?=SBB
 TASKBUNDLEID=bundle5
 
+HISTO_NORM_FILE=/home/labusch/qurator/HIPE-2022-eval/HIPE-scorer/historico-fuzzy-QID-mapping-ID-mapping.tsv
+
 define CREATE_SUBMISSION_NAME
 import sys,re,os
 
@@ -33,7 +35,7 @@ infile = os.path.basename(infile)
 m = re.match(r'neat-HIPE-2022-v2.1-(\w+)-test.*', infile)
 
 if not m:
-	raise RunTimeError("File name does not match!")
+	raise RuntimeError("File name does not match!")
 
 datasetalias = m.group(1)
 
@@ -41,48 +43,90 @@ print("{}_{}_{}_{}_{}.tsv".format(team, taskbundleid, datasetalias, lang, runnum
 endef
 export CREATE_SUBMISSION_NAME
 
+define GS_FILENAME
+
+import sys,re,os
+infile = sys.argv[1]
+ned_params = sys.argv[2]
+lang = sys.argv[3]
+taskbundleid = sys.argv[4]
+
+dirname = os.path.dirname(infile)
+infile = os.path.basename(infile)
+
+# print(infile)
+
+m = re.match('prediction-neat-HIPE-2022-v2.1-(\w+)-([\w-]+)-{}-.*.tsv'.format(lang), infile)
+
+if not m:
+	raise RuntimeError("File name does not match!")
+
+datasetalias = m.group(1)
+
+kind_of_dataset = m.group(2)
+
+if kind_of_dataset.startswith('test'):
+	gs_dataset = 'test'
+else:
+	gs_dataset = kind_of_dataset
+
+print("{}/HIPE-2022-v2.1-{}-{}-{}.tsv ".format(dirname, datasetalias, gs_dataset , lang))
+
+endef
+export GS_FILENAME
+
+# Convert the CLEF-TSVs into the TSV-format that is understood by neat and tools like find-entities
 %-neat-tsvs:
 	find $(CLEF_DATA_PATH) -wholename "*/$*/HIPE-2022*.tsv" | parallel 'clef2tsv-2022 {} `dirname {}`/neat-`basename {}`'
 
 neat-tsvs:	de-neat-tsvs fr-neat-tsvs en-neat-tsvs
 
-%-clef-tsvs:
+# Convert the neat - prediction TSVs (starting with ned-full) back into CLEF-format files (starting with prediction-) that is understood by the hipe-scorer
+%-prediction-tsvs:
 	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/neat-*test?ELmasked*.tsv"`;do tsv2clef-2022 `dirname $$i`/ned-full-`basename -s .tsv $$i`-$(NED_PARAMS)-$(TASKBUNDLEID).tsv $$i `dirname $$i`/prediction-`basename -s .tsv $$i`-$(NED_PARAMS)-$(TASKBUNDLEID).tsv;done
 
+prediction-tsvs:	de-prediction-tsvs fr-prediction-tsvs en-prediction-tsvs
+
+# Create properly named submission files
 %-clef-submission:
 	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/neat-*test?ELmasked*.tsv"`;do tsv2clef-2022 `dirname $$i`/ned-full-`basename -s .tsv $$i`-$(NED_PARAMS)-$(TASKBUNDLEID).tsv $$i $(SUBMISSION_PATH)/`python -c "$$CREATE_SUBMISSION_NAME" "$$i" $(TASKBUNDLEID) "$*" $(TEAM) $(RUNNUMBER)`;done
 
+submission: de-clef-submission fr-clef-submission en-clef-submission
+
+# remove all the neat TSVs
 clean-%-tsvs:
 	find $(CLEF_DATA_PATH) -wholename "*/$*/neat-*.tsv" -exec rm -f {} \;
 
 clean-tsvs:	clean-de-tsvs clean-fr-tsvs clean-en-tsvs
 
-clef-tsvs:	de-clef-tsvs fr-clef-tsvs en-clef-tsvs
 
-
+# The following 3 targets create EL-only prediction TSV files in neat format that start with ned-full--
 %-dev-ned:
 	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/neat-*dev*.tsv"`;do find-entities $(FIND_ENTITY_PARAMS) --noproxy --ned-json-file=`dirname $$i`/`basename -s .tsv $$i`-$(NED_JSON_PARAMS).json --ned-rest-endpoints=$(NED_ENDPOINTS) --lang $* --context-split  --not-after-context-field "hipe2022:date" $$i `dirname $$i`/ned-full-`basename -s .tsv $$i`-$(NED_PARAMS)-$(TASKBUNDLEID).tsv ;done
 
 %-train-ned:
 	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/neat-*train*.tsv"`;do find-entities $(FIND_ENTITY_PARAMS) --noproxy --ned-json-file=`dirname $$i`/`basename -s .tsv $$i`-$(NED_JSON_PARAMS).json --ned-rest-endpoints=$(NED_ENDPOINTS) --lang $* --context-split  --not-after-context-field "hipe2022:date" $$i `dirname $$i`/ned-full-`basename -s .tsv $$i`-$(NED_PARAMS)-$(TASKBUNDLEID).tsv ;done
 
-%-test-masked-ned:
+%-test-ELmasked-ned:
 	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/neat-*test?ELmasked*.tsv"`;do find-entities $(FIND_ENTITY_PARAMS) --noproxy --ned-json-file=`dirname $$i`/`basename -s .tsv $$i`-$(NED_JSON_PARAMS).json --ned-rest-endpoints=$(NED_ENDPOINTS) --lang $* --context-split  --not-after-context-field "hipe2022:date" $$i `dirname $$i`/ned-full-`basename -s .tsv $$i`-$(NED_PARAMS)-$(TASKBUNDLEID).tsv ;done
 
 dev-ned:	de-dev-ned fr-dev-ned en-dev-ned
 
 train-ned:	de-train-ned fr-train-ned en-train-ned
 
-test-masked-ned:	de-test-masked-ned fr-test-masked-ned en-test-masked-ned
+test-ELmasked-ned:	de-test-ELmasked-ned fr-test-ELmasked-ned en-test-ELmasked-ned
 
 
+# Create pickled dataframes with decider training data for each dataset
 %-train-stat:
 	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/neat-*train*.tsv"`;do sentence-stat-2022 --context-split $$i `dirname $$i`/`basename -s .tsv $$i`-$(NED_JSON_PARAMS).json $$i `dirname $$i`/train-data-`basename -s .tsv $$i`-$(NED_PARAMS).pkl; done
 
+# Join all the pickled dataframes into one big file for decider training over all datasets.
 %-train-data:
 	mkdir -p $(RESULT_PATH)
 	df-concatenate --reset-index $(RESULT_PATH)/$*-train-$(NED_JSON_PARAMS).pkl `find $(CLEF_DATA_PATH) -wholename "*/$*/train-data*-$(NED_PARAMS).pkl" -printf "%p "`
 
+# Perform the decider training per language
 %-decider:
 	train-decider $(RESULT_PATH)/$*-train-$(NED_JSON_PARAMS).pkl $(RESULT_PATH)/$*-decider-$(NED_JSON_PARAMS).pkl > $(RESULT_PATH)/$*-decider-$(NED_JSON_PARAMS).log 2>&1
 
@@ -92,8 +136,12 @@ train-data: de-train-data fr-train-data en-train-data
 
 decider: de-decider fr-decider en-decider
 
-submission: de-clef-submission fr-clef-submission en-clef-submission
+# Joined target that does the complete required chain in order to train the deciders
+%-train-all: %-train-ned %-train-stat %-train-data %-decider ;
 
+train-all: de-train-all fr-train-all en-train-all
+
+# Starts EL-webservice with a decider that has been trained for MAX_DIST=0.05 and MAX_CANDIDATES=25
 de-service:
 	env CONFIG=de-HIPE2022.json env FLASK_APP=qurator/sbb_ned/webapp/app.py env FLASK_ENV=development env USE_CUDA=True flask run --host=0.0.0.0 --port=5015
 fr-service:
@@ -101,6 +149,7 @@ fr-service:
 en-service:
 	env CONFIG=en-HIPE2022.json env FLASK_APP=qurator/sbb_ned/webapp/app.py env FLASK_ENV=development env USE_CUDA=True flask run --host=0.0.0.0 --port=5017
 
+# Starts EL-webservice with a decider that has been trained for MAX_DIST=0.13 and MAX_CANDIDATES=50
 de-service-2:
 	env CONFIG=de-HIPE2022-2.json env FLASK_APP=qurator/sbb_ned/webapp/app.py env FLASK_ENV=development env USE_CUDA=True flask run --host=0.0.0.0 --port=5015
 fr-service-2:
@@ -108,6 +157,7 @@ fr-service-2:
 en-service-2:
 	env CONFIG=en-HIPE2022-2.json env FLASK_APP=qurator/sbb_ned/webapp/app.py env FLASK_ENV=development env USE_CUDA=True flask run --host=0.0.0.0 --port=5017
 
+# Starts EL-webservice in no-decider mode. Only suitable in order to generate decider training data.
 de-service-no-decider:
 	env CONFIG=de-config-no-decider.json env FLASK_APP=qurator/sbb_ned/webapp/app.py env FLASK_ENV=development env USE_CUDA=True flask run --host=0.0.0.0 --port=5015
 fr-service-no-decider:
@@ -115,10 +165,11 @@ fr-service-no-decider:
 en-service-no-decider:
 	env CONFIG=en-config-no-decider.json env FLASK_APP=qurator/sbb_ned/webapp/app.py env FLASK_ENV=development env USE_CUDA=True flask run --host=0.0.0.0 --port=5017
 
-%-train-all: %-train-ned %-train-stat %-train-data %-decider ;
+%-normalize-linking:
+	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/HIPE-2022-v2.1-*-test-$**.tsv"`;do normalize-linking -i $$i -o `dirname $$i`/`basename -s .tsv $$i`-normalized.tsv --hipe_edition=hipe-2022 --norm-time --norm-histo -m $(HISTO_NORM_FILE);done
 
 %-scoring-test:
-	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/HIPE-2022-v2.1-*-test-$*.tsv"`;do echo $$i;done
+	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/prediction-neat-HIPE-2022-v2.1-*-test?ELmasked-$**.tsv"`;do ls -lh `python -c "$$GS_FILENAME" "$$i" "$(NED_PARAMS)" "$*" "$(TASKBUNDLEID)"`;done
 
 %-scoring:
-	hipe-scorer --pred=prediction-neat-HIPE-2022-v2.1-ajmc-test-ELmasked-de-md0.13_mc50_mf1000_nthr0.2-bundle5.tsv --ref=HIPE-2022-v2.1-ajmc-test-de.tsv --task=nel --n_best=1,2,3 --suffix=eval --skip-check --hipe_edition=hipe-2022 --outdir=test --log=test.log
+	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/prediction-neat-HIPE-2022-v2.1-*-test?ELmasked-$**.tsv"`;do hipe-scorer --pred=$$i --ref=`python -c "$$GS_FILENAME" "$$i" "$(NED_PARAMS)" "$*" "$(TASKBUNDLEID)"` --task=nel --n_best=1 --suffix=eval --skip-check --hipe_edition=hipe-2022 --outdir=test --log=test.log;done
