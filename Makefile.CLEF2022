@@ -2,10 +2,10 @@ CLEF_DATA_PATH=/home/kai.labusch/qurator/HIPE-2022-data/data/v2.1
 RESULT_PATH=data/HIPE2022
 SUBMISSION_PATH=/home/kai.labusch/qurator/HIPE-2022-data/data/submission
 
-MAX_DIST ?= 0.05
-MAX_CANDIDATES ?= 25
-MAX_FREQUENCY ?= 1000
-NED_THRESHOLD ?= 0.2
+MAX_DIST?=0.05
+MAX_CANDIDATES?=25
+MAX_FREQUENCY?=1000
+NED_THRESHOLD?=0.2
 
 NED_PARAMS ?=md$(MAX_DIST)_mc$(MAX_CANDIDATES)_mf$(MAX_FREQUENCY)_nthr$(NED_THRESHOLD)
 NED_JSON_PARAMS ?=md$(MAX_DIST)_mc$(MAX_CANDIDATES)_mf$(MAX_FREQUENCY)
@@ -19,6 +19,9 @@ TEAM?=SBB
 TASKBUNDLEID=bundle5
 
 HISTO_NORM_FILE=/home/labusch/qurator/HIPE-2022-eval/HIPE-scorer/historico-fuzzy-QID-mapping-ID-mapping.tsv
+
+SCORING_DIR=scoring
+SCORING_LOG=scoring.log
 
 define CREATE_SUBMISSION_NAME
 import sys,re,os
@@ -75,6 +78,44 @@ print("{}/HIPE-2022-v2.1-{}-{}-{}.tsv ".format(dirname, datasetalias, gs_dataset
 endef
 export GS_FILENAME
 
+
+define JOIN_SCORING
+import sys,re,os
+import pandas as pd
+from glob import glob
+
+scoring_dir = sys.argv[1]
+target_file = sys.argv[2]
+
+df_all=[]
+for f in glob('{}/*.tsv'.format(scoring_dir)):
+
+    m = re.match('prediction-neat-HIPE-2022-v2.1-(\w+)-([\w-]+)-(de|fr|en)-md([0-9.]+)_mc([0-9.]+)_.*nthr([0-9.]+).*.tsv', os.path.basename(f))
+
+    if not m:
+        raise RuntimeError("File does not match!")
+
+    dataset = m.group(1)
+    kind = m.group(2)
+    lang = m.group(3)
+    max_dist = m.group(4)
+    max_candidates = m.group(5)
+    threshold = m.group(6)
+    df = pd.read_csv(f, sep='\t')
+    df['dataset'] = dataset
+    df['kind'] = kind
+    df['lang'] = lang
+    df['max_dist'] = max_dist
+    df['max_candidates'] = max_candidates
+    df['threshold'] = threshold
+    df_all.append(df)
+df_all=pd.concat(df_all).drop(columns=['System'])
+
+df_all.to_pickle(target_file)
+endef
+export JOIN_SCORING
+
+
 # Convert the CLEF-TSVs into the TSV-format that is understood by neat and tools like find-entities
 %-neat-tsvs:
 	find $(CLEF_DATA_PATH) -wholename "*/$*/HIPE-2022*.tsv" | parallel 'clef2tsv-2022 {} `dirname {}`/neat-`basename {}`'
@@ -82,10 +123,17 @@ export GS_FILENAME
 neat-tsvs:	de-neat-tsvs fr-neat-tsvs en-neat-tsvs
 
 # Convert the neat - prediction TSVs (starting with ned-full) back into CLEF-format files (starting with prediction-) that is understood by the hipe-scorer
-%-prediction-tsvs:
+%-test-prediction-tsvs:
 	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/neat-*test?ELmasked*.tsv"`;do tsv2clef-2022 `dirname $$i`/ned-full-`basename -s .tsv $$i`-$(NED_PARAMS)-$(TASKBUNDLEID).tsv $$i `dirname $$i`/prediction-`basename -s .tsv $$i`-$(NED_PARAMS)-$(TASKBUNDLEID).tsv;done
 
-prediction-tsvs:	de-prediction-tsvs fr-prediction-tsvs en-prediction-tsvs
+test-prediction-tsvs:	de-test-prediction-tsvs fr-test-prediction-tsvs en-test-prediction-tsvs
+
+%-dev-prediction-tsvs:
+	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/neat-*dev*.tsv"`;do tsv2clef-2022 `dirname $$i`/ned-full-`basename -s .tsv $$i`-$(NED_PARAMS)-$(TASKBUNDLEID).tsv $$i `dirname $$i`/prediction-`basename -s .tsv $$i`-$(NED_PARAMS)-$(TASKBUNDLEID).tsv;done
+
+dev-prediction-tsvs:	de-dev-prediction-tsvs fr-dev-prediction-tsvs en-dev-prediction-tsvs
+
+
 
 # Create properly named submission files
 %-clef-submission:
@@ -165,14 +213,32 @@ fr-service-no-decider:
 en-service-no-decider:
 	env CONFIG=en-config-no-decider.json env FLASK_APP=qurator/sbb_ned/webapp/app.py env FLASK_ENV=development env USE_CUDA=True flask run --host=0.0.0.0 --port=5017
 
+
 %-normalize-linking:
 	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/HIPE-2022-v2.1-*-test-$**.tsv"`;do normalize-linking -i $$i -o `dirname $$i`/`basename -s .tsv $$i`-normalized.tsv --hipe_edition=hipe-2022 --norm-time --norm-histo -m $(HISTO_NORM_FILE);done
 
-%-scoring-test:
+
+%-test-scoring-test:
 	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/prediction-neat-HIPE-2022-v2.1-*-test?ELmasked-$**.tsv"`;do ls -lh `python -c "$$GS_FILENAME" "$$i" "$(NED_PARAMS)" "$*" "$(TASKBUNDLEID)"`;done
 
-%-scoring:
-	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/prediction-neat-HIPE-2022-v2.1-*-test?ELmasked-$**.tsv"`;do hipe-scorer --pred=$$i --ref=`python -c "$$GS_FILENAME" "$$i" "$(NED_PARAMS)" "$*" "$(TASKBUNDLEID)"` --task=nel --n_best=1 --suffix=eval --skip-check --hipe_edition=hipe-2022 --outdir=test --log=test.log;done
+%-test-scoring:
+	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/prediction-neat-HIPE-2022-v2.1-*-test?ELmasked-$**.tsv"`;do hipe-scorer --pred=$$i --ref=`python -c "$$GS_FILENAME" "$$i" "$(NED_PARAMS)" "$*" "$(TASKBUNDLEID)"` --task=nel --n_best=1,3,5 --suffix=eval --skip-check --hipe_edition=hipe-2022 --outdir=$(SCORING_DIR) --log=$(SCORING_LOG);done
+
+test-scoring: de-test-scoring fr-test-scoring en-test-scoring
+
+
+%-dev-scoring-test:
+	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/prediction-neat-HIPE-2022-v2.1-*-dev*-$**.tsv"`;do ls -lh `python -c "$$GS_FILENAME" "$$i" "$(NED_PARAMS)" "$*" "$(TASKBUNDLEID)"`;done
+
+%-dev-scoring:
+	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/prediction-neat-HIPE-2022-v2.1-*-dev*-$**.tsv"`;do hipe-scorer --pred=$$i --ref=`python -c "$$GS_FILENAME" "$$i" "$(NED_PARAMS)" "$*" "$(TASKBUNDLEID)"` --task=nel --n_best=1,3,5 --suffix=eval --skip-check --hipe_edition=hipe-2022 --outdir=$(SCORING_DIR) --log=$(SCORING_LOG);done
+
+dev-scoring: de-dev-scoring fr-dev-scoring en-dev-scoring
+
+join-scoring:
+	python -c "$$JOIN_SCORING" "$(SCORING_DIR)" scoring.pkl
+
+#########
 
 test-iterate-threshold:
 	make -f Makefile.CLEF2022 test-ELmasked-ned MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.05
@@ -192,18 +258,56 @@ test-iterate:
 
 
 dev-iterate-threshold:
-	make -f Makefile.CLEF2022 dev-ELmasked-ned MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.05
-	make -f Makefile.CLEF2022 dev-ELmasked-ned MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.1
-	make -f Makefile.CLEF2022 dev-ELmasked-ned MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.15
-	make -f Makefile.CLEF2022 dev-ELmasked-ned MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.2
-	make -f Makefile.CLEF2022 dev-ELmasked-ned MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.25
-	make -f Makefile.CLEF2022 dev-ELmasked-ned MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.3
-	make -f Makefile.CLEF2022 dev-ELmasked-ned MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.35
-	make -f Makefile.CLEF2022 dev-ELmasked-ned MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.4
-	make -f Makefile.CLEF2022 dev-ELmasked-ned MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.45
-	make -f Makefile.CLEF2022 dev-ELmasked-ned MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.5
+	make -f Makefile.CLEF2022 dev-ned MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.05
+	make -f Makefile.CLEF2022 dev-ned MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.1
+	make -f Makefile.CLEF2022 dev-ned MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.15
+	make -f Makefile.CLEF2022 dev-ned MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.2
+	make -f Makefile.CLEF2022 dev-ned MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.25
+	make -f Makefile.CLEF2022 dev-ned MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.3
+	make -f Makefile.CLEF2022 dev-ned MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.35
+	make -f Makefile.CLEF2022 dev-ned MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.4
+	make -f Makefile.CLEF2022 dev-ned MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.45
+	make -f Makefile.CLEF2022 dev-ned MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.5
 
 dev-iterate:
 	make -f Makefile.CLEF2022 dev-iterate-threshold MAX_CANDIDATES=25 MAX_DIST=0.05
 	make -f Makefile.CLEF2022 dev-iterate-threshold MAX_CANDIDATES=50 MAX_DIST=0.13
+
+
+##########
+
+
+test-predictions-iterate-threshold:
+	make -f Makefile.CLEF2022 test-prediction-tsvs MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.05
+	make -f Makefile.CLEF2022 test-prediction-tsvs MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.1
+	make -f Makefile.CLEF2022 test-prediction-tsvs MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.15
+	make -f Makefile.CLEF2022 test-prediction-tsvs MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.2
+	make -f Makefile.CLEF2022 test-prediction-tsvs MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.25
+	make -f Makefile.CLEF2022 test-prediction-tsvs MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.3
+	make -f Makefile.CLEF2022 test-prediction-tsvs MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.35
+	make -f Makefile.CLEF2022 test-prediction-tsvs MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.4
+	make -f Makefile.CLEF2022 test-prediction-tsvs MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.45
+	make -f Makefile.CLEF2022 test-prediction-tsvs MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.5
+
+test-predictions-iterate:
+	make -f Makefile.CLEF2022 test-predictions-iterate-threshold MAX_CANDIDATES=25 MAX_DIST=0.05
+	make -f Makefile.CLEF2022 test-predictions-iterate-threshold MAX_CANDIDATES=50 MAX_DIST=0.13
+
+
+dev-predictions-iterate-threshold:
+	make -f Makefile.CLEF2022 dev-prediction-tsvs MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.05
+	make -f Makefile.CLEF2022 dev-prediction-tsvs MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.1
+	make -f Makefile.CLEF2022 dev-prediction-tsvs MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.15
+	make -f Makefile.CLEF2022 dev-prediction-tsvs MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.2
+	make -f Makefile.CLEF2022 dev-prediction-tsvs MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.25
+	make -f Makefile.CLEF2022 dev-prediction-tsvs MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.3
+	make -f Makefile.CLEF2022 dev-prediction-tsvs MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.35
+	make -f Makefile.CLEF2022 dev-prediction-tsvs MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.4
+	make -f Makefile.CLEF2022 dev-prediction-tsvs MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.45
+	make -f Makefile.CLEF2022 dev-prediction-tsvs MAX_CANDIDATES=$(MAX_CANDIDATES) MAX_DIST=$(MAX_DIST) NED_THRESHOLD=0.5
+
+dev-predictions-iterate:
+	make -f Makefile.CLEF2022 dev-predictions-iterate-threshold MAX_CANDIDATES=25 MAX_DIST=0.05
+	make -f Makefile.CLEF2022 dev-predictions-iterate-threshold MAX_CANDIDATES=50 MAX_DIST=0.13
+
 
