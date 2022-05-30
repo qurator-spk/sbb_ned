@@ -653,7 +653,9 @@ def make_table_nel_only_comparison(results):
 def compute_knb_coverage(entities_file, gt_file):
     knb = pd.read_pickle(entities_file)
 
-    test_data = pd.read_csv(gt_file, sep='\t', comment='#')
+    # test_data = pd.read_csv(gt_file, sep='\t', comment='#')
+
+    contexts, test_data = read_clef(gt_file)
 
     entities_in_test_data = \
         test_data.loc[(test_data['NEL-LIT'].str.len() > 1) & (test_data['NEL-LIT'] != 'NIL')][
@@ -661,7 +663,7 @@ def compute_knb_coverage(entities_file, gt_file):
 
     with_representation = entities_in_test_data.merge(knb, left_on='NEL-LIT', right_on='QID')
 
-    print("% of entities with representation: {}.".format(len(with_representation) / len(entities_in_test_data)))
+    print("{}: % of entities with representation: {}.".format(gt_file, len(with_representation) / len(entities_in_test_data)))
 
 
 def compute_nil_fraction(gt_file):

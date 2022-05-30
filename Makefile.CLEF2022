@@ -311,3 +311,5 @@ dev-predictions-iterate:
 	make -f Makefile.CLEF2022 dev-predictions-iterate-threshold MAX_CANDIDATES=50 MAX_DIST=0.13
 
 
+%-coverage:
+	for i in `find $(CLEF_DATA_PATH) -wholename "*/$*/HIPE-2022*test-$*.tsv"`;do compute-knb-coverage-2022 data/wikidata/$*-wikipedia-ner-entities.pkl $$i ;done
