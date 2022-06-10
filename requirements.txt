@@ -1,7 +1,7 @@
 tensorflow-gpu==1.15.5
 torch==1.2.0
 flair==0.4.3
-numpy==1.17.0 
+numpy==1.21.0 
 pandas
 tqdm
 click
