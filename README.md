@@ -75,7 +75,7 @@ where the computation might take several hours.
 ## Installation of the NED-core:
 
 Clone this project, the [SBB-NER-tagger](https://github.com/qurator-spk/sbb_ner) and 
-the [SBB-Tools](https://github.com/qurator-spk/sbb_tools).
+the [SBB-utils](https://github.com/qurator-spk/sbb_utils).
 
 Setup virtual environment:
 ```
@@ -94,7 +94,7 @@ pip install -U pip
 
 Install packages together with their dependencies in development mode:
 ```
-pip install -e sbb_tools
+pip install -e sbb_utils
 pip install -e sbb_ner
 pip install -e sbb_ned
 ```

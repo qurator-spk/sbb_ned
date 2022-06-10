@@ -25,9 +25,11 @@ setup(
         "ned-train-test-split=qurator.sbb_ned.cli:ned_train_test_split",
         "ned-pairing-examples=qurator.sbb_ned.cli:ned_pairing_examples",
         "ned-bert=qurator.sbb_ned.models.bert:main",
+
         "build-index=qurator.sbb_ned.cli:build",
         "build-context-matrix=qurator.sbb_ned.cli:build_context_matrix",
         "build-from-context-matrix=qurator.sbb_ned.cli:build_from_context_matrix",
+
         "evaluate-index=qurator.sbb_ned.cli:evaluate",
         "evaluate-with-context=qurator.sbb_ned.cli:evaluate_with_context",
         "evaluate-combined=qurator.sbb_ned.cli:evaluate_combined",
@@ -40,10 +42,13 @@ setup(
 
         "compute-knb-coverage-2020=qurator.sbb_ned.ground_truth.clef_hipe_2020:compute_knb_coverage",
         "compute-knb-coverage-2022=qurator.sbb_ned.ground_truth.clef_hipe_2022:compute_knb_coverage",
+
         "sentence-stat-2020=qurator.sbb_ned.ground_truth.clef_hipe_2020:sentence_stat",
         "sentence-stat-2022=qurator.sbb_ned.ground_truth.clef_hipe_2022:sentence_stat",
+
         "train-decider=qurator.sbb_ned.models.decider:train",
         "test-decider=qurator.sbb_ned.models.decider:test",
+
         "extract-normalization-table=qurator.sbb_ned.encoding.normalization:extract_normalization_table",
         "adapt-normalization-table=qurator.sbb_ned.encoding.normalization:adapt_table_to_corpus"
       ]

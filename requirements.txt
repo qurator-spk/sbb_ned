@@ -3,10 +3,9 @@ torch==1.2.0
 flair==0.4.3
 numpy==1.17.0 
 pandas
-dask==1.1.4
-pyarrow==0.12.1
 tqdm
 click
+haversine
 pytest
 pytest-cov
 flask
@@ -15,5 +14,6 @@ somajo
 gensim
 annoy
 nltk
-qurator-sbb-tools
+qurator-sbb-utils
+qurator-sbb-ner
 

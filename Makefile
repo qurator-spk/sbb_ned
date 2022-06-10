@@ -90,10 +90,10 @@ en-flair:	en-flair-ORG en-flair-LOC en-flair-PER
 
 # ==================================================================================================================================================================
 
-fasttext-eval:
-	evaluate-index $(DATA_PATH)/wikipedia/wikipedia-tagged.parquet fasttext ORG  $(N_TREES) $(DIST) $(OUTPUT_PATH) --max-iter=1000000 --model-path=data/fasttext/cc.de.300.bin --split-parts
-	evaluate-index $(DATA_PATH)/wikipedia/wikipedia-tagged.parquet fasttext LOC  $(N_TREES) $(DIST) $(OUTPUT_PATH) --max-iter=1000000 --model-path=data/fasttext/cc.de.300.bin --split-parts
-	evaluate-index $(DATA_PATH)/wikipedia/wikipedia-tagged.parquet fasttext PER  $(N_TREES) $(DIST) $(OUTPUT_PATH) --max-iter=1000000 --model-path=data/fasttext/cc.de.300.bin --split-parts
+#fasttext-eval:
+#	evaluate-index $(DATA_PATH)/wikipedia/wikipedia-tagged.parquet fasttext ORG  $(N_TREES) $(DIST) $(OUTPUT_PATH) --max-iter=1000000 --model-path=data/fasttext/cc.de.300.bin --split-parts
+#	evaluate-index $(DATA_PATH)/wikipedia/wikipedia-tagged.parquet fasttext LOC  $(N_TREES) $(DIST) $(OUTPUT_PATH) --max-iter=1000000 --model-path=data/fasttext/cc.de.300.bin --split-parts
+#	evaluate-index $(DATA_PATH)/wikipedia/wikipedia-tagged.parquet fasttext PER  $(N_TREES) $(DIST) $(OUTPUT_PATH) --max-iter=1000000 --model-path=data/fasttext/cc.de.300.bin --split-parts
 
 %-flair-context-ORG:
 	build-context-matrix $(WIKIDATA_PATH)/$*-wikipedia-ner-entities.pkl $(DATA_PATH)/wikipedia/$*-wikipedia-tagged.sqlite flair ORG $(OUTPUT_PATH) --processes=$(PROCESSES) --batch-size=$(BATCH_SIZE) --w-size $(WINDOW_SIZE)
@@ -112,26 +112,26 @@ flair-context-index-PER:
 	build-from-context-matrix $(ENTITY_INDEX_PATH)/context-embeddings-embt_flair-entt_PER-wsize_$(WINDOW_SIZE).pkl $(N_TREES) $(DIST)
 flair-context-index:	flair-context flair-context-index-ORG flair-context-index-LOC flair-context-index-PER
 
-flair-eval-ORG:
-	evaluate-with-context $(OUTPUT_PATH)/context-embeddings-embt_flair-entt_ORG-wsize_$(WINDOW_SIZE)-dm_$(DIST)-nt_$(N_TREES).ann $(OUTPUT_PATH)/context-embeddings-embt_flair-entt_ORG-wsize_$(WINDOW_SIZE)-dm_$(DIST)-nt_$(N_TREES).mapping $(DATA_PATH)/wikipedia/wikipedia-tagged.parquet flair ORG $(DIST) $(OUTPUT_PATH) --processes=$(PROCESSES) --max-iter=100000
+#flair-eval-ORG:
+#	evaluate-with-context $(OUTPUT_PATH)/context-embeddings-embt_flair-entt_ORG-wsize_$(WINDOW_SIZE)-dm_$(DIST)-nt_$(N_TREES).ann $(OUTPUT_PATH)/context-embeddings-embt_flair-entt_ORG-wsize_$(WINDOW_SIZE)-dm_$(DIST)-nt_$(N_TREES).mapping $(DATA_PATH)/wikipedia/wikipedia-tagged.parquet flair ORG $(DIST) $(OUTPUT_PATH) --processes=$(PROCESSES) --max-iter=100000
+#
+#flair-eval-LOC:
+#	evaluate-with-context $(OUTPUT_PATH)/context-embeddings-embt_flair-entt_LOC-wsize_$(WINDOW_SIZE)-dm_$(DIST)-nt_$(N_TREES).ann $(OUTPUT_PATH)/context-embeddings-embt_flair-entt_LOC-wsize_$(WINDOW_SIZE)-dm_$(DIST)-nt_$(N_TREES).mapping $(DATA_PATH)/wikipedia/wikipedia-tagged.parquet flair LOC $(DIST) $(OUTPUT_PATH) --processes=$(PROCESSES) --max-iter=100000
 
-flair-eval-LOC:
-	evaluate-with-context $(OUTPUT_PATH)/context-embeddings-embt_flair-entt_LOC-wsize_$(WINDOW_SIZE)-dm_$(DIST)-nt_$(N_TREES).ann $(OUTPUT_PATH)/context-embeddings-embt_flair-entt_LOC-wsize_$(WINDOW_SIZE)-dm_$(DIST)-nt_$(N_TREES).mapping $(DATA_PATH)/wikipedia/wikipedia-tagged.parquet flair LOC $(DIST) $(OUTPUT_PATH) --processes=$(PROCESSES) --max-iter=100000
-
-flair-eval-PER:
-	evaluate-with-context $(OUTPUT_PATH)/context-embeddings-embt_flair-entt_PER-wsize_$(WINDOW_SIZE)-dm_$(DIST)-nt_$(N_TREES).ann $(OUTPUT_PATH)/context-embeddings-embt_flair-entt_PER-wsize_$(WINDOW_SIZE)-dm_$(DIST)-nt_$(N_TREES).mapping $(DATA_PATH)/wikipedia/wikipedia-tagged.parquet flair PER $(DIST) $(OUTPUT_PATH) --processes=$(PROCESSES) --max-iter=100000
-flair-eval:	flair-context-index flair-eval-ORG flair-eval-LOC flair-eval-PER
-
-flair-eval-combined-ORG:
-	evaluate-combined $(DATA_PATH)/wikipedia/wikipedia-tagged.parquet ORG fasttext $(N_TREES) $(DIST) flair $(WINDOW_SIZE) $(BATCH_SIZE) $(OUTPUT_PATH) --processes=$(PROCESSES) --max-iter=1000000
-
-flair-eval-combined-LOC:
-	evaluate-combined $(DATA_PATH)/wikipedia/wikipedia-tagged.parquet LOC fasttext $(N_TREES) $(DIST) flair $(WINDOW_SIZE) $(BATCH_SIZE) $(OUTPUT_PATH) --processes=$(PROCESSES) --max-iter=1000000
-
-flair-eval-combined-PER:
-	evaluate-combined $(DATA_PATH)/wikipedia/wikipedia-tagged.parquet PER fasttext $(N_TREES) $(DIST) flair $(WINDOW_SIZE) $(BATCH_SIZE) $(OUTPUT_PATH) --processes=$(PROCESSES) --max-iter=1000000
-
-flair-eval-combined:	flair-eval-combined-ORG flair-eval-combined-LOC flair-eval-combined-PER
+#flair-eval-PER:
+#	evaluate-with-context $(OUTPUT_PATH)/context-embeddings-embt_flair-entt_PER-wsize_$(WINDOW_SIZE)-dm_$(DIST)-nt_$(N_TREES).ann $(OUTPUT_PATH)/context-embeddings-embt_flair-entt_PER-wsize_$(WINDOW_SIZE)-dm_$(DIST)-nt_$(N_TREES).mapping $(DATA_PATH)/wikipedia/wikipedia-tagged.parquet flair PER $(DIST) $(OUTPUT_PATH) --processes=$(PROCESSES) --max-iter=100000
+#flair-eval:	flair-context-index flair-eval-ORG flair-eval-LOC flair-eval-PER
+#
+#flair-eval-combined-ORG:
+#	evaluate-combined $(DATA_PATH)/wikipedia/wikipedia-tagged.parquet ORG fasttext $(N_TREES) $(DIST) flair $(WINDOW_SIZE) $(BATCH_SIZE) $(OUTPUT_PATH) --processes=$(PROCESSES) --max-iter=1000000
+#
+#flair-eval-combined-LOC:
+#	evaluate-combined $(DATA_PATH)/wikipedia/wikipedia-tagged.parquet LOC fasttext $(N_TREES) $(DIST) flair $(WINDOW_SIZE) $(BATCH_SIZE) $(OUTPUT_PATH) --processes=$(PROCESSES) --max-iter=1000000
+#
+#flair-eval-combined-PER:
+#	evaluate-combined $(DATA_PATH)/wikipedia/wikipedia-tagged.parquet PER fasttext $(N_TREES) $(DIST) flair $(WINDOW_SIZE) $(BATCH_SIZE) $(OUTPUT_PATH) --processes=$(PROCESSES) --max-iter=1000000
+#
+#flair-eval-combined:	flair-eval-combined-ORG flair-eval-combined-LOC flair-eval-combined-PER
 
 # =============================================================================================================================================================
 
@@ -218,4 +218,3 @@ ned-test:
 
 ned-test-test:
 	ned-bert --seed=29 --eval-batch-size=128 --dev-size=100000 --num-train-epochs=10 --ned-sql-file $(NED_FILE) --train-set-file $(NED_TRAIN_SUBSET_FILE) --dev-set-file $(NED_TEST_SUBSET_FILE) --test-set-file $(NED_TEST_SUBSET_FILE) ./ned.model-test ./ned-model-test --model-file pytorch_model.bin --entity-index-path $(ENTITY_INDEX_PATH) --entities-file $(ENTITIES_FILE)
-
