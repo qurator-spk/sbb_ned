@@ -7,6 +7,7 @@ An overview of the functionality of the NED system can be found in
  our [CLEF 2020 HIPE paper](http://ceur-ws.org/Vol-2696/paper_163.pdf).
 Based on the CLEF 2020 observations, we improved the system and performed a new evaluation in the 
 [CLEF 2022 HIPE Entity Linking task](https://ceur-ws.org/Vol-3180/paper-85.pdf).
+Currently there is also a [demo-installation](https://ravius.sbb.berlin/sbb-tools/index.html?ppn=756689090&model_id=precomputed&el_model_id=precomputed&task=ner) online. 
 # Installation:
 
 Before named entity disambiguation (NED) can be performed, 
