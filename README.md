@@ -101,6 +101,7 @@ pip install -e sbb_ned
 ```
 
 Download required models: https://qurator-data.de/sbb_ned/models.tar.gz 
+([content of archive](https://qurator-data.de/sbb_ned/models.tar.gz.listing.txt)) 
 
 Beware: The archive file contains the required models as well as the knowledge bases
 for german, french and english, altogether roughly 200GB!!! 
