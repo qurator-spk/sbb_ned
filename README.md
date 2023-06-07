@@ -233,7 +233,7 @@ Answer:
 
 # Knowledge-base extraction:
 
-Look into the relevant section of the [SBB-Tools README](https://github.com/qurator-spk/sbb_tools).
+Look into the relevant section of the [Knowledge-base README](https://github.com/qurator-spk/sbb_knowledge-base).
 
 ***
 
