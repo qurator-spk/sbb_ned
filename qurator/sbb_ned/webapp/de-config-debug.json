@@ -11,7 +11,7 @@
   "MODEL_FILE": "pytorch_model.bin",
   "BATCH_SIZE": 8,
   "EPOCH": "",
-  "NED_SQL_FILE": "data/wikipedia/de-ned.sqlite",
+  "NED_SQL_FILE": "/mnt/ramdisk/de-ned.sqlite",
   "ENTITIES_FILE": "data/wikidata/de-wikipedia-ner-entities.pkl",
   "EMBEDDING_TYPE": "bert",
   "EMBEDDING_LAYERS": "-1,-2,-3,-4",
@@ -31,7 +31,7 @@
   "DECIDER_PROCESSES": 0,
   "MAX_CANDIDATES": 25,
   "MAX_PAIRS": 50,
-  "DECIDER_MODEL": "clef2020-mk25-md0.05/de-decider.pkl",
+  "DECIDER_MODEL": "data/HIPE2022/de-decider-md0.05_mc25_mf1000.pkl",
   "DECISION_THRESHOLD": 0.1,
   "STEMMER": "german"
 }

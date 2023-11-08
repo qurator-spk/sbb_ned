@@ -169,10 +169,7 @@ class EmbedTask:
                 emb.append(get_embedding_vectors(EmbedTask.embeddings, el, self._split_parts))
 
             if len(emb) > 0:
-                try:
-                    emb = pd.concat(emb).sort_index()
-                except:
-                    import ipdb;ipdb.set_trace()
+                emb = pd.concat(emb).sort_index()
 
                 emb = emb[~emb.index.duplicated(keep='first')]
 

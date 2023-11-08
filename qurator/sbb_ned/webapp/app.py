@@ -25,6 +25,16 @@ app = Flask(__name__)
 
 app.config.from_json('de-config.json' if not os.environ.get('CONFIG') else os.environ.get('CONFIG'))
 
+# try:
+#     config_file = 'search-config.json' if not os.environ.get('CONFIG') else os.environ.get('CONFIG')
+#
+#     app.config.from_file(os.path.join(os.getcwd(), config_file), load=json.load)
+#
+# except FileNotFoundError as e:
+#     import pathlib
+#     print(e)
+#     print("Current path: {}".format(pathlib.Path(os.getcwd())))
+
 cache = Cache(app)
 
 logger = logging.getLogger(__name__)

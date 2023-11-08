@@ -29,44 +29,48 @@ class DeciderTask:
 
     def __call__(self, *args, **kwargs):
 
-        if self._candidates is None:
+        try:
+            if self._candidates is None:
+                return self._entity_id, {}
+
+            if self._decision is None or len(self._decision) == 0:
+                return self._entity_id, {}
+
+            decider_features = features(self._decision, self._candidates, self._quantiles, self._rank_intervalls)
+
+            ranking = pd.DataFrame()
+            if DeciderTask.decider is not None and len(decider_features) > 0:
+                prediction = predict(decider_features, DeciderTask.decider)
+
+                prediction = self._candidates[['surface', 'guessed_title']].merge(prediction, on='guessed_title')
+
+                ranking = prediction[(prediction.proba_1 >= self._threshold) |
+                                     (prediction.guessed_title.str.lower() == prediction.surface.str.lower())].\
+                    sort_values(['proba_1', 'case_rank_min'], ascending=[False, True]).\
+                    drop_duplicates(['guessed_title']).set_index('guessed_title')
+
+            result = dict()
+
+            if len(ranking) > 0:
+                ranking['wikidata'] = [DeciderTask.entities.loc[guessed_title, 'QID']
+                                       for guessed_title, _ in ranking.iterrows()]
+
+                result['ranking'] = [i for i in ranking[['proba_1', 'wikidata']].T.to_dict(into=OrderedDict).items()]
+
+            if self._return_full:
+                self._candidates['wikidata'] = [DeciderTask.entities.loc[v.guessed_title, 'QID']
+                                                for _, v in self._candidates.iterrows()]
+
+                decision = self._decision.merge(self._candidates[['guessed_title', 'wikidata']],
+                                                left_on='guessed_title', right_on='guessed_title')
+
+                result['decision'] = json.loads(decision.to_json(orient='split'))
+                result['candidates'] = json.loads(self._candidates.to_json(orient='split'))
+
+            return self._entity_id, result
+        except Exception as e:
+            print("Exception in DeciderTask: {}".format(e))
             return self._entity_id, {}
-
-        if self._decision is None or len(self._decision) == 0:
-            return self._entity_id, {}
-
-        decider_features = features(self._decision, self._candidates, self._quantiles, self._rank_intervalls)
-
-        ranking = pd.DataFrame()
-        if DeciderTask.decider is not None and len(decider_features) > 0:
-            prediction = predict(decider_features, DeciderTask.decider)
-
-            prediction = self._candidates[['surface', 'guessed_title']].merge(prediction, on='guessed_title')
-
-            ranking = prediction[(prediction.proba_1 >= self._threshold) |
-                                 (prediction.guessed_title.str.lower() == prediction.surface.str.lower())].\
-                sort_values(['proba_1', 'case_rank_min'], ascending=[False, True]).\
-                drop_duplicates(['guessed_title']).set_index('guessed_title')
-
-        result = dict()
-
-        if len(ranking) > 0:
-            ranking['wikidata'] = [DeciderTask.entities.loc[guessed_title, 'QID']
-                                   for guessed_title, _ in ranking.iterrows()]
-
-            result['ranking'] = [i for i in ranking[['proba_1', 'wikidata']].T.to_dict(into=OrderedDict).items()]
-
-        if self._return_full:
-            self._candidates['wikidata'] = [DeciderTask.entities.loc[v.guessed_title, 'QID']
-                                            for _, v in self._candidates.iterrows()]
-
-            decision = self._decision.merge(self._candidates[['guessed_title', 'wikidata']],
-                                            left_on='guessed_title', right_on='guessed_title')
-
-            result['decision'] = json.loads(decision.to_json(orient='split'))
-            result['candidates'] = json.loads(self._candidates.to_json(orient='split'))
-
-        return self._entity_id, result
 
     @staticmethod
     def initialize(decider, entities):

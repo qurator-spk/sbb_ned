@@ -1,5 +1,22 @@
 from multiprocessing import Semaphore
 import numpy as np
+import inspect
+
+
+class InfiniteLoop:
+    def __init__(self, warn_limit, message):
+        self.warn_limit = warn_limit
+        self._message = message
+        self._counter = 0
+
+    def __call__(self, *args, **kwargs):
+
+        self._counter += 1
+
+        if self._counter == self.warn_limit:
+            print(self._message)
+
+        return True
 
 
 class Job:
@@ -173,18 +190,24 @@ class JobQueue:
                 if self._result_sequence is not None:
                     self._next_call_sem.release()
 
-    def remove_job(self, job_id, priority):
+    def remove_job(self, job_id, priority=None):
 
         with self._main_sem:
 
             if job_id in self._process_queue:
                 job = self._process_queue.pop(job_id)
-                self._priorities[priority].remove(job_id)
+
+                if priority is not None:
+                    self._priorities[priority].remove(job_id)
+                else:
+                    for priority, priority_ids in self._priorities.items():
+                        if job_id in priority_ids:
+                            priority_ids.remove(job_id)
 
                 if job.num_pending() > 0:
                     print('Warning job_id: {} num_pending > 0 !!!'.format(job_id))
-            else:
-                print('Warning: attempt to remove non-existent job!!!')
+            # else:
+            #     print('Warning: attempt to remove non-existent job!!!')
 
     def do_next_task(self):
 
@@ -232,7 +255,8 @@ class JobQueue:
             if not self.wait(self._process_queue_sem, msg="{}:_process_queue_sem".format(self._name)):
                 return None, None, JobQueue.quit
 
-        while True:
+        while InfiniteLoop(100, "Loop warning: {}:{}".format(inspect.getframeinfo(inspect.currentframe()).filename,
+                                                                 inspect.getframeinfo(inspect.currentframe()).lineno)):
             job_id, prio = _next()
 
             if job_id is None:
@@ -265,7 +289,8 @@ class JobQueue:
     @staticmethod
     def wait(sem=None, msg=None):
 
-        while True:
+        while InfiniteLoop(100, "Loop warning: {}:{}".format(inspect.getframeinfo(inspect.currentframe()).filename,
+                                                                 inspect.getframeinfo(inspect.currentframe()).lineno)):
             if sem is not None and sem.acquire(timeout=1):
                 return True
 

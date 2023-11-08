@@ -3,11 +3,12 @@ from __future__ import absolute_import, division, print_function
 import logging
 # import os
 import pandas as pd
+import inspect
 
 from ..index import LookUpByEmbeddings
 from ..embeddings.base import EmbedTask
 from .sentence_lookup import SentenceLookup
-from .jobs import JobQueue
+from .jobs import JobQueue, InfiniteLoop
 
 from qurator.utils.parallel import run as prun
 from qurator.utils.parallel import run_unordered as prun_unordered
@@ -38,7 +39,12 @@ class EmbedTaskWrapper(EmbedTask):
         if self._entity_id is None:
             return self._job_id, None, None, None, (None, None, None)
 
-        return self._job_id, self._entity_id, self._ent_type, self._sentences, super(EmbedTaskWrapper, self).__call__(*args, **kwargs)
+        try:
+            return self._job_id, self._entity_id, self._ent_type, self._sentences, \
+                   super(EmbedTaskWrapper, self).__call__(*args, **kwargs)
+        except Exception as e:
+            print("Exception in EmbedTaskWrapper: {}".format(e))
+            return self._job_id, None, None, None, (None, None, None)
 
 
 class LookUpByEmbeddingWrapper(LookUpByEmbeddings):
@@ -56,7 +62,11 @@ class LookUpByEmbeddingWrapper(LookUpByEmbeddings):
         if self._entity_id is None:
             return self._job_id, self._sentences, (None, None)
 
-        return self._job_id, self._sentences, super(LookUpByEmbeddingWrapper, self).__call__(*args, **kwargs)
+        try:
+            return self._job_id, self._sentences, super(LookUpByEmbeddingWrapper, self).__call__(*args, **kwargs)
+        except Exception as e:
+            print("Exception in LookUpByEmbeddingWrapper: {}".format(e))
+            return self._job_id, self._sentences, (None, None)
 
 
 class SentenceLookupWrapper(SentenceLookup):
@@ -80,8 +90,12 @@ class SentenceLookupWrapper(SentenceLookup):
         if self._entity_id is None:
             return self._job_id, None, None, None
 
-        return self._job_id, self._entity_id, self._candidates, \
-               super(SentenceLookupWrapper, self).__call__(*args, **kwargs)
+        try:
+            return self._job_id, self._entity_id, self._candidates, \
+                   super(SentenceLookupWrapper, self).__call__(*args, **kwargs)
+        except Exception as e:
+            print("Exception in SentenceLookupWrapper: {}".format(e))
+            return self._job_id, None, None, None
 
 
 class ConvertSamples2FeaturesWrapper(ConvertSamples2Features):
@@ -98,8 +112,12 @@ class ConvertSamples2FeaturesWrapper(ConvertSamples2Features):
         if self._entity_id is None:
             return self._job_id, None, None, None
 
-        return self._job_id, self._entity_id, self._candidate, \
-               super(ConvertSamples2FeaturesWrapper, self).__call__(*args, **kwargs)
+        try:
+            return self._job_id, self._entity_id, self._candidate, \
+                   super(ConvertSamples2FeaturesWrapper, self).__call__(*args, **kwargs)
+        except Exception as e:
+            print("Exception in ConvertSamples2FeaturesWrapper: {}".format(e))
+            return self._job_id, None, None, None
 
 
 class NEDLookup:
@@ -138,20 +156,36 @@ class NEDLookup:
         self._queue_entities = JobQueue(result_sequence=self.infinite_feature_sequence(),
                                         name="NEDLookup_entities", min_level=2, verbose=True, limit=limit)
 
-        self._queue_embed = JobQueue(name="NEDLookup_embed", min_level=2, feeder_queue=self._queue_entities)
+        self._queue_embed = JobQueue(name="NEDLookup_embed", min_level=2, verbose=True, feeder_queue=self._queue_entities)
 
-        self._queue_lookup = JobQueue(name="NEDLookup_lookup", min_level=2, feeder_queue=self._queue_embed)
+        self._queue_lookup = JobQueue(name="NEDLookup_lookup", min_level=2, verbose=True, feeder_queue=self._queue_embed)
 
-        self._queue_sentences = JobQueue(name="NEDLookup_sentences", min_level=2, feeder_queue=self._queue_lookup)
+        self._queue_sentences = JobQueue(name="NEDLookup_sentences", min_level=2, verbose=True, feeder_queue=self._queue_lookup)
 
-        self._queue_pairs = JobQueue(name="NEDLookup_pairs", min_level=2, feeder_queue=self._queue_sentences)
+        self._queue_pairs = JobQueue(name="NEDLookup_pairs", min_level=2, verbose=True, feeder_queue=self._queue_sentences)
 
-        self._queue_features = JobQueue(name="NEDLookup_features", min_level=2, feeder_queue=self._queue_pairs)
+        self._queue_features = JobQueue(name="NEDLookup_features", min_level=2, verbose=True, feeder_queue=self._queue_pairs)
 
-        self._queue_final_output = JobQueue(name="NEDLookup_final_output", min_level=2,
+        self._queue_final_output = JobQueue(name="NEDLookup_final_output", min_level=2, verbose=True,
                                             feeder_queue=self._queue_features)
 
         self._verbose = verbose
+
+    def remove_job(self, job_id):
+
+        self._queue_entities.remove_job(job_id)
+
+        self._queue_embed.remove_job(job_id)
+
+        self._queue_lookup.remove_job(job_id)
+
+        self._queue_sentences.remove_job(job_id)
+
+        self._queue_pairs.remove_job(job_id)
+
+        self._queue_features.remove_job(job_id)
+
+        self._queue_final_output.remove_job(job_id)
 
     def feeder_queue(self):
         return self._queue_final_output
@@ -165,7 +199,10 @@ class NEDLookup:
             if iter_quit:
                 return
 
-            if job_id is None or task_info is None:
+            if job_id is None:
+                continue
+
+            if task_info is None:
                 continue
 
             entity_id, entity_info, params = task_info
@@ -178,16 +215,14 @@ class NEDLookup:
 
             yield job_id, entity_id, pd.DataFrame(entity_info['sentences']), entity_info['surfaces'], entity_info['type']
 
-            # signal entity_id == None <- This is required in order to emit the final result for the entity!!
-            # yield job_id, None, None, None, None
-
     def get_embed(self):
 
         for job_id, entity_id, sentences, surfaces, ent_type in self.get_entity():
 
             self._queue_embed.add_to_job(job_id, (entity_id, sentences, surfaces, ent_type))
 
-            while True:
+            while InfiniteLoop(100, "Loop warning: {}:{}".format(inspect.getframeinfo(inspect.currentframe()).filename,
+                                                                 inspect.getframeinfo(inspect.currentframe()).lineno)):
                 job_id, task_info, iter_quit = self._queue_embed.get_next_task()
 
                 if iter_quit:
@@ -212,7 +247,8 @@ class NEDLookup:
 
             self._queue_lookup.add_to_job(job_id, (entity_id, ent_type, sentences))
 
-            while True:
+            while InfiniteLoop(100, "Loop warning: {}:{}".format(inspect.getframeinfo(inspect.currentframe()).filename,
+                                                                 inspect.getframeinfo(inspect.currentframe()).lineno)):
                 job_id, task_info, iter_quit = self._queue_lookup.get_next_task()
 
                 if iter_quit:
@@ -247,7 +283,8 @@ class NEDLookup:
 
             self._queue_sentences.add_to_job(job_id, (sentences, None, None))
 
-            while True:
+            while InfiniteLoop(100, "Loop warning: {}:{}".format(inspect.getframeinfo(inspect.currentframe()).filename,
+                                                                 inspect.getframeinfo(inspect.currentframe()).lineno)):
                 job_id, task_info, iter_quit = self._queue_sentences.get_next_task()
 
                 if iter_quit:
@@ -287,7 +324,9 @@ class NEDLookup:
 
                         candidate = None
 
-            while True:
+            while InfiniteLoop(100, "Loop warning: {}:{}".format(inspect.getframeinfo(inspect.currentframe()).filename,
+                                                                 inspect.getframeinfo(inspect.currentframe()).lineno)):
+
                 job_id, task_info, iter_quit = self._queue_pairs.get_next_task()
 
                 if iter_quit:
@@ -309,7 +348,8 @@ class NEDLookup:
 
             self._queue_features.add_to_job(job_id, (entity_id, candidate, pair))
 
-            while True:
+            while InfiniteLoop(100, "Loop warning: {}:{}".format(inspect.getframeinfo(inspect.currentframe()).filename,
+                                                                 inspect.getframeinfo(inspect.currentframe()).lineno)):
                 job_id, task_info, iter_quit = self._queue_features.get_next_task()
 
                 if iter_quit:
@@ -349,7 +389,8 @@ class NEDLookup:
 
             self._queue_final_output.add_to_job(job_id, (entity_id, candidate, fe))
 
-            while True:
+            while InfiniteLoop(100, "Loop warning: {}:{}".format(inspect.getframeinfo(inspect.currentframe()).filename,
+                                                                 inspect.getframeinfo(inspect.currentframe()).lineno)):
                 job_id, task_info, iter_quit = self._queue_final_output.get_next_task()
 
                 if iter_quit:

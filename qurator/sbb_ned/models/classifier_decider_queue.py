@@ -3,6 +3,7 @@ import pandas as pd
 import logging
 import numpy as np
 import torch
+import inspect
 from torch.utils.data import (DataLoader, SequentialSampler, TensorDataset)
 
 from collections import OrderedDict
@@ -11,7 +12,7 @@ from qurator.sbb_ned.models.bert import model_predict_compare
 from qurator.sbb_ned.models.decider import DeciderTask
 from qurator.utils.parallel import run_unordered as prun
 
-from .jobs import JobQueue
+from .jobs import JobQueue, InfiniteLoop
 from qurator.sbb_ned.models.bert import get_device
 from pytorch_pretrained_bert.modeling import (CONFIG_NAME, BertConfig, BertForSequenceClassification)
 
@@ -48,32 +49,37 @@ class ClassifierTask:
 
     def __call__(self, *args, **kwargs):
 
-        if self._candidates is None:
+        try:
+            if self._candidates is None:
+                return self._job_id, None, None, None
+
+            if len(self._features) <= 0:
+                return self._job_id, self._entity_id, pd.DataFrame(), pd.DataFrame()
+
+            all_input_ids = torch.tensor([f.input_ids for f in self._features], dtype=torch.long)
+            all_input_mask = torch.tensor([f.input_mask for f in self._features], dtype=torch.long)
+            all_segment_ids = torch.tensor([f.segment_ids for f in self._features], dtype=torch.long)
+            all_labels = torch.tensor([f.label for f in self._features], dtype=torch.long)
+
+            data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_labels)
+
+            sampler = SequentialSampler(data)
+
+            data_loader = DataLoader(data, sampler=sampler, batch_size=ClassifierTask.batch_size)
+
+            decision = model_predict_compare(data_loader, ClassifierTask.device, ClassifierTask.model, disable_output=True)
+
+            decision['guessed_title'] = [f.guid[1] for f in self._features]
+            decision['target'] = [f.guid[0] for f in self._features]
+            decision['scores'] = np.log(decision[1] / decision[0])
+
+            assert len(decision.target.unique()) == 1
+
+            return self._job_id, self._entity_id, decision, self._candidates
+
+        except Exception as e:
+            print("Exception in ClassifierTask: {}".format(e))
             return self._job_id, None, None, None
-
-        if len(self._features) <= 0:
-            return self._job_id, self._entity_id, pd.DataFrame(), pd.DataFrame()
-
-        all_input_ids = torch.tensor([f.input_ids for f in self._features], dtype=torch.long)
-        all_input_mask = torch.tensor([f.input_mask for f in self._features], dtype=torch.long)
-        all_segment_ids = torch.tensor([f.segment_ids for f in self._features], dtype=torch.long)
-        all_labels = torch.tensor([f.label for f in self._features], dtype=torch.long)
-
-        data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_labels)
-
-        sampler = SequentialSampler(data)
-
-        data_loader = DataLoader(data, sampler=sampler, batch_size=ClassifierTask.batch_size)
-
-        decision = model_predict_compare(data_loader, ClassifierTask.device, ClassifierTask.model, disable_output=True)
-
-        decision['guessed_title'] = [f.guid[1] for f in self._features]
-        decision['target'] = [f.guid[0] for f in self._features]
-        decision['scores'] = np.log(decision[1] / decision[0])
-
-        assert len(decision.target.unique()) == 1
-
-        return self._job_id, self._entity_id, decision, self._candidates
 
     @staticmethod
     def initialize(no_cuda, model_dir, model_file, batch_size):
@@ -159,27 +165,29 @@ class ClassifierDeciderQueue:
     def infinite_process_sequence(self):
 
         for job_id, (eid, result) in \
-                prun(self.get_decider_tasks(), initializer=DeciderTask.initialize,
-                     initargs=(self._decider, self._entities), processes=self._decider_processes):
+            prun(self.get_decider_tasks(), initializer=DeciderTask.initialize,
+                 initargs=(self._decider, self._entities), processes=self._decider_processes):
 
-                self._queue_final_output.add_to_job(job_id, (eid, result))
+            self._queue_final_output.add_to_job(job_id, (eid, result))
 
-                while True:
-                    job_id, task_info, iter_quit = self._queue_final_output.get_next_task()
+            while InfiniteLoop(100, "Loop warning: {}:{}".format(inspect.getframeinfo(inspect.currentframe()).filename,
+                                                                 inspect.getframeinfo(inspect.currentframe()).lineno)):
+                job_id, task_info, iter_quit = self._queue_final_output.get_next_task()
 
-                    if iter_quit:
-                        return
+                if iter_quit:
+                    return
 
-                    if task_info is None:
-                        break
+                if task_info is None:
+                    break
 
-                    eid, result, params = task_info
+                eid, result, params = task_info
 
-                    yield job_id, (eid, result)
+                yield job_id, (eid, result)
 
     def get_classifier_tasks(self):
 
-        while True:
+        while InfiniteLoop(100, "Loop warning: {}:{}".format(inspect.getframeinfo(inspect.currentframe()).filename,
+                                                                 inspect.getframeinfo(inspect.currentframe()).lineno)):
 
             job_id, task_info, iter_quit = self._queue_classifier.get_next_task()
 
@@ -204,7 +212,8 @@ class ClassifierDeciderQueue:
 
             self._queue_decider.add_to_job(job_id, (entity_id, decision, candidates))
 
-            while True:
+            while InfiniteLoop(100, "Loop warning: {}:{}".format(inspect.getframeinfo(inspect.currentframe()).filename,
+                                                                 inspect.getframeinfo(inspect.currentframe()).lineno)):
                 job_id, task_info, iter_quit = self._queue_decider.get_next_task()
 
                 if iter_quit:
