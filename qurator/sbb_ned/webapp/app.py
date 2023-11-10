@@ -1,5 +1,7 @@
 import os
+import sys
 import logging
+# from logging.config import dictConfig
 from flask import Flask, send_from_directory, redirect, jsonify, request
 from flask_caching import Cache
 from hashlib import sha256
@@ -8,10 +10,12 @@ from hashlib import sha256
 import json
 import pandas as pd
 import pickle
-import re
+# import re
 import torch
 import sqlite3
-import multiprocessing as mp
+
+# from multiprocessing import Semaphore
+from threading import Semaphore
 
 from qurator.sbb_ned.models.classifier_decider_queue import ClassifierDeciderQueue
 from qurator.sbb_ner.models.tokenization import BertTokenizer
@@ -21,7 +25,20 @@ from ..models.ned_lookup import NEDLookup
 
 from nltk.stem.snowball import SnowballStemmer
 
-app = Flask(__name__)
+logger = logging.getLogger("sbb_ned")
+
+handler = logging.StreamHandler(sys.stdout)
+
+handler.setFormatter(logging.Formatter(
+    '%(threadName)s: %(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+
+app = Flask("sbb_ned")
+
+app.logger.addHandler(handler)
+app.logger.setLevel(logging.DEBUG)
+
+logger.info(__name__)
+
 
 app.config.from_json('de-config.json' if not os.environ.get('CONFIG') else os.environ.get('CONFIG'))
 
@@ -36,10 +53,6 @@ app.config.from_json('de-config.json' if not os.environ.get('CONFIG') else os.en
 #     print("Current path: {}".format(pathlib.Path(os.getcwd())))
 
 cache = Cache(app)
-
-logger = logging.getLogger(__name__)
-
-logging.basicConfig(level=logging.DEBUG)
 
 
 class ThreadStore:
@@ -70,7 +83,7 @@ class ThreadStore:
 
         self.get_embeddings()  # DO NOT REMOVE!
 
-        self._sem = mp.Semaphore(1)
+        self._sem = Semaphore(1)
 
     def get_tokenizer(self):
 
@@ -268,7 +281,7 @@ def parse_sentence(sent, normalization_map):
         assert len(entity_ids) == len(entity_types)
         assert len(entity_ids) == len(entity_gt)
     except AssertionError:
-        print("ERROR(parse_sentence): {} {} {}".format(str(entity_ids), str(entity_types), str(entity_gt)))
+        logger.error("ERROR(parse_sentence): {} {} {}".format(str(entity_ids), str(entity_types), str(entity_gt)))
 
     return entity_ids, entities, entity_types, text_json, tags_json, entities_json, entity_gt
 

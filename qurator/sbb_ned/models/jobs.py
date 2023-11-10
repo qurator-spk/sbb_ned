@@ -1,6 +1,10 @@
-from multiprocessing import Semaphore
+from threading import Semaphore
+
 import numpy as np
 import inspect
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class InfiniteLoop:
@@ -12,11 +16,19 @@ class InfiniteLoop:
     def __call__(self, *args, **kwargs):
 
         self._counter += 1
+        # print("Iteration {}: {}".format(self._counter, self._message))
 
         if self._counter == self.warn_limit:
-            print(self._message)
+            logger.warning("Loop Warning: {}".format(self._message))
 
         return True
+
+    def warn(self):
+
+        return self._counter > self.warn_limit
+
+    def reset(self):
+        self._counter = 0
 
 
 class Job:
@@ -72,12 +84,16 @@ class Job:
 
     def sequence(self):
 
-        while self._task_len > 0:
+        loop = InfiniteLoop(100, "{}:{}:{}".format(self._id,
+                                                   inspect.getframeinfo(inspect.currentframe()).filename,
+                                                   inspect.getframeinfo(inspect.currentframe()).lineno))
+
+        while self._task_len > 0 and loop():
 
             if JobQueue.quit:
                 return
 
-            self._queue.do_next_task()
+            self._queue.do_next_task(loop=loop)
 
             with self._sem:
                 results = self._results
@@ -85,6 +101,8 @@ class Job:
                 self._task_len -= len(results)
 
             for result in results:
+
+                loop.reset()
 
                 yield (self._id, *result)
 
@@ -157,10 +175,10 @@ class JobQueue:
     def prio_above_pending(self, prio):
 
         if self._feeder_queue is not None and self._feeder_queue.prio_above_pending(prio):
-            print('{}: Above pending prio: {}'.format(self._name, prio))
+            logger.debug('{}: Above pending prio: {}'.format(self._name, prio))
             return True
         else:
-            if not self._process_queue_sem.acquire(block=False):
+            if not self._process_queue_sem.acquire(blocking=False):
                 return False  # nothing to process ...
             else:
                 self._process_queue_sem.release()
@@ -205,11 +223,11 @@ class JobQueue:
                             priority_ids.remove(job_id)
 
                 if job.num_pending() > 0:
-                    print('Warning job_id: {} num_pending > 0 !!!'.format(job_id))
-            # else:
-            #     print('Warning: attempt to remove non-existent job!!!')
+                    logger.warning('Warning job_id: {} num_pending > 0 !!!'.format(job_id))
+            else:
+                 logger.warning('Warning: attempt to remove non-existent job!!!')
 
-    def do_next_task(self):
+    def do_next_task(self, loop=None):
 
         if self._result_sequence is None:
             raise RuntimeError('JobQueue does not have result sequence!')
@@ -223,6 +241,16 @@ class JobQueue:
 
             if self._limit_sem is not None:
                 self._limit_sem[self._process_queue[job_id].priority].release()
+
+                logger.debug("{}: self._limit_sem[{}].release()".format(self._name,
+                                                                        self._process_queue[job_id].priority))
+
+            elif loop is not None and loop.warn():
+                logger.warning("{}: self._limit_sem[{}] is blocked.".format(self._name,
+                                                                            self._process_queue[job_id].priority))
+
+        elif loop is not None and loop.warn():
+            logger.warning("{}: self._next_call_sem is blocked.".format(self._name))
 
     def get_next_task(self):
 
@@ -255,8 +283,11 @@ class JobQueue:
             if not self.wait(self._process_queue_sem, msg="{}:_process_queue_sem".format(self._name)):
                 return None, None, JobQueue.quit
 
-        while InfiniteLoop(100, "Loop warning: {}:{}".format(inspect.getframeinfo(inspect.currentframe()).filename,
-                                                                 inspect.getframeinfo(inspect.currentframe()).lineno)):
+        loop = InfiniteLoop(100, "{}:{}:{}".format(self._name,
+                                                   inspect.getframeinfo(inspect.currentframe()).filename,
+                                                   inspect.getframeinfo(inspect.currentframe()).lineno))
+
+        while loop():
             job_id, prio = _next()
 
             if job_id is None:
@@ -266,36 +297,48 @@ class JobQueue:
 
                 task_info = _get(job_id)
 
+                if loop.warn():
+                    logger.warning("{}: job_id: {}, task_info: {}".format(self._name, job_id, task_info))
+
                 if task_info is not None:
 
                     if self._verbose:
-                        print("{}: job_id: {} #prio {} jobs: {}".
+                        logger.info("{}: job_id: {} #prio {} jobs: {}".
                               format(self._name, job_id, prio, len(self._priorities[prio])))
 
                     return job_id, task_info, JobQueue.quit
 
             elif self._limit_sem[prio].acquire(timeout=1):
+
+                logger.debug("{}: self._limit_sem[{}].acquire()".format(self._name, prio))
+
                 task_info = _get(job_id)
 
                 if task_info is None:
                     self._limit_sem[prio].release()
                 else:
                     if self._verbose:
-                        print("{}: job_id: {} #prio {} jobs: {}".
+                        logger.info("{}: job_id: {} #prio {} jobs: {}".
                               format(self._name, job_id, prio, len(self._priorities[prio])))
 
                     return job_id, task_info, JobQueue.quit
 
+            elif loop.warn():
+                logger.warning("{}: _limit_sem blocked, job_id: {}, prio: {}".format(self._name, job_id, prio))
+
     @staticmethod
     def wait(sem=None, msg=None):
 
-        while InfiniteLoop(100, "Loop warning: {}:{}".format(inspect.getframeinfo(inspect.currentframe()).filename,
-                                                                 inspect.getframeinfo(inspect.currentframe()).lineno)):
+        loop = InfiniteLoop(100, "{}:{}".format(inspect.getframeinfo(inspect.currentframe()).filename,
+                                                inspect.getframeinfo(inspect.currentframe()).lineno))
+        while loop():
             if sem is not None and sem.acquire(timeout=1):
                 return True
+            elif loop.warn() and msg is not None:
+                logger.warning("sem blocked: {}", msg)
 
             if msg is not None:
-                print(msg)
+                logger.info(msg)
 
             if JobQueue.quit:
                 return False

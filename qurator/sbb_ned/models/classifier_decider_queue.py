@@ -78,7 +78,7 @@ class ClassifierTask:
             return self._job_id, self._entity_id, decision, self._candidates
 
         except Exception as e:
-            print("Exception in ClassifierTask: {}".format(e))
+            logger.error("Exception in ClassifierTask: {}".format(e))
             return self._job_id, None, None, None
 
     @staticmethod
@@ -129,10 +129,10 @@ class ClassifierDeciderQueue:
                                           name="ClassifierDeciderQueue_classifier", min_level=2,
                                           feeder_queue=feeder_queue, verbose=True, limit=limit)
 
-        self._queue_decider = JobQueue(name="ClassifierDeciderQueue_decider", min_level=2,
+        self._queue_decider = JobQueue(name="ClassifierDeciderQueue_decider", verbose=False, min_level=2,
                                        feeder_queue=self._queue_classifier)
 
-        self._queue_final_output = JobQueue(name="ClassifierDeciderQueue_final_output", min_level=2,
+        self._queue_final_output = JobQueue(name="ClassifierDeciderQueue_final_output", verbose=False, min_level=2,
                                             feeder_queue=self._queue_decider)
 
     def run(self, job_sequence, len_sequence, return_full, threshold, priority):
@@ -150,7 +150,7 @@ class ClassifierDeciderQueue:
 
         for job_id, eid, result in job_main.sequence():
 
-            print('ClassifierDeciderQueue.run: {}:{}'.format(job_id, eid))
+            logger.info('ClassifierDeciderQueue.run: {}:{}'.format(job_id, eid))
 
             complete_result[eid] = result
 
@@ -170,8 +170,10 @@ class ClassifierDeciderQueue:
 
             self._queue_final_output.add_to_job(job_id, (eid, result))
 
-            while InfiniteLoop(100, "Loop warning: {}:{}".format(inspect.getframeinfo(inspect.currentframe()).filename,
-                                                                 inspect.getframeinfo(inspect.currentframe()).lineno)):
+            loop = InfiniteLoop(100, "{}:{}".format(inspect.getframeinfo(inspect.currentframe()).filename,
+                                                    inspect.getframeinfo(inspect.currentframe()).lineno))
+
+            while loop():
                 job_id, task_info, iter_quit = self._queue_final_output.get_next_task()
 
                 if iter_quit:
@@ -186,8 +188,10 @@ class ClassifierDeciderQueue:
 
     def get_classifier_tasks(self):
 
-        while InfiniteLoop(100, "Loop warning: {}:{}".format(inspect.getframeinfo(inspect.currentframe()).filename,
-                                                                 inspect.getframeinfo(inspect.currentframe()).lineno)):
+        loop = InfiniteLoop(100, "{}:{}".format(inspect.getframeinfo(inspect.currentframe()).filename,
+                                                inspect.getframeinfo(inspect.currentframe()).lineno))
+
+        while loop():
 
             job_id, task_info, iter_quit = self._queue_classifier.get_next_task()
 
@@ -199,7 +203,7 @@ class ClassifierDeciderQueue:
 
             _, entity_id, features, candidates, params = task_info
 
-            print("get_classifier_tasks: {}:{}".format(job_id, entity_id))
+            logger.info("get_classifier_tasks: {}:{}".format(job_id, entity_id))
 
             yield ClassifierTask(job_id, entity_id, features, candidates, **params)
 
@@ -212,8 +216,10 @@ class ClassifierDeciderQueue:
 
             self._queue_decider.add_to_job(job_id, (entity_id, decision, candidates))
 
-            while InfiniteLoop(100, "Loop warning: {}:{}".format(inspect.getframeinfo(inspect.currentframe()).filename,
-                                                                 inspect.getframeinfo(inspect.currentframe()).lineno)):
+            loop = InfiniteLoop(100, "{}:{}".format(inspect.getframeinfo(inspect.currentframe()).filename,
+                                                    inspect.getframeinfo(inspect.currentframe()).lineno))
+
+            while loop():
                 job_id, task_info, iter_quit = self._queue_decider.get_next_task()
 
                 if iter_quit:
@@ -224,7 +230,7 @@ class ClassifierDeciderQueue:
 
                 entity_id, decision, candidates, params = task_info
 
-                print("get_decider_tasks: {}:{}".format(job_id, entity_id))
+                logger.info("get_decider_tasks: {}:{}".format(job_id, entity_id))
 
                 if entity_id is None:
                     continue
