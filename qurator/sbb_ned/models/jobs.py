@@ -242,15 +242,15 @@ class JobQueue:
             if self._limit_sem is not None:
                 self._limit_sem[self._process_queue[job_id].priority].release()
 
-                logger.debug("{}: self._limit_sem[{}].release()".format(self._name,
+                logger.debug("do_next_task {}: self._limit_sem[{}].release()".format(self._name,
                                                                         self._process_queue[job_id].priority))
 
             elif loop is not None and loop.warn():
-                logger.warning("{}: self._limit_sem[{}] is blocked.".format(self._name,
+                logger.warning("do_next_task {}: self._limit_sem[{}] is blocked.".format(self._name,
                                                                             self._process_queue[job_id].priority))
 
         elif loop is not None and loop.warn():
-            logger.warning("{}: self._next_call_sem is blocked.".format(self._name))
+            logger.warning("do_next_task {}: self._next_call_sem is blocked.".format(self._name))
 
     def get_next_task(self):
 
@@ -298,19 +298,19 @@ class JobQueue:
                 task_info = _get(job_id)
 
                 if loop.warn():
-                    logger.warning("{}: job_id: {}, task_info: {}".format(self._name, job_id, task_info))
+                    logger.warning("get_next_task {}: job_id: {}, task_info: {}".format(self._name, job_id, task_info))
 
                 if task_info is not None:
 
                     if self._verbose:
-                        logger.info("{}: job_id: {} #prio {} jobs: {}".
+                        logger.info("get_next_task {}: job_id: {} #prio {} jobs: {}".
                               format(self._name, job_id, prio, len(self._priorities[prio])))
 
                     return job_id, task_info, JobQueue.quit
 
             elif self._limit_sem[prio].acquire(timeout=1):
 
-                logger.debug("{}: self._limit_sem[{}].acquire()".format(self._name, prio))
+                logger.debug("get_next_task {}: self._limit_sem[{}].acquire()".format(self._name, prio))
 
                 task_info = _get(job_id)
 
@@ -318,13 +318,14 @@ class JobQueue:
                     self._limit_sem[prio].release()
                 else:
                     if self._verbose:
-                        logger.info("{}: job_id: {} #prio {} jobs: {}".
+                        logger.info("get_next_task {}: job_id: {} #prio {} jobs: {}".
                               format(self._name, job_id, prio, len(self._priorities[prio])))
 
                     return job_id, task_info, JobQueue.quit
 
             elif loop.warn():
-                logger.warning("{}: _limit_sem blocked, job_id: {}, prio: {}".format(self._name, job_id, prio))
+                logger.warning("get_next_task {}: _limit_sem blocked, job_id: {}, prio: {}".
+                               format(self._name, job_id, prio))
 
     @staticmethod
     def wait(sem=None, msg=None):
@@ -335,7 +336,7 @@ class JobQueue:
             if sem is not None and sem.acquire(timeout=1):
                 return True
             elif loop.warn() and msg is not None:
-                logger.warning("sem blocked: {}", msg)
+                logger.warning("JobQueue::wait: sem blocked: {}".format(msg))
 
             if msg is not None:
                 logger.info(msg)
