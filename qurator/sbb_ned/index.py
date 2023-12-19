@@ -14,6 +14,8 @@ import json
 from qurator.utils.parallel import run as prun
 import haversine as hs
 
+from datetime import datetime
+
 logger = logging.getLogger(__name__)
 
 
@@ -56,6 +58,12 @@ class LookUpByEmbeddings:
 
         ranking, _ = best_matches(self._entity_embeddings, get_index_and_mapping, self._search_k, self._max_dist)
 
+        before_filter = len(ranking)
+
+        if before_filter < self._search_k:
+            logger.warning("LookUpByEmbeddings [{}]: Could only retrieve {} best matches instead of {}".
+                         format(self._entity_title, before_filter, self._search_k))
+
         ranking = ranking.drop_duplicates('guessed_title')
 
         ranking['on_page'] = self._page_title
@@ -69,17 +77,21 @@ class LookUpByEmbeddings:
                 ranking = ranking.merge(LookUpByEmbeddings.entities[['longitude', 'latitude']],
                                         left_on="guessed_title", right_index=True)
 
-                geo_context = \
-                    LookUpByEmbeddings.entities.loc[LookUpByEmbeddings.entities.QID.isin(self._context["geographic"])]
+                geo_context = self._context["geographic"]
+                if type(geo_context) == str:
+                    geo_context = [geo_context]
+
+                geo_pos = \
+                    LookUpByEmbeddings.entities.loc[LookUpByEmbeddings.entities.QID.isin(geo_context)].copy()
 
                 def make_position(x):
                     try:
-                        return float(x.longitude), float(x.latitude)
+                        return float(x.latitude), float(x.longitude)
                     except TypeError:
                         return np.nan
 
-                geo_context['position'] = 0
-                geo_context['position'] = geo_context.apply(make_position, axis=1)
+                geo_pos['position'] = 0
+                geo_pos['position'] = geo_pos.apply(make_position, axis=1)
 
                 ranking['position'] = 0
                 ranking['position'] = ranking.apply(make_position, axis=1)
@@ -92,7 +104,7 @@ class LookUpByEmbeddings:
 
                 def geo_dist(r):
 
-                    return geo_context.apply(lambda g: haver(r.position, g.position), axis=1).min()
+                    return geo_pos.apply(lambda g: haver(r.position, g.position), axis=1).min()
 
                 ranking['geo_dist'] = ranking.apply(lambda r: geo_dist(r), axis=1)
 
@@ -100,19 +112,11 @@ class LookUpByEmbeddings:
                                     ascending=[False, True, True, False, True, True])
 
                 ranking = ranking.drop(columns=['position', 'longitude', 'latitude', 'geo_dist'])
-            else:
-                ranking = ranking. \
-                    sort_values(['match_uniqueness', 'dist', 'proba', 'match_coverage', 'len_guessed'],
-                                ascending=[False, True, False, True, True])
-        else:
-            ranking = ranking.sort_values(['match_uniqueness', 'dist', 'match_coverage', 'len_guessed'],
-                                          ascending=[False, True, False, True])
 
-        if self._context is not None and "time" in self._context and 'not_after' in self._context['time']:
+            elif self._context is not None and "time" in self._context and \
+                    'not_after_datetime' in self._context['time']:
 
-            try:
-
-                not_after = pd.to_datetime(self._context['time']['not_after'], utc=True)
+                not_after = pd.to_datetime(self._context['time']['not_after_datetime'], utc=True)
 
                 ranking = ranking.merge(LookUpByEmbeddings.entities[['dateofbirth', 'inception']],
                                         left_on="guessed_title", right_index=True)
@@ -125,8 +129,80 @@ class LookUpByEmbeddings:
 
                 ranking = ranking.drop(columns=['dateofbirth', 'inception'])
 
-            except Exception as e:
-                print("Could not evaluate not_after context: ", e)
+                if len(ranking) == 0:
+                    logger.warning("LookUpByEmbeddings [{}]: Not after excludes all of {} candidates".
+                                   format(self._entity_title, before_filter))
+
+                ranking = ranking. \
+                    sort_values(['match_uniqueness', 'dist', 'proba', 'match_coverage', 'len_guessed'],
+                                ascending=[False, True, False, True, True])
+
+            elif self._context is not None and "time" in self._context and \
+                    'not_after_year' in self._context['time']:
+
+                not_after_year = self._context['time']['not_after_year']
+
+                ranking = ranking.merge(LookUpByEmbeddings.entities[['dateofbirth']],
+                                        left_on="guessed_title", right_index=True)
+
+                ranking = ranking.merge(LookUpByEmbeddings.entities[['inception']],
+                                        left_on="guessed_title", right_index=True)
+
+                ranking['yearofinception'] = ranking.inception.apply(
+                    lambda x: x if pd.isnull(x) else datetime.strptime(x.split(" ")[0], "%Y-%m-%d").year)
+
+                ranking['yearofbirth'] = ranking.dateofbirth.apply(
+                    lambda x: x if pd.isnull(x) else datetime.strptime(x.split(" ")[0], "%Y-%m-%d").year)
+
+                ranking = ranking.loc[(ranking.dateofbirth.isnull()) |
+                                      (ranking.yearofbirth < not_after_year)]
+
+                ranking = ranking.loc[(ranking.inception.isnull()) |
+                                      (ranking.yearofinception < not_after_year)]
+
+                if len(ranking) == 0:
+                    logger.warning("LookUpByEmbeddings [{}]: Not after year excludes all of {} candidates".
+                                   format(self._entity_title, before_filter))
+
+                ranking = ranking. \
+                    sort_values(['match_uniqueness', 'dist', 'proba', 'match_coverage', 'len_guessed'],
+                                ascending=[False, True, False, True, True])
+
+                ranking = ranking.drop(columns=['dateofbirth', 'yearofbirth'])
+
+                ranking = ranking.drop(columns=['inception', 'yearofinception'])
+
+            elif self._context is not None and "time" in self._context and self._entity_type in ['PER'] and \
+                    'birth_not_after_year' in self._context['time']:
+
+                not_after_year = self._context['time']['birth_not_after_year']
+
+                ranking = ranking.merge(LookUpByEmbeddings.entities[['dateofbirth']],
+                                        left_on="guessed_title", right_index=True)
+
+                ranking['yearofbirth'] = ranking.dateofbirth.apply(
+                    lambda x: x if pd.isnull(x) else datetime.strptime(x.split(" ")[0], "%Y-%m-%d").year)
+
+                ranking = ranking.loc[(ranking.dateofbirth.isnull()) |
+                                      (ranking.yearofbirth < not_after_year)]
+
+                if len(ranking) == 0:
+                    logger.warning("LookUpByEmbeddings [{}]: Not after year excludes all of {} candidates".
+                                   format(self._entity_title, before_filter))
+
+                ranking = ranking. \
+                    sort_values(['match_uniqueness', 'dist', 'proba', 'match_coverage', 'len_guessed'],
+                                ascending=[False, True, False, True, True])
+
+                ranking = ranking.drop(columns=['dateofbirth', 'yearofbirth'])
+
+            else:
+                ranking = ranking. \
+                    sort_values(['match_uniqueness', 'dist', 'proba', 'match_coverage', 'len_guessed'],
+                                ascending=[False, True, False, True, True])
+        else:
+            ranking = ranking.sort_values(['match_uniqueness', 'dist', 'match_coverage', 'len_guessed'],
+                                          ascending=[False, True, False, True])
 
         ranking = ranking.reset_index(drop=True)
 

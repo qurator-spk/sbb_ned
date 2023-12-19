@@ -14,6 +14,7 @@ from qurator.utils.parallel import run as prun
 from qurator.utils.parallel import run_unordered as prun_unordered
 
 import json
+import traceback
 
 from ..ground_truth.data_processor import ConvertSamples2Features, InputExample
 
@@ -40,7 +41,8 @@ class EmbedTaskWrapper(EmbedTask):
             return self._job_id, self._entity_id, self._ent_type, self._sentences, \
                    super(EmbedTaskWrapper, self).__call__(*args, **kwargs)
         except Exception as e:
-            logger.error("Exception in EmbedTaskWrapper: {}".format(e))
+            logger.error("Exception in EmbedTaskWrapper: {}: {}".format(e, traceback.format_exc()))
+
             return self._job_id, None, None, None, (None, None, None)
 
 
@@ -62,7 +64,9 @@ class LookUpByEmbeddingWrapper(LookUpByEmbeddings):
         try:
             return self._job_id, self._sentences, super(LookUpByEmbeddingWrapper, self).__call__(*args, **kwargs)
         except Exception as e:
-            logger.error("Exception in LookUpByEmbeddingWrapper: {}".format(e))
+
+            logger.error("Exception in LookUpByEmbeddingWrapper: {}: {}".format(e, traceback.format_exc()))
+
             return self._job_id, self._sentences, (None, None)
 
 
@@ -91,7 +95,8 @@ class SentenceLookupWrapper(SentenceLookup):
             return self._job_id, self._entity_id, self._candidates, \
                    super(SentenceLookupWrapper, self).__call__(*args, **kwargs)
         except Exception as e:
-            logger.error("Exception in SentenceLookupWrapper: {}".format(e))
+            logger.error("Exception in SentenceLookupWrapper: {}: {}".format(e, traceback.format_exc()))
+
             return self._job_id, None, None, None
 
 
@@ -113,7 +118,8 @@ class ConvertSamples2FeaturesWrapper(ConvertSamples2Features):
             return self._job_id, self._entity_id, self._candidate, \
                    super(ConvertSamples2FeaturesWrapper, self).__call__(*args, **kwargs)
         except Exception as e:
-            logger.error("Exception in ConvertSamples2FeaturesWrapper: {}".format(e))
+            logger.error("Exception in ConvertSamples2FeaturesWrapper: {}: {}".format(e, traceback.format_exc()))
+
             return self._job_id, None, None, None
 
 
